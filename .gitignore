@@ -3,6 +3,9 @@ docbuild/
 build/
 examples/basket_cell/sims/
 examples/basket_cell/src/output
+.project
+.pydevproject
+.settings
 *.pyc
 *.csv
 *~
