@@ -75,7 +75,7 @@ def linear_fit(t, y):
     """
 
     vals=np.array(y)
-    m,C = np.polyfit(t, vals, 1)
+    m, _ = np.polyfit(t, vals, 1)
     return m
 
 
@@ -116,7 +116,7 @@ def exp_fit(t, y):
     C = np.min(vals)
     vals = vals-C+1e-9 #make sure the data is all positive
     vals = np.log(vals)
-    K, A_log = np.polyfit(t, vals, 1)
+    K, _ = np.polyfit(t, vals, 1)
 
     return K
 
@@ -298,7 +298,7 @@ def single_spike_width(y,t,baseline):
             interpolated_left_time = np.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
                             
             if location < 0:
-                raise MathsError('Baseline does not intersect spike')
+                raise Exception('Baseline does not intersect spike')
                 
         #now go right
         value = max(y)
@@ -313,7 +313,7 @@ def single_spike_width(y,t,baseline):
             interpolated_right_time = np.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
             
             if location > len(y) - 1:
-                raise MathsError('Baseline does not intersect spike')
+                raise Exception('Baseline does not intersect spike')
 
         width = interpolated_right_time - interpolated_left_time
     
@@ -344,10 +344,10 @@ def spike_widths(y,t,baseline=0,delta=0):
     max_min_dictionary=max_min(y,t,delta)
     
     max_num=max_min_dictionary['maxima_number']
-    maxima_locations=max_min_dictionary['maxima_locations']
+#     maxima_locations=max_min_dictionary['maxima_locations']
     maxima_times=max_min_dictionary['maxima_times']
     minima_locations=max_min_dictionary['minima_locations']
-    maxima_values=max_min_dictionary['maxima_values']
+#     maxima_values=max_min_dictionary['maxima_values']
     
     
     spike_widths=[]
@@ -553,17 +553,17 @@ def phase_plane(t,y,plot=False): #plot should be here really
 
     return [y,dy_dt]
 
-def filter(t,v): #still experimental
-
-    import scipy
-
-    fft=scipy.fft(v) # (G) and (H)  
-    bp=fft[:]  
-    for i in range(len(bp)): # (H-red)  
-     if i>=500:bp[i]=0  
-    ibp=scipy.ifft(bp) # (I), (J), (K) and (L) 
-
-    return ibp
+# def filter(t,v): #still experimental
+# 
+#     import scipy
+# 
+#     fft=scipy.fft(v) # (G) and (H)  
+#     bp=fft[:]  
+#     for i in range(len(bp)): # (H-red)  
+#         if i>=500:bp[i]=0  
+#     ibp=scipy.ifft(bp) # (I), (J), (K) and (L) 
+# 
+#     return ibp
 
 def pptd(t,y,bins=10,xyrange=None,dvdt_threshold=None,plot=False):
     """
@@ -580,10 +580,10 @@ def pptd(t,y,bins=10,xyrange=None,dvdt_threshold=None,plot=False):
     if dvdt_threshold!=None:
         i=0
         for dvdt in phase_space[1]:
-           if dvdt>dvdt_threshold:
-               phase_dvdt_new.append(phase_space[1][i])
-               phase_v_new.append(phase_space[0][i])
-           i+=1
+            if dvdt>dvdt_threshold:
+                phase_dvdt_new.append(phase_space[1][i])
+                phase_v_new.append(phase_space[0][i])
+            i+=1
         phase_space[1]=phase_dvdt_new
         phase_space[0]=phase_v_new
 
@@ -696,15 +696,15 @@ def minima_phases(t,y,delta=0):
     minima_num=max_min_dictionary['minima_number']
     maxima_times=max_min_dictionary['maxima_times']
     minima_times=max_min_dictionary['minima_times']
-    maxima_locations=max_min_dictionary['maxima_locations']
+#     maxima_locations=max_min_dictionary['maxima_locations']
     
     minima_phases=[]
     
     for i in range(minima_num):
         maximum_0_t=maxima_times[i]
         maximum_1_t=maxima_times[i+1]
-        maximum_0_location=maxima_locations[i]
-        maximum_1_location=maxima_locations[i+1]
+#         maximum_0_location=maxima_locations[i]
+#         maximum_1_location=maxima_locations[i+1]
         minimum_time=minima_times[i]
         phase=(minimum_time-maximum_0_t)/(maximum_1_t-maximum_0_t)
         minima_phases.append(phase)
@@ -749,14 +749,11 @@ class TraceAnalysis(object):
             self.v=v[start_index:end_index]
             self.t=t[start_index:end_index]
             
-    def plot_trace(self,
-		   save_fig=False,
-		   trace_name='voltage_trace.png',
-		   show_plot=True):
-	"""
-	Plot the trace and save it if requested by user.
-	"""
-	
+    def plot_trace(self, save_fig=False, trace_name='voltage_trace.png', show_plot=True):
+        """
+        Plot the trace and save it if requested by user.
+        """
+
         import matplotlib.pyplot as plt
         
         plt.plot(self.t,self.v)
@@ -766,17 +763,15 @@ class TraceAnalysis(object):
         if show_plot:
             plt.show()
                 
-    def evaluate_fitness(self,
-                         target_dict={},
-                         target_weights=None,
+    def evaluate_fitness(self, target_dict={}, target_weights=None, 
                          cost_function=normalised_cost_function):
-	"""
-	Return the estimated fitness of the data, based on the cost function being used.
-    
-	    :param target_dict: key-value pairs for targets
-        :param target_weights: key-value pairs for target weights
-        :param cost_function: cost function (callback) to assign individual targets sub-fitness.
-	"""
+        """
+        Return the estimated fitness of the data, based on the cost function being used.
+        
+            :param target_dict: key-value pairs for targets
+            :param target_weights: key-value pairs for target weights
+            :param cost_function: cost function (callback) to assign individual targets sub-fitness.
+        """
 
         #calculate max fitness value (TODO: there may be a more pythonic way to do this..)
         worst_cumulative_fitness=0
@@ -853,6 +848,7 @@ class IClampAnalysis(TraceAnalysis):
             self.v = smooth(self.v,window_len=smoothing_window_len)
 
         if show_smoothed_data == True:
+            from matplotlib import pyplot as plt
             plt.plot(self.t,self.v)
             plt.show()
 
@@ -863,7 +859,7 @@ class IClampAnalysis(TraceAnalysis):
         self.target_data_path=target_data_path
     
         if "peak_threshold" in analysis_var.keys():
-    	    peak_threshold = analysis_var["peak_threshold"]
+            peak_threshold = analysis_var["peak_threshold"]
         else:
             peak_threshold = None
     
@@ -902,7 +898,7 @@ class IClampAnalysis(TraceAnalysis):
             analysis_results['trough_decay_exponent'] = three_spike_adaptation(max_min_dictionary['minima_times'],max_min_dictionary['minima_values'])
             analysis_results['spike_frequency_adaptation'] = exp_fit(spike_frequency_list[0],spike_frequency_list[1])
             analysis_results['spike_broadening'] = spike_broadening(spike_width_list[1])
-	    analysis_results['peak_linear_gradient'] = linear_fit(max_min_dictionary["maxima_times"],max_min_dictionary["maxima_values"])
+            analysis_results['peak_linear_gradient'] = linear_fit(max_min_dictionary["maxima_times"],max_min_dictionary["maxima_values"])
 
 
             #this line here is because PPTD needs to be compared directly with experimental data:
