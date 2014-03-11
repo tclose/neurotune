@@ -46,8 +46,12 @@ class __Optimizer(object):
             from inspyred.ec import analysis
             analysis.generation_plot(stat_file_name, errorbars=False)
 
+    def generate_description(self, random):
+        ret = [random.uniform(0.0, 1.) for i in xrange(self.genome_size)] #@UnusedVariable
+        return ret
 
-class EDAOptimizer(__Optimizer, ec.EDA):
+
+class EDAOptimizer(__Optimizer):
 
     def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
                  terminator=terminators.generation_termination,
@@ -62,8 +66,9 @@ class EDAOptimizer(__Optimizer, ec.EDA):
         self.terminator = terminator
         self.bounder = ec.Bounder(*zip(constraints))
 
-    def optimize(self, pop_size, evaluator, max_generations=100, seeds=None,  
-                 random_seed=(long(time.time() * 256)), **kwargs):
+    def optimize(self, pop_size, evaluator, random_seed=None, **kwargs):
+        if random_seed is None:
+            random_seed = (long(time.time() * 256))
         rng = Random()
         rng.seed(random_seed)
         ea = ec.EDA(rng)
@@ -77,15 +82,47 @@ class EDAOptimizer(__Optimizer, ec.EDA):
                         pop_size=pop_size,
                         bounder=self.bounder,
                         maximize=False,
-                        seeds=seeds,
-                        max_generations=max_generations,
                         **kwargs)
         return pop, ea
 
 
-    def generate_description(self, random):
-        ret = [random.uniform(0.0, 1.) for i in xrange(self.genome_size)] #@UnusedVariable
-        return ret
+class NSGA2Optimizer(__Optimizer):
+
+    def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
+                 allow_indentical=True, terminator=terminators.generation_termination,
+                 variator=[variators.blend_crossover, variators.gaussian_mutation],
+                 replacer= replacers.random_replacement,
+                 observer=observers.file_observer):
+        self.genome_size = len(constraints)
+        self.mutation_rate = mutation_rate
+        self.num_elites=num_elites
+        self.stdev=stdev
+        self.allow_identical=True,
+        self.observer = observer
+        self.variator = variator
+        self.terminator = terminator
+        self.replacer = replacer
+        self.bounder = ec.Bounder(*zip(constraints))
+
+    def optimize(self, pop_size, run_and_evaluate, max_generations=100, seeds=None,  
+                 random_seed=(long(time.time() * 256)), **kwargs):
+        rng = Random()
+        rng.seed(random_seed)
+        ea = ec.emo.NSGA2(rng)
+        ea.observer = self.observer
+        ea.variator = self.variator
+        ea.terminator = self.terminator
+        for key in ('mutation_rate', 'num_elites' 'stdev'):
+            kwargs[key] = self.__getattr__(key)
+        pop = ea.evolve(generator=self.generate_description,
+                        evaluator=run_and_evaluate,
+                        pop_size=pop_size,
+                        bounder=self.bounder,
+                        maximize=False,
+                        seeds=seeds,
+                        max_generations=max_generations,
+                        **kwargs)
+        return pop, ea
 
 
 class CustomOptimizerA(__Optimizer):

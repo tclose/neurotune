@@ -3,6 +3,12 @@ import sys
 from threading import Thread
 import traceanalysis
 import numpy
+from collections import deque
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    pass
 
 class __CandidateData(object):
     """Container for information about a candidate (chromosome)"""
@@ -434,3 +440,86 @@ class IClampCondorEvaluator(IClampEvaluator):
             os.remove(jobdbpath)
 
         return fitness
+
+
+class _MPIEvaluator(__Evaluator):
+    
+    MASTER = 0
+    COMMAND_MSG = 1
+    DATA_MSG = 2
+    try:
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        num_processes = comm.Get_size()
+    except NameError:
+        pass
+    
+    def __init__(self, evaluator, optimizer):
+        if not self.__hasattr__('comm'):
+            raise Exception("MPI controller cannot be used because import 'mpi4py' was not found.")
+        self.evaluator = evaluator
+        if self.is_master():
+            self.optimizer = optimizer
+        else:
+            self.optimizer = None
+
+    def evaluate(self, candidates, args):
+        assert self.is_master(), "Distribution of candidate jobs should only be performed by master node"
+        candidate_jobs = deque(enumerate(candidates))
+        free_processes = deque(xrange(1, self.num_processes))
+        evaluations = {}
+        while candidate_jobs:
+            if free_processes:
+                self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
+                               tag=self.COMMAND_MSG) 
+            else:    
+                processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+                evaluations[jobID] = result
+                free_processes.append(processID)
+        while len(evaluations) < len(candidates):
+            processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+            evaluations[jobID] = result
+
+    def _listen_for_candidates_to_evaluate(self):
+        assert not self.is_master(), "Evaluation of candidates should only be performed by slave nodes"
+        while True:
+            command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
+            if command == 'stop':
+                print "Stopping listening on process {}".format(self.rank)
+                break
+            else:
+                jobID, candidate = command
+                evaluation = self._evaluate_candidate(candidate)
+                self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
+        
+    def _evaluate_candidate(self, candidate):    
+        output = self.controller.run(candidate, self.analysis.required_output())
+        return self.analysis.analyze(output)
+        
+        
+    def optimize(self, pop_size, max_iterations, random_seed=None, stats_filename=None, 
+                 indiv_filename=None, **kwargs):
+        if self.is_master():
+            if stats_filename is not None:
+                kwargs['statistics_file'] = open(stats_filename, 'w')
+            if indiv_filename is not None:
+                kwargs['individual_file'] = open(indiv_filename, 'w') 
+            result = self.optimizer.optimize(pop_size, self._run_and_evaluate_candidates, 
+                                             max_iterations, random_seed, **kwargs)
+            if stats_filename is not None:
+                kwargs['statistics_file'].close()
+            if indiv_filename is not None:
+                kwargs['individual_file'].close()
+            self._release_slaves()
+            return result
+        else:
+            self._listen_for_candidates_to_evaluate()
+            return None
+        
+    def _release_slaves(self):
+        for processID in xrange(1, self.num_processes):
+            self.comm.send('stop', dest=processID, self.COMMAND_MSG)   
+        
+    @classmethod
+    def is_master(cls):
+        return cls.rank == cls.MASTER

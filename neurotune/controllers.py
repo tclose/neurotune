@@ -47,13 +47,8 @@ class CLIController(__Controller):
     def __init__(self,cli_argument):
         self.cli_argument = cli_argument
         
-    def run(self,
-	    candidates,
-	    parameters,
-	    fitness_filename='evaluations'):
-
-	"Run simulation"
-
+    def run(self, candidates, parameters, fitness_filename='evaluations'):
+        "Run simulation"
         for chromosome in candidates:
             self.chromosome=chromosome
             self.parameters=parameters #actually unneeded
@@ -63,6 +58,7 @@ class CLIController(__Controller):
             cla = self.cli_argument+' '+fitness_filename+' '+chromosome_str
             print cla
             subprocess.call(cla, shell=True)
+
 
 class NrnProject(__Controller):
     """
@@ -98,8 +94,8 @@ class NrnProject(__Controller):
 	    candidates,
 	    parameters):
 
-	"""Run simulations"""
-	
+        """Run simulations"""
+
         import sqldbutils
         exp_data_array=[]
         for chromosome in candidates:
