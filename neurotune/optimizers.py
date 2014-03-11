@@ -19,26 +19,26 @@ class __Optimizer(object):
     Base optimization class
     """
 
-    def __init__(self,max_constraints,min_constraints,evaluator,
-                mutation_rate,maximize,seeds,population_size):
+    def __init__(self, max_constraints, min_constraints, evaluator,
+                mutation_rate, maximize, seeds, population_size):
 
-        self.max_constraints=max_constraints
-        self.min_constraints=min_constraints
-        self.evaluator=evaluator
-        self.population_size=population_size
-        self.maximize=maximize
-        self.mutation_rate=mutation_rate
-        self.seeds=seeds
+        self.max_constraints = max_constraints
+        self.min_constraints = min_constraints
+        self.evaluator = evaluator
+        self.population_size = population_size
+        self.maximize = maximize
+        self.mutation_rate = mutation_rate
+        self.seeds = seeds
 
-    def uniform_random_chromosome(self,random,args):
+    def uniform_random_chromosome(self, random, args):
         chromosome = []
         for lo, hi in zip(self.max_constraints, self.min_constraints):
             chromosome.append(random.uniform(lo, hi))
         return chromosome
 
-    def print_report(self,final_pop,do_plot,stat_file_name):
+    def print_report(self, final_pop, do_plot, stat_file_name):
         print(max(final_pop))
-        #Sort and print the fitest individual, which will be at index 0.
+        # Sort and print the fitest individual, which will be at index 0.
         final_pop.sort(reverse=True)
         print '\nfitest individual:'
         print(final_pop[0])
@@ -48,44 +48,45 @@ class __Optimizer(object):
             analysis.generation_plot(stat_file_name, errorbars=False)
 
 
+
 class CustomOptimizerA(__Optimizer):
 
-    def __init__(self,max_constraints,min_constraints,evaluator,
-                mutation_rate=0.2,max_evaluations=100,
-                population_size=10,num_selected=None,tourn_size=2,
-                num_elites=1,maximize=False,num_offspring=None,
+    def __init__(self, max_constraints, min_constraints, evaluator,
+                mutation_rate=0.2, max_evaluations=100,
+                population_size=10, num_selected=None, tourn_size=2,
+                num_elites=1, maximize=False, num_offspring=None,
                 seeds=[]):
 
-        super(CustomOptimizerA, self).__init__(max_constraints,min_constraints,
-                                                 evaluator,mutation_rate,
-                                                 maximize,seeds,population_size)
+        super(CustomOptimizerA, self).__init__(max_constraints, min_constraints,
+                                                 evaluator, mutation_rate,
+                                                 maximize, seeds, population_size)
 
-        self.max_evaluations=max_evaluations
-        self.tourn_size=tourn_size
-        self.num_elites=num_elites
-        self.mutation_rate=mutation_rate
+        self.max_evaluations = max_evaluations
+        self.tourn_size = tourn_size
+        self.num_elites = num_elites
+        self.mutation_rate = mutation_rate
 
-        if num_selected==None:
-            self.num_selected=population_size
+        if num_selected == None:
+            self.num_selected = population_size
         else:
-            self.num_selected=num_selected
-        if num_offspring==None:
-            self.num_offspring=population_size-self.num_selected
+            self.num_selected = num_selected
+        if num_offspring == None:
+            self.num_offspring = population_size - self.num_selected
         else:
-            self.num_offspring=num_offspring
+            self.num_offspring = num_offspring
 
-    def optimize(self,do_plot=True):
+    def optimize(self, do_plot=True):
 
         rand = Random()
         rand.seed(int(time()))
 
-        cwd=os.getcwd()
-        datadir=os.path.dirname(cwd)+'/data/'
+        cwd = os.getcwd()
+        datadir = os.path.dirname(cwd) + '/data/'
         if not os.path.exists(datadir):
             os.mkdir(datadir)
 
-        stat_file_name=datadir+'/ga_statistics.csv'
-        ind_file_name=datadir+'/ga_individuals.csv'
+        stat_file_name = datadir + '/ga_statistics.csv'
+        ind_file_name = datadir + '/ga_individuals.csv'
         stat_file = open(stat_file_name, 'w')
         ind_file = open(ind_file_name, 'w')
 
@@ -115,4 +116,4 @@ class CustomOptimizerA(__Optimizer):
         stat_file.close()
         ind_file.close()
 
-        self.print_report(final_pop,do_plot,stat_file_name)
+        self.print_report(final_pop, do_plot, stat_file_name)
