@@ -28,7 +28,7 @@ class _BaseTuner(object):
         """
         Evaluate the fitness of a single candidate
         """
-        simulation_data = self.controller.run(candidate, self.objective.recording_sites)
+        simulation_data = self.controller.run(candidate)
         return self.objective.fitness(simulation_data)
     
     def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
