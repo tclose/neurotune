@@ -531,14 +531,27 @@ def load_csv_data(file_path,plot=False):
     return t,v
 
 
-def phase_plane(t, v): #plot should be here really
+def phase_plane(t,y,plot=False): #plot should be here really
     """
     Return a tuple with two vectors corresponding to the phase plane of
     the tracetarget
     """
-    dv=np.diff(v)
+    dv=np.diff(y)
     dt=np.diff(t)
-    return v[:-1], dv/dt
+    dy_dt=dv/dt
+
+    y=list(y)
+    y=y[:-1]
+
+    if plot:
+        from matplotlib import pyplot
+        pyplot.title('Phase Plot')
+        pyplot.ylabel('dV/dt')
+        pyplot.xlabel('Voltage (mV)')
+        pyplot.plot(y,dy_dt)
+        pyplot.show()
+
+    return [y,dy_dt]
 
 # def filter(t,v): #still experimental
 # 
@@ -551,7 +564,6 @@ def phase_plane(t, v): #plot should be here really
 #     ibp=scipy.ifft(bp) # (I), (J), (K) and (L) 
 # 
 #     return ibp
-
 
 def pptd(t,y,bins=10,xyrange=None,dvdt_threshold=None,plot=False):
     """
