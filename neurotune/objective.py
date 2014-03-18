@@ -11,7 +11,7 @@ class _Objective(object):
         raise NotImplementedError("Derived class does not implement fitness function")
 
 
-class PhasePlaneObjective(_Objective):
+class PhasePlaneHistObjective(_Objective):
     
     def __init__(self, reference_traces, recording_site, num_bins=(10, 10), 
                  v_range=(-90, 60), dvdt_range=(-0.5, 0.5)):

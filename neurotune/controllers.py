@@ -38,6 +38,18 @@ class __Controller():
 	    implemented polymporphically in subclasses.
         """
         raise NotImplementedError("Valid controller requires run method!")
+    
+class NineLineController(__Controller):
+    
+    def __init__(self, nineml_file, genome_keys):
+        raise NotImplementedError
+    
+    def set_recording_sites(self, recording_sites):
+        raise NotImplementedError
+
+    def run(self, candidate):
+        raise NotImplementedError
+
 
 class CLIController(__Controller):
     """
