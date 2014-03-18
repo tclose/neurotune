@@ -35,7 +35,7 @@ class __Controller():
         """
         At a high level - accepts a list of parameters and chromosomes
         and (usually) returns corresponding simulation data. This is
-	implemented polymporphically in subclasses.
+	    implemented polymporphically in subclasses.
         """
         raise NotImplementedError("Valid controller requires run method!")
 
