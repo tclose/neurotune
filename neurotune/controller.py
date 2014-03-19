@@ -4,9 +4,9 @@ Run the simulation
 from abc import ABCMeta # Metaclass for abstract base classes
 from nineline.cells.neuron import 
 
-class _Simulator():
+class _Controller():
     """
-    _Simulator base class
+    _Controller base class
     """
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
@@ -15,7 +15,7 @@ class _Simulator():
         """
         Sets the up the simulation to return the data required by the objective function
         """
-        raise NotImplementedError("Derived Simulator class does not implement set_objective method")
+        raise NotImplementedError("Derived Controller class does not implement set_objective method")
 
     def run(self, candidate):
         """
@@ -23,10 +23,10 @@ class _Simulator():
         and (usually) returns corresponding simulation data. This is
 	    implemented polymporphically in subclasses.
         """
-        raise NotImplementedError("Derived Simulator class does not implement run method")
+        raise NotImplementedError("Derived Controller class does not implement run method")
     
     
-class NineLineSimulator(_Simulator):
+class NineLineController(_Controller):
     
     def __init__(self, nineml_filename, genome_keys, objective):
         CellClass = self._NineCellMetaClass('TestCell', nineml_filename)
