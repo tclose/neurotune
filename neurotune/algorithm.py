@@ -1,7 +1,9 @@
 """
-Algorithm objects live here.
+Algorithm objects are thin wrappers around built-in optimisation library algorithms.
+At this stage they come only from the inspyred library but other optimisation libraries could
+be added as well.
 """
-
+from abc import ABCMeta # Metaclass for abstract base classes
 from inspyred import ec
 from inspyred.ec import observers
 from inspyred.ec import terminators
@@ -11,10 +13,12 @@ from random import Random
 from time import time
 
 
-class __Algorithm(object):
+class _Algorithm(object):
     """
     Base optimization algorithm class
     """
+    __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
+
 
     def __init__(self, max_constraints, min_constraints, evaluator,
                 mutation_rate, maximize, seeds, population_size):
@@ -49,7 +53,7 @@ class __Algorithm(object):
         return ret
 
 
-class EDAAlgorithm(__Algorithm):
+class EDAAlgorithm(_Algorithm):
 
     def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
                  terminator=terminators.generation_termination,
@@ -84,7 +88,7 @@ class EDAAlgorithm(__Algorithm):
         return pop, ea
 
 
-class NSGA2Algorithm(__Algorithm):
+class NSGA2Algorithm(_Algorithm):
 
     def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
                  allow_indentical=True, terminator=terminators.generation_termination,
