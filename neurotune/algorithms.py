@@ -19,7 +19,6 @@ class _Algorithm(object):
     """
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
-
     def __init__(self, max_constraints, min_constraints, evaluator,
                 mutation_rate, maximize, seeds, population_size):
 
@@ -53,7 +52,9 @@ class _Algorithm(object):
         return ret
 
 
-class EDAAlgorithm(_Algorithm):
+class _InspyredAlgorithm(_Algorithm):
+
+    __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
     def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
                  terminator=terminators.generation_termination,
@@ -66,9 +67,12 @@ class EDAAlgorithm(_Algorithm):
         self.observer = observer
         self.variator = variator
         self.terminator = terminator
-        self.bounder = ec.Bounder(*zip(constraints))
+        self.bounder = ec.Bounder(*zip(constraints))  
+        
 
-    def optimize(self, pop_size, evaluator, random_seed=None, **kwargs):
+class EDAAlgorithm(_InspyredAlgorithm):
+
+    def optimize(self, population_size, evaluator, random_seed=None, **kwargs):
         if random_seed is None:
             random_seed = (long(time.time() * 256))
         rng = Random()
@@ -81,32 +85,29 @@ class EDAAlgorithm(_Algorithm):
             kwargs[key] = self.__getattr__(key)
         pop = ea.evolve(generator=self.generate_description,
                         evaluator=evaluator,
-                        pop_size=pop_size,
+                        pop_size=population_size,
                         bounder=self.bounder,
                         maximize=False,
                         **kwargs)
         return pop, ea
 
 
-class NSGA2Algorithm(_Algorithm):
+class NSGA2Algorithm(_InspyredAlgorithm):
 
     def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
                  allow_indentical=True, terminator=terminators.generation_termination,
                  variator=[variators.blend_crossover, variators.gaussian_mutation],
                  replacer= replacers.random_replacement,
                  observer=observers.file_observer):
-        self.genome_size = len(constraints)
-        self.mutation_rate = mutation_rate
-        self.num_elites=num_elites
-        self.stdev=stdev
-        self.allow_identical=True,
-        self.observer = observer
-        self.variator = variator
-        self.terminator = terminator
+        super(NSGA2Algorithm, self).__init__(constraints=constraints, mutation_rate=mutation_rate, 
+                                             num_elites=num_elites, stdev=stdev, 
+                                             terminator=terminator, variator=variator, 
+                                             observer=observer)
+        self.allow_identical=allow_indentical,
         self.replacer = replacer
-        self.bounder = ec.Bounder(*zip(constraints))
+        
 
-    def optimize(self, pop_size, run_and_evaluate, max_generations=100, seeds=None,  
+    def optimize(self, population_size, run_and_evaluate, max_generations=100, seeds=None,  
                  random_seed=(long(time.time() * 256)), **kwargs):
         rng = Random()
         rng.seed(random_seed)
@@ -118,7 +119,7 @@ class NSGA2Algorithm(_Algorithm):
             kwargs[key] = self.__getattr__(key)
         pop = ea.evolve(generator=self.generate_description,
                         evaluator=run_and_evaluate,
-                        pop_size=pop_size,
+                        pop_size=population_size,
                         bounder=self.bounder,
                         maximize=False,
                         seeds=seeds,

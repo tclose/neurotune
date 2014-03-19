@@ -2,6 +2,7 @@ from abc import ABCMeta # Metaclass for abstract base classes
 import numpy
 import scipy.signal
 import inspyred
+from .controllers import ExperimentalConditions, RecordingRequest
 
 
 class _Objective(object):
@@ -13,8 +14,8 @@ class _Objective(object):
                                   .format(self.__class__.__name__))
     
     @property
-    def recording_sites(self):
-        raise NotImplementedError("Derived Objective class '{}' does not implement recording_sites "
+    def request_recordings(self):
+        raise NotImplementedError("Derived Objective class '{}' does not implement request_recordings "
                                   "property".format(self.__class__.__name__))
 
 
@@ -23,14 +24,14 @@ class PhasePlaneHistObjective(_Objective):
     V_RANGE_DEFAULT=(-90, 60) # Default range of voltages in the histogram
     DVDT_RANGE_DEFAULT=(-0.5, 0.5) # Default range of dV/dt values in the histogram
     
-    def __init__(self, reference_traces, recording_site, num_bins=(10, 10), 
+    def __init__(self, reference_traces, record_site='soma', record_time=2000.0, num_bins=(10, 10), 
                  v_range=V_RANGE_DEFAULT, dvdt_range=DVDT_RANGE_DEFAULT):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
-        simulated traces
+        histograms from the simulated traces
         
         `reference_traces` -- traces (in Neo format) that are to be compared against [list(neo.AnalogSignal)]
-        `recording_site`   -- the recording site [str]
+        `record_site`   -- the recording site [str]
         `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
         `v_range`          -- the range of voltages over which the histogram is generated for [tuple[2](float)] 
         `dvdt_range`       -- the range of rates of change of voltage the histogram is generated for [tuple[2](float)]
@@ -39,7 +40,8 @@ class PhasePlaneHistObjective(_Objective):
         if not isinstance(reference_traces, list):
             reference_traces = [reference_traces]
         # Save the recording site and number of bins
-        self.recording_sites = [recording_site]
+        self.record_site = record_site
+        self.record_time = record_time
         self.num_bins = num_bins
         self.range = (v_range, dvdt_range)
         # Generate the reference phase plane the simulated data will be compared against
@@ -48,9 +50,13 @@ class PhasePlaneHistObjective(_Objective):
             self.ref_phase_plane_hist += self._generate_phase_plane_hist(self, ref_trace, num_bins)
         # Normalise the reference phase plane
         self.ref_phase_plane_hist /= len(reference_traces)
+        
+    def request_recordings(self):
+        return [RecordingRequest(key=self.__class__.__name__, record_site=self.record_site, 
+                                 record_time=self.record_time)]
 
     def fitness(self, simulated_data):
-        trace = simulated_data[self.recording_sites[0]]
+        trace = simulated_data[self.__class__.__name__]
         phase_plane_hist = self._generate_phase_plane_hist(trace)
         # Get the root-mean-square difference between the reference and simulated histograms
         diff = self.ref_phase_plane_hist - phase_plane_hist
@@ -67,16 +73,16 @@ class PhasePlaneHistObjective(_Objective):
         
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     
-    def __init__(self, reference_traces, recording_site, num_bins=(100, 100), 
+    def __init__(self, reference_traces, record_site, num_bins=(100, 100), 
                  v_range=PhasePlaneHistObjective.V_RANGE_DEFAULT, 
                  dvdt_range=PhasePlaneHistObjective.DVDT_RANGE_DEFAULT, 
                  kernel_stdev=(5, 5), kernel_width=(3.5, 3.5)):
         """
-        Creates a phase plane histogram from the reference traces and compares that with the 
-        simulated traces
+        Creates a phase plane histogram convolved with a Gaussian kernel from the reference traces 
+        and compares that with a similarly convolved histogram of the simulated traces
         
         `reference_traces` -- traces (in Neo format) that are to be compared against [list(neo.AnalogSignal)]
-        `recording_site`   -- the recording site [str]
+        `record_site`   -- the recording site [str]
         `num_bins`         -- the number of bins to use for the histogram [tuple(int)]
         `v_range`          -- the range of voltages over which the histogram is generated for [tuple[2](float)]
         `dvdt_range`       -- the range of rates of change of voltage the histogram is generated for [tuple[2](float)]
@@ -85,7 +91,7 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         """
         # Call the parent class __init__ method
         super(ConvPhasePlaneHistObjective, self).__init__(reference_traces=reference_traces, 
-                                                          recording_site=recording_site, 
+                                                          record_site=record_site, 
                                                           num_bins=num_bins, v_range=v_range, 
                                                           dvdt_range=dvdt_range)
         # Pre-calculate the Gaussian kernel
@@ -123,10 +129,9 @@ class MultiObjective(_Objective):
         return inspyred.ec.emo.Pareto([o.fitness(simulated_data) for o in self.objectives])
     
     @property
-    def recording_sites(self):
+    def request_recordings(self):
         # Combine the required recording sites for each objective into a single set
-        req_traces = set()
+        recordings_to_request = []
         for objective in self.objectives:
-            for rt in objective.recording_sites:
-                req_traces.add(rt)
-        return req_traces
+            recordings_to_request.extend(objective.request_recordings())
+        return recordings_to_request
