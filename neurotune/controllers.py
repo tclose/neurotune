@@ -86,8 +86,9 @@ class _Controller():
         simulations = self._run_simulations(candidate)
         requests_dict = {}
         for simulation, setup in zip(simulations, self.simulation_setups):
-            assert len(simulation.recordings) == len(setup.request_keys)
-            for recording, request_keys in zip(simulation.recordings, setup.request_keys):
+            recordings = simulation.segments[0].analogsignalarrays
+            assert len(recordings) == len(setup.request_keys)
+            for recording, request_keys in zip(recordings, setup.request_keys):
                 requests_dict.update([(key, recording) for key in request_keys])
         return requests_dict
 
@@ -119,6 +120,7 @@ class NineLineController(_Controller):
     def _run_simulations(self, candidate):
         recordings = []
         for setup in self.simulation_setups:
+            nineline.pyNN.neuron.reset()
             if len(self.simulation_setups) != 1:
                 self._prepare_simulation(setup)
             self._set_candidate_params(candidate)
