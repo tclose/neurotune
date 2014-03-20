@@ -51,7 +51,7 @@ class _Controller():
         """
         # Group into requests by common experimental conditions
         common_conditions = groupby(recording_requests.items(), 
-                                    key=lambda r1, r2: r1[1].conditions == r2[1].conditions)
+                                    key=lambda x, y: x[1].conditions == y[1].conditions)
         self.simulation_setups = []
         for com_cond in common_conditions:
             # Get the conditions object which is common to the group
@@ -60,11 +60,11 @@ class _Controller():
             record_time = max([r[1].record_time for r in com_cond])
             # Group the requests by common recording sites
             common_record_sites = groupby(com_cond, 
-                                          key=lambda r1, r2: r1[1].record_site == r2[1].record_site)
+                                          key=lambda x, y: x[1].record_site == y[1].record_site)
             # Get the common recording sites
             recording_sites = [com_record[0][1].record_site for com_record in common_record_sites]
             # Get the list of request keys for each requested recording
-            request_keys = [[kv[0] for kv in com_record] for com_record in common_record_sites]
+            request_keys = [[key for key, val in com_record] for com_record in common_record_sites] #@UnusedVariable
             # Append the simulation request to the 
             self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
                                                                recording_sites, request_keys))
@@ -123,7 +123,7 @@ class NineLineController(_Controller):
                 self._prepare_simulation(setup)
             self._set_candidate_params(candidate)
             nineline.pyNN.neuron.run(setup.time)
-            recordings.append(self.pop.get_data)
+            recordings.append(self.pop.get_data())
         return recordings
         
     def _prepare_simulation(self, simulation_setup):
