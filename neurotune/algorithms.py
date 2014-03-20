@@ -56,7 +56,7 @@ class _InspyredAlgorithm(_Algorithm):
 
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
+    def __init__(self, constraints, mutation_rate=None, num_elites=None, stdev=None, 
                  terminator=terminators.generation_termination,
                  variator=[variators.blend_crossover, variators.gaussian_mutation],
                  observer=observers.file_observer):
