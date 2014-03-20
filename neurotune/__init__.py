@@ -12,6 +12,13 @@ class _BaseTuner(object):
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
     def __init__(self, objective, algorithm, controller):
+        """
+        Initialises the Tuner object
+        
+        `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
+        `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
+        `controller` -- The interface to the neuronal simulator used [neurotune.controllers.*Controller] 
+        """
         self.objective = objective
         self.algorithm = algorithm
         self.controller = controller
@@ -165,7 +172,7 @@ class MPITuner(_BaseTuner):
     def _listen_for_candidate_to_evaluate(self):
         """
         Run on the slave nodes, this method receives candidates to evaluate from the master node,
-        evaluates them and sends back the evaluation
+        evaluates them and sends back the master
         """
         assert not self.is_master(), "Evaluation of candidates should only be performed by slave nodes"
         command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)

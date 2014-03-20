@@ -35,16 +35,17 @@ class _Controller():
     
     SimulationSetup = namedtuple('SimulationSetup', "time conditions recording_sites request_keys")
         
-    def _setup_simulation(self, record_time, conditions, recording_sites):
+    def _prepare_simulations(self, simulation_setups):
         """
-        Sets the recordings that are required from the simulation
+        Prepares the simulations that are required by the chosen objective functions
         """
         raise NotImplementedError("Derived Controller class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
     
     def process_requests(self, recording_requests):
         """
-        Merge recording requests so that the same recording/simulation doesn't get performed multiple times
+        Merge recording requests so that the same recording/simulation doesn't get performed 
+        multiple times
         
         `recording_requests`  -- a list of recording requests from the objective functions
         """
@@ -67,15 +68,12 @@ class _Controller():
             # Append the simulation request to the 
             self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
                                                                recording_sites, request_keys))
-        for setup in self.simulation_setups:
-            self._setup_simulation(setup)
+        self._prepare_simulations(self.simulation_setups)
             
         
-    def _run_simulation(self, candidate, simulation):
+    def _run_simulations(self, candidate):
         """
-        At a high level - accepts a list of parameters and chromosomes
-        and (usually) returns corresponding simulation data. This is
-        implemented polymporphically in subclasses.
+        At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         """
         raise NotImplementedError("Derived Controller class '{}' does not implement _run_simulation"
                                   " method".format(self.__class__.__name__))
@@ -85,15 +83,13 @@ class _Controller():
         Return the recordings in a dictionary to be returned to the objective functions, so each
         objective function can access the recording it requested
         """
-        request_dict = {}
-        assert len(recordings) == len(self.recording_groups)
-        for recording, request in zip(recordings, self.recording_groups):
-            for key in request.keys:
-                #TODO: trim recordings that don't require the fully recorded time
-                if request_dict.has_key(key):
-                    raise Exception("Duplicate keys '{}' found in recording request".format(key))
-                request_dict[key] = recording
-        return request_dict
+        simulations = self._run_simulations(candidate)
+        requests_dict = {}
+        for simulation, setup in zip(simulations, self.simulation_setups):
+            assert len(simulation.recordings) == len(setup.request_keys)
+            for recording, request_keys in zip(simulation.recordings, setup.request_keys):
+                requests_dict.update([(key, recording) for key in request_keys])
+        return requests_dict
 
     
 class NineLineController(_Controller):
@@ -111,9 +107,9 @@ class NineLineController(_Controller):
             raise Exception("The following genome keys were not attributes of test cell: '{}'"
                             .format("', '".join(missing_keys)))
 
-    def _setup_simulation(self, record_time, conditions, recording_sites):
+    def _prepare_simulations(self, simulation_setups):
         pass
 
-    def _run_simulation(self, candidate, simulation):
+    def _run_simulation(self, candidate, simulation_setup):
         pass
 

@@ -83,6 +83,11 @@ class PhasePlaneHistObjective(_Objective):
         return numpy.sqrt(diff.sum())
         
     def _generate_phase_plane_hist(self, trace):
+        """
+        Generates the phase plane histogram see Neurofitter paper (Van Geit 2007)
+        
+        `trace` -- a voltage trace [neo.Anaologsignal]
+        """
         # Calculate dv/dt via difference between trace samples
         dv=numpy.diff(trace)
         dt=numpy.diff(trace.times)
@@ -129,6 +134,11 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         self.ref_phase_plane_hist = scipy.signal.convolve2d(self.ref_phase_plane_hist, self.kernel)
         
     def _generate_phase_plane_hist(self, trace):
+        """
+        Extends the vanilla phase plane histogram to allow it to be convolved with a Gaussian kernel
+        
+        `trace` -- a voltage trace [neo.Anaologsignal]
+        """
         # Get the unconvolved histogram
         unconv_hist = super(ConvPhasePlaneHistObjective, self)._generate_phase_plane_hist(trace)
         # Convolve the histogram with the precalculated Gaussian kernel
