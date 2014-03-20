@@ -1,6 +1,7 @@
 """
 Run the simulation 
 """
+from collections import namedtuple
 from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
 from nineline.cells.neuron import NineCellMetaClass
@@ -14,28 +15,16 @@ class ExperimentalConditions(object):
 
 class RecordingRequest(object):
     
-    def __init__(self, record_time, key=None, record_site=None, conditions=None):
-        self.keys = [key]
-        self.record_times = [record_time]
+    def __init__(self, record_time, record_site=None, conditions=None):
+        """
+        `record_time` -- the length of the recording required by the simulation
+        `record_site` -- the name of the section/synapse/current to record from (controller specific)
+        `conditions`  -- the experimental conditions required (eg. initial voltage, current clamp)
+        """
+        self.record_time = record_time
         self.record_site = record_site
         self.conditions = conditions
         
-    @property
-    def key(self):
-        return self.keys[0]
-    
-    @property
-    def record_time(self):
-        return max(self.record_times)
-    
-    @classmethod
-    def matching_recording(cls, a, b):
-        return a.record_site == b.record_site and a.conditions == b.conditions
-
-    @classmethod
-    def matching_conditions(cls, a, b):
-        return a.conditions == b.conditions
-
 
 class _Controller():
     """
@@ -43,24 +32,55 @@ class _Controller():
     """
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
-
-    def _group_recording_requests(self, recording_requests):
+    
+    SimulationSetup = namedtuple('SimulationSetup', "time conditions recording_sites request_keys")
+        
+    def _setup_simulation(self, record_time, conditions, recording_sites):
+        """
+        Sets the recordings that are required from the simulation
+        """
+        raise NotImplementedError("Derived Controller class '{}' does not implement "
+                                  "'_setup_a_simulation' method" .format(self.__class__.__name__))
+    
+    def process_requests(self, recording_requests):
         """
         Merge recording requests so that the same recording/simulation doesn't get performed multiple times
         
         `recording_requests`  -- a list of recording requests from the objective functions
         """
-        common_recordings = groupby(recording_requests, key=RecordingRequest.matching_recording)
-        for group in common_recordings:
-            request_group = group[0]
-            for req in group[1:]:
-                request_group.keys.append(req.key)
-                request_group.record_times.append(req.record_time)
-            common_recordings.append(request_group)
-        self.recording_groups = groupby(common_recordings, key=RecordingRequest.matching_conditions)
-
+        # Group into requests by common experimental conditions
+        common_conditions = groupby(recording_requests.items(), 
+                                    key=lambda r1, r2: r1[1].conditions == r2[1].conditions)
+        self.simulation_setups = []
+        for com_cond in common_conditions:
+            # Get the conditions object which is common to the group
+            conditions = com_cond[0][1].conditions
+            # Get the maxium record time in the group
+            record_time = max([r[1].record_time for r in com_cond])
+            # Group the requests by common recording sites
+            common_record_sites = groupby(com_cond, 
+                                          key=lambda r1, r2: r1[1].record_site == r2[1].record_site)
+            # Get the common recording sites
+            recording_sites = [com_record[0][1].record_site for com_record in common_record_sites]
+            # Get the list of request keys for each requested recording
+            request_keys = [[kv[0] for kv in com_record] for com_record in common_record_sites]
+            # Append the simulation request to the 
+            self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
+                                                               recording_sites, request_keys))
+        for setup in self.simulation_setups:
+            self._setup_simulation(setup)
             
-    def _return_requested_recordings(self, recordings):
+        
+    def _run_simulation(self, candidate, simulation):
+        """
+        At a high level - accepts a list of parameters and chromosomes
+        and (usually) returns corresponding simulation data. This is
+        implemented polymporphically in subclasses.
+        """
+        raise NotImplementedError("Derived Controller class '{}' does not implement _run_simulation"
+                                  " method".format(self.__class__.__name__))
+                  
+    def run(self, candidate):
         """
         Return the recordings in a dictionary to be returned to the objective functions, so each
         objective function can access the recording it requested
@@ -74,38 +94,14 @@ class _Controller():
                     raise Exception("Duplicate keys '{}' found in recording request".format(key))
                 request_dict[key] = recording
         return request_dict
-            
-    def set_recording_requests(self, recording_requests):
-        """
-        Sets the recordings that are required from the simulation
-        """
-        raise NotImplementedError("Derived Controller class '{}' does not implement "
-                                  "'set_recording_request' method" .format(self.__class__.__name__))
 
-    def run(self, candidate):
-        """
-        At a high level - accepts a list of parameters and chromosomes
-        and (usually) returns corresponding simulation data. This is
-	    implemented polymporphically in subclasses.
-        """
-        raise NotImplementedError("Derived Controller class '{}' does not implement run method"
-                                  .format(self.__class__.__name__))
-        
-    def _simulate(self, candidate, record_time, conditions, recording_sites):
-        """
-        At a high level - accepts a list of parameters and chromosomes
-        and (usually) returns corresponding simulation data. This is
-        implemented polymporphically in subclasses.
-        """
-        raise NotImplementedError("Derived Controller class '{}' does not implement _simulate method"
-                                  .format(self.__class__.__name__))    
-    
     
 class NineLineController(_Controller):
     
     def __init__(self, nineml_filename, genome_keys):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
-        self.cell = NineCellMetaClass('TestCell', nineml_filename)()
+        self.celltype = NineCellMetaClass('TestCell', nineml_filename)
+        self.cell = self.celltype()
         # Translate the genome keys into attribute names for NineLine cells
         self.genome_keys = ['{soma}' + k if isinstance(k, basestring) else '{' + k[0] + '}' + k[2] 
                             for k in genome_keys]
@@ -115,10 +111,9 @@ class NineLineController(_Controller):
             raise Exception("The following genome keys were not attributes of test cell: '{}'"
                             .format("', '".join(missing_keys)))
 
-    def set_recording_request(self, recording_request):
-        
-    
+    def _setup_simulation(self, record_time, conditions, recording_sites):
+        pass
 
-    def _simulate(self, candidate):
-        
+    def _run_simulation(self, candidate, simulation):
+        pass
 

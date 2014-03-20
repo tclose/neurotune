@@ -15,7 +15,7 @@ class _BaseTuner(object):
         self.objective = objective
         self.algorithm = algorithm
         self.controller = controller
-        self.controller.set_recording_requests(objective.request_recordings())
+        self.controller.process_requests(objective.get_recording_requests())
 
     def tune(self, pop_size, max_iterations, random_seed=None, stats_filename=None, #@UnusedVariable
              indiv_filename=None, **kwargs): #@UnusedVariable

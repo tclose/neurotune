@@ -2,7 +2,7 @@ from abc import ABCMeta # Metaclass for abstract base classes
 import numpy
 import scipy.signal
 import inspyred
-from .controllers import ExperimentalConditions, RecordingRequest
+from .controllers import RecordingRequest
 
 
 class _Objective(object):
@@ -10,31 +10,48 @@ class _Objective(object):
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
     def fitness(self, simulated_data):
+        """
+        Evaluates the fitness function given the simulated data
+        
+        `simulated_data` -- a dictionary containing the simulated data to be assess, with the keys 
+                            corresponding to the keys of the recording request dictionary returned 
+                            by 'get_recording requests'
+        """
         raise NotImplementedError("Derived Objective class '{}' does not implement fitness method"
                                   .format(self.__class__.__name__))
     
-    @property
-    def request_recordings(self):
-        raise NotImplementedError("Derived Objective class '{}' does not implement request_recordings "
-                                  "property".format(self.__class__.__name__))
+    def get_recording_requests(self):
+        """
+        Returns a dictionary of neurotune.controllers.RecordingRequest objects with unique keys
+        representing the recordings that are required from the simulation controller
+        """
+        raise NotImplementedError("Derived Objective class '{}' does not implement "
+                                  "get_recording_requests property".format(self.__class__.__name__))
 
 
 class PhasePlaneHistObjective(_Objective):
     
     V_RANGE_DEFAULT=(-90, 60) # Default range of voltages in the histogram
     DVDT_RANGE_DEFAULT=(-0.5, 0.5) # Default range of dV/dt values in the histogram
+    RECORDING_KEY='volt_trace'
     
-    def __init__(self, reference_traces, record_site=None, record_time=2000.0, exp_conditions=None,
+    def __init__(self, reference_traces, record_time=2000.0, record_site=None, exp_conditions=None,
                  num_bins=(10, 10), v_range=V_RANGE_DEFAULT, dvdt_range=DVDT_RANGE_DEFAULT):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
         
-        `reference_traces` -- traces (in Neo format) that are to be compared against [list(neo.AnalogSignal)]
-        `record_site`   -- the recording site [str]
+        `reference_traces` -- traces (in Neo format) that are to be compared against 
+                              [list(neo.AnalogSignal)]
+        `record_time`      -- the length of the recording [float]
+        `record_site`      -- the recording site [str]
+        `exp_conditions`   -- the required experimental conditions (eg. initial voltage, current 
+                              clamps, etc...) [neurotune.controllers.ExperimentalConditions] 
         `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
-        `v_range`          -- the range of voltages over which the histogram is generated for [tuple[2](float)] 
-        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated for [tuple[2](float)]
+        `v_range`          -- the range of voltages over which the histogram is generated for 
+                              [tuple[2](float)] 
+        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated 
+                              for [tuple[2](float)]
         """
         # Allow flexibility to provide reference traces as a list or a single trace
         if not isinstance(reference_traces, list):
@@ -52,12 +69,13 @@ class PhasePlaneHistObjective(_Objective):
         # Normalise the reference phase plane
         self.ref_phase_plane_hist /= len(reference_traces)
         
-    def request_recordings(self):
-        return [RecordingRequest(record_site=self.record_site, record_time=self.record_time,
-                                 conditions=self.exp_conditions)]
+    def get_recording_requests(self):
+        return {self.RECORDING_KEY: RecordingRequest(record_site=self.record_site, 
+                                                     record_time=self.record_time, 
+                                                     conditions=self.exp_conditions)}
 
     def fitness(self, simulated_data):
-        trace = simulated_data[self.__class__.__name__]
+        trace = simulated_data[self.RECORDING_KEY]
         phase_plane_hist = self._generate_phase_plane_hist(trace)
         # Get the root-mean-square difference between the reference and simulated histograms
         diff = self.ref_phase_plane_hist - phase_plane_hist
@@ -82,12 +100,16 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         Creates a phase plane histogram convolved with a Gaussian kernel from the reference traces 
         and compares that with a similarly convolved histogram of the simulated traces
         
-        `reference_traces` -- traces (in Neo format) that are to be compared against [list(neo.AnalogSignal)]
-        `record_site`   -- the recording site [str]
+        `reference_traces` -- traces (in Neo format) that are to be compared against 
+                              [list(neo.AnalogSignal)]
+        `record_site`      -- the recording site [str]
         `num_bins`         -- the number of bins to use for the histogram [tuple(int)]
-        `v_range`          -- the range of voltages over which the histogram is generated for [tuple[2](float)]
-        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated for [tuple[2](float)]
-        `kernel_stdev`     -- the standard deviation of the Gaussian kernel used to convolve the histogram [tuple[2](float)]
+        `v_range`          -- the range of voltages over which the histogram is generated for 
+                              [tuple[2](float)]
+        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated 
+                              for [tuple[2](float)]
+        `kernel_stdev`     -- the standard deviation of the Gaussian kernel used to convolve the 
+                              histogram [tuple[2](float)]
         `kernel_width`     -- the number of standard deviations the Gaussian kernel extends over
         """
         # Call the parent class __init__ method
@@ -127,12 +149,20 @@ class MultiObjective(_Objective):
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the order the objectives
         were passed to the __init__ method
         """
-        return inspyred.ec.emo.Pareto([o.fitness(simulated_data) for o in self.objectives])
+        fitnesses = []
+        for o in self.objectives:
+            # Unzip the objective objects from the keys and pass them to the objective functions
+            # to determine their fitness
+            objective_data = dict([(key[1], val) 
+                                   for key, val in simulated_data.iteritems() if key[0] == o])
+            fitnesses.append(o.fitness(objective_data))
+        return inspyred.ec.emo.Pareto(fitnesses)
     
-    @property
-    def request_recordings(self):
-        # Combine the required recording sites for each objective into a single set
-        recordings_to_request = []
-        for objective in self.objectives:
-            recordings_to_request.extend(objective.request_recordings())
-        return recordings_to_request
+    def get_recording_requests(self):
+        # Zip the recording requests keys with objective object in a tuple to guarantee unique 
+        # keys
+        recordings_request = {}
+        for o in self.objectives:
+            recordings_request.upate([((o, key), val) 
+                                      for key, val in o.get_recording_requests().iteritems()])
+        return recordings_request
