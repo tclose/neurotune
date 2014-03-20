@@ -24,8 +24,8 @@ class PhasePlaneHistObjective(_Objective):
     V_RANGE_DEFAULT=(-90, 60) # Default range of voltages in the histogram
     DVDT_RANGE_DEFAULT=(-0.5, 0.5) # Default range of dV/dt values in the histogram
     
-    def __init__(self, reference_traces, record_site='soma', record_time=2000.0, num_bins=(10, 10), 
-                 v_range=V_RANGE_DEFAULT, dvdt_range=DVDT_RANGE_DEFAULT):
+    def __init__(self, reference_traces, record_site=None, record_time=2000.0, exp_conditions=None,
+                 num_bins=(10, 10), v_range=V_RANGE_DEFAULT, dvdt_range=DVDT_RANGE_DEFAULT):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -42,6 +42,7 @@ class PhasePlaneHistObjective(_Objective):
         # Save the recording site and number of bins
         self.record_site = record_site
         self.record_time = record_time
+        self.exp_conditions = exp_conditions
         self.num_bins = num_bins
         self.range = (v_range, dvdt_range)
         # Generate the reference phase plane the simulated data will be compared against
@@ -52,8 +53,8 @@ class PhasePlaneHistObjective(_Objective):
         self.ref_phase_plane_hist /= len(reference_traces)
         
     def request_recordings(self):
-        return [RecordingRequest(key=self.__class__.__name__, record_site=self.record_site, 
-                                 record_time=self.record_time)]
+        return [RecordingRequest(record_site=self.record_site, record_time=self.record_time,
+                                 conditions=self.exp_conditions)]
 
     def fitness(self, simulated_data):
         trace = simulated_data[self.__class__.__name__]

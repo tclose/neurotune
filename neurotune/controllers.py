@@ -14,7 +14,7 @@ class ExperimentalConditions(object):
 
 class RecordingRequest(object):
     
-    def __init__(self, key, record_site, record_time, conditions=None):
+    def __init__(self, record_time, key=None, record_site=None, conditions=None):
         self.keys = [key]
         self.record_times = [record_time]
         self.record_site = record_site
@@ -29,8 +29,12 @@ class RecordingRequest(object):
         return max(self.record_times)
     
     @classmethod
-    def matching_conditions(cls, a, b):
+    def matching_recording(cls, a, b):
         return a.record_site == b.record_site and a.conditions == b.conditions
+
+    @classmethod
+    def matching_conditions(cls, a, b):
+        return a.conditions == b.conditions
 
 
 class _Controller():
@@ -40,20 +44,21 @@ class _Controller():
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
-    def _merge_recording_requests(self, recording_requests):
+    def _group_recording_requests(self, recording_requests):
         """
         Merge recording requests so that the same recording/simulation doesn't get performed multiple times
         
         `recording_requests`  -- a list of recording requests from the objective functions
         """
-        self.requested_recordings = []
-        matched_groups = groupby(recording_requests, key=RecordingRequest.matching_conditions)
-        for group in matched_groups:
-            group_request = group[0]
+        common_recordings = groupby(recording_requests, key=RecordingRequest.matching_recording)
+        for group in common_recordings:
+            request_group = group[0]
             for req in group[1:]:
-                group_request.keys.append(req.key)
-                group_request.record_times.append(req.record_time)
-            self.requested_recordings.append(group_request)
+                request_group.keys.append(req.key)
+                request_group.record_times.append(req.record_time)
+            common_recordings.append(request_group)
+        self.recording_groups = groupby(common_recordings, key=RecordingRequest.matching_conditions)
+
             
     def _return_requested_recordings(self, recordings):
         """
@@ -61,8 +66,8 @@ class _Controller():
         objective function can access the recording it requested
         """
         request_dict = {}
-        assert len(recordings) == len(self.requested_recordings)
-        for recording, request in zip(recordings, self.requested_recordings):
+        assert len(recordings) == len(self.recording_groups)
+        for recording, request in zip(recordings, self.recording_groups):
             for key in request.keys:
                 #TODO: trim recordings that don't require the fully recorded time
                 if request_dict.has_key(key):
@@ -85,6 +90,15 @@ class _Controller():
         """
         raise NotImplementedError("Derived Controller class '{}' does not implement run method"
                                   .format(self.__class__.__name__))
+        
+    def _simulate(self, candidate, record_time, conditions, recording_sites):
+        """
+        At a high level - accepts a list of parameters and chromosomes
+        and (usually) returns corresponding simulation data. This is
+        implemented polymporphically in subclasses.
+        """
+        raise NotImplementedError("Derived Controller class '{}' does not implement _simulate method"
+                                  .format(self.__class__.__name__))    
     
     
 class NineLineController(_Controller):
@@ -101,8 +115,10 @@ class NineLineController(_Controller):
             raise Exception("The following genome keys were not attributes of test cell: '{}'"
                             .format("', '".join(missing_keys)))
 
+    def set_recording_request(self, recording_request):
+        
     
 
-    def run(self, candidate):
-        raise NotImplementedError
+    def _simulate(self, candidate):
+        
 
