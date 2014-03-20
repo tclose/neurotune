@@ -4,7 +4,7 @@ Run the simulation
 from collections import namedtuple
 from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
-from nineline.cells.neuron import NineCellMetaClass
+import nineline.pyNN.neuron
 
 
 class ExperimentalConditions(object):
@@ -68,7 +68,7 @@ class _Controller():
             # Append the simulation request to the 
             self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
                                                                recording_sites, request_keys))
-        self._prepare_simulations(self.simulation_setups)
+        self._prepare_simulations()
             
         
     def _run_simulations(self, candidate):
@@ -94,22 +94,45 @@ class _Controller():
     
 class NineLineController(_Controller):
     
-    def __init__(self, nineml_filename, genome_keys):
+    @classmethod
+    def _add_default_segment(cls, keys):
+        return ['{soma}' + k if isinstance(k, basestring) else '{' + k[0] + '}' + k[1] for k in keys]
+    
+    def __init__(self, cell_9ml, genome_keys):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
-        self.celltype = NineCellMetaClass('TestCell', nineml_filename)
-        self.cell = self.celltype()
+        self.cell_9ml = cell_9ml #NineCellMetaClass('TestCell', nineml_filename)
         # Translate the genome keys into attribute names for NineLine cells
-        self.genome_keys = ['{soma}' + k if isinstance(k, basestring) else '{' + k[0] + '}' + k[2] 
-                            for k in genome_keys]
+        self.genome_keys = NineLineController._add_default_segment(genome_keys)
         # Check to see if any of the keys are missing
         missing_keys = [k for k in self.genome_keys if not hasattr(self.cell, k)]
         if missing_keys:
             raise Exception("The following genome keys were not attributes of test cell: '{}'"
                             .format("', '".join(missing_keys)))
 
-    def _prepare_simulations(self, simulation_setups):
-        pass
+    def _prepare_simulations(self):
+        # Check to see if there are multiple setups, because if there aren't the cell can be 
+        # initialised (they can't in general if there are multiple as there is only ever one 
+        # instance of NEURON running)
+        if len(self.simulation_setups) == 1:
+            self._prepare_simulation(self.simulation_setups[0])            
 
-    def _run_simulation(self, candidate, simulation_setup):
-        pass
+    def _run_simulations(self, candidate):
+        recordings = []
+        for setup in self.simulation_setups:
+            if len(self.simulation_setups) != 1:
+                self._prepare_simulation(setup)
+            self._set_candidate_params(candidate)
+            nineline.pyNN.neuron.run(setup.time)
+            recordings.append(self.pop.get_data)
+        return recordings
+        
+    def _prepare_simulation(self, simulation_setup):
+        #Initialise cell
+        self.pop, self.cell = nineline.pyNN.neuron.create_singleton_population(self.cell_9ml)
+        for record_site in NineLineController._add_default_segment(simulation_setup.record_sites):
+            self.pop.record(record_site)
+            
+    def _set_candidate_params(self, candidate):
+        for key, val in zip(self.genome_keys, candidate):
+            setattr(self.cell, key, val)
 
