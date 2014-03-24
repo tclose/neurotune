@@ -26,20 +26,20 @@ class RecordingRequest(object):
         self.conditions = conditions
         
 
-class _Controller():
+class _Simulation():
     """
-    _Controller base class
+    _Simulation base class
     """
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
     SimulationSetup = namedtuple('SimulationSetup', "time conditions recording_sites request_keys")
         
-    def _prepare_simulations(self, simulation_setups):
+    def _prepare_all(self, simulation_setups):
         """
         Prepares the simulations that are required by the chosen objective functions
         """
-        raise NotImplementedError("Derived Controller class '{}' does not implement "
+        raise NotImplementedError("Derived Simulation class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
     
     def process_requests(self, recording_requests):
@@ -68,14 +68,13 @@ class _Controller():
             # Append the simulation request to the 
             self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
                                                                recording_sites, request_keys))
-        self._prepare_simulations()
-            
+        self._prepare_all()
         
-    def _run_simulations(self, candidate):
+    def _run_all(self, candidate):
         """
         At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         """
-        raise NotImplementedError("Derived Controller class '{}' does not implement _run_simulation"
+        raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"
                                   " method".format(self.__class__.__name__))
                   
     def run(self, candidate):
@@ -83,7 +82,7 @@ class _Controller():
         Return the recordings in a dictionary to be returned to the objective functions, so each
         objective function can access the recording it requested
         """
-        simulations = self._run_simulations(candidate)
+        simulations = self._run_all(candidate)
         requests_dict = {}
         for simulation, setup in zip(simulations, self.simulation_setups):
             recordings = simulation.segments[0].analogsignalarrays
@@ -93,7 +92,7 @@ class _Controller():
         return requests_dict
 
     
-class NineLineController(_Controller):
+class NineLineSimulation(_Simulation):
     
     @classmethod
     def _add_default_segment(cls, keys):
@@ -103,35 +102,35 @@ class NineLineController(_Controller):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml #NineCellMetaClass('TestCell', nineml_filename)
         # Translate the genome keys into attribute names for NineLine cells
-        self.genome_keys = NineLineController._add_default_segment(genome_keys)
+        self.genome_keys = NineLineSimulation._add_default_segment(genome_keys)
         # Check to see if any of the keys are missing
         missing_keys = [k for k in self.genome_keys if not hasattr(self.cell, k)]
         if missing_keys:
             raise Exception("The following genome keys were not attributes of test cell: '{}'"
                             .format("', '".join(missing_keys)))
 
-    def _prepare_simulations(self):
+    def _prepare_all(self):
         # Check to see if there are multiple setups, because if there aren't the cell can be 
         # initialised (they can't in general if there are multiple as there is only ever one 
         # instance of NEURON running)
         if len(self.simulation_setups) == 1:
-            self._prepare_simulation(self.simulation_setups[0])            
+            self._prepare(self.simulation_setups[0])            
 
-    def _run_simulations(self, candidate):
+    def _run_all(self, candidate):
         recordings = []
         for setup in self.simulation_setups:
             nineline.pyNN.neuron.reset()
             if len(self.simulation_setups) != 1:
-                self._prepare_simulation(setup)
+                self._prepare(setup)
             self._set_candidate_params(candidate)
             nineline.pyNN.neuron.run(setup.time)
             recordings.append(self.pop.get_data())
         return recordings
         
-    def _prepare_simulation(self, simulation_setup):
+    def _prepare(self, simulation_setup):
         #Initialise cell
         self.pop, self.cell = nineline.pyNN.neuron.create_singleton_population(self.cell_9ml)
-        for record_site in NineLineController._add_default_segment(simulation_setup.record_sites):
+        for record_site in NineLineSimulation._add_default_segment(simulation_setup.record_sites):
             self.pop.record(record_site)
             
     def _set_candidate_params(self, candidate):
