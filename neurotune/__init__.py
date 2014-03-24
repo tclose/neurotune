@@ -189,5 +189,5 @@ class MPITuner(_BaseTuner):
         Release slave nodes from listening to new candidates to evaluate
         """
         for processID in xrange(1, self.num_processes):
-            self.comm.send('stop', dest=processID, self.COMMAND_MSG)   
+            self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)   
 

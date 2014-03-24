@@ -108,7 +108,10 @@ class NSGA2Algorithm(_InspyredAlgorithm):
         
 
     def optimize(self, population_size, run_and_evaluate, max_generations=100, seeds=None,  
-                 random_seed=(long(time.time() * 256)), **kwargs):
+                 random_seed=None, **kwargs):
+        if random_seed is None:
+            random_seed = long(time.time() * 256)
+            print "Using random seed: {}".format(random_seed)
         rng = Random()
         rng.seed(random_seed)
         ea = ec.emo.NSGA2(rng)

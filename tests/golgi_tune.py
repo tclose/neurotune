@@ -9,6 +9,9 @@ reference_traces_filename=os.path.join('/home', 'tclose', 'traces_file.pkl')
 genome_keys='{soma}diam'
 constraints=[(10.0, 40.0)]
 
+
+
+
 tuner = Tuner(PhasePlaneHistObjective(reference_traces_filename), EDAAlgorithm(constraints), 
               NineLineController(cell_9ml, genome_keys))
 pop, ea = tuner.tune(10, 100)

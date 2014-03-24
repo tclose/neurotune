@@ -2,7 +2,8 @@ from abc import ABCMeta # Metaclass for abstract base classes
 import numpy
 import scipy.signal
 import inspyred
-from .controllers import RecordingRequest
+import neo.io
+from .simulation import RecordingRequest
 
 
 class _Objective(object):
@@ -53,9 +54,10 @@ class PhasePlaneHistObjective(_Objective):
         `dvdt_range`       -- the range of rates of change of voltage the histogram is generated 
                               for [tuple[2](float)]
         """
-        # Allow flexibility to provide reference traces as a list or a single trace
-        if not isinstance(reference_traces, list):
-            reference_traces = [reference_traces]
+        if isinstance(reference_traces, str):
+            f = neo.io.PickleIO(reference_traces)
+            seg = f.read_segment()
+            reference_traces = seg.analogsignals
         # Save the recording site and number of bins
         self.record_site = record_site
         self.record_time = record_time
@@ -65,7 +67,7 @@ class PhasePlaneHistObjective(_Objective):
         # Generate the reference phase plane the simulated data will be compared against
         self.ref_phase_plane_hist = numpy.zeros(num_bins)
         for ref_trace in reference_traces:
-            self.ref_phase_plane_hist += self._generate_phase_plane_hist(self, ref_trace, num_bins)
+            self.ref_phase_plane_hist += self._generate_phase_plane_hist(ref_trace)
         # Normalise the reference phase plane
         self.ref_phase_plane_hist /= len(reference_traces)
         
