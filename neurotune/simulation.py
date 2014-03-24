@@ -102,7 +102,7 @@ class NineLineSimulation(_Simulation):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml #NineCellMetaClass('TestCell', nineml_filename)
         # Translate the genome keys into attribute names for NineLine cells
-        self.genome_keys = NineLineSimulation._add_default_segment(genome_keys)
+        self.genome_keys = self._add_default_segment(genome_keys)
         # Check to see if any of the keys are missing
         missing_keys = [k for k in self.genome_keys if not hasattr(self.cell, k)]
         if missing_keys:
@@ -130,7 +130,7 @@ class NineLineSimulation(_Simulation):
     def _prepare(self, simulation_setup):
         #Initialise cell
         self.pop, self.cell = nineline.pyNN.neuron.create_singleton_population(self.cell_9ml)
-        for record_site in NineLineSimulation._add_default_segment(simulation_setup.record_sites):
+        for record_site in self._add_default_segment(simulation_setup.record_sites):
             self.pop.record(record_site)
             
     def _set_candidate_params(self, candidate):
