@@ -1,6 +1,6 @@
 from abc import ABCMeta # Metaclass for abstract base classes
 import numpy
-import scipy.signal
+import scipy
 import inspyred
 import neo.io
 from .simulation import RecordingRequest
@@ -36,7 +36,7 @@ class PhasePlaneHistObjective(_Objective):
     DVDT_RANGE_DEFAULT=(-0.5, 0.5) # Default range of dV/dt values in the histogram
     RECORDING_KEY='volt_trace'
     
-    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', 
+    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', resample=False,
                  exp_conditions=None, num_bins=(10, 10), v_range=V_RANGE_DEFAULT, 
                  dvdt_range=DVDT_RANGE_DEFAULT):
         """
@@ -64,6 +64,7 @@ class PhasePlaneHistObjective(_Objective):
         # Save the recording site and number of bins
         self.record_variable = record_variable
         self.record_time = record_time
+        self.resample = resample
         self.exp_conditions = exp_conditions
         self.num_bins = num_bins
         self.range = (v_range, dvdt_range)
@@ -99,14 +100,26 @@ class PhasePlaneHistObjective(_Objective):
         # Calculate dv/dt via difference between trace samples
         dv=numpy.diff(trace)
         dt=numpy.diff(trace.times)
-        return numpy.histogram2d(trace[:-1], dv/dt, bins=self.num_bins, range=self.range, 
-                                 normed=True, weights=None)[0]
+        v = trace[:-1]
+        dv_dt = dv/dt
+        if self.resample:
+            # Get the lengths of the intervals between v-dv/dt samples
+            d_dv_dt = numpy.diff(dv_dt)
+            interval_lengths = numpy.sqrt(dv[:-1]**2 + d_dv_dt**2)
+            # Calculate the "positions" of the samples in terms of the fraction of the length
+            # of the v-dv/dt path
+            s = numpy.concatenate(([0.0], numpy.ufunc.accumulate(interval_lengths)))
+            # Interpolate the samples onto an evenly spaced grid of "positions"
+            new_s = numpy.arange(0, s[-1], self.resample)
+            v = scipy.interp(new_s, s, v)
+            dv_dt = scipy.interp(new_s, s, dv_dt)
+        return numpy.histogram2d(v, dv_dt, bins=self.num_bins, range=self.range, normed=True)[0]
         
         
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     
-    def __init__(self, reference_traces, record_variable, num_bins=(100, 100), 
-                 v_range=PhasePlaneHistObjective.V_RANGE_DEFAULT, 
+    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', resample=False,
+                 num_bins=(100, 100), v_range=PhasePlaneHistObjective.V_RANGE_DEFAULT, 
                  dvdt_range=PhasePlaneHistObjective.DVDT_RANGE_DEFAULT, 
                  kernel_stdev=(5, 5), kernel_width=(3.5, 3.5)):
         """
@@ -126,8 +139,10 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         `kernel_width`     -- the number of standard deviations the Gaussian kernel extends over
         """
         # Call the parent class __init__ method
-        super(ConvPhasePlaneHistObjective, self).__init__(reference_traces=reference_traces, 
-                                                          record_variable=record_variable, 
+        super(ConvPhasePlaneHistObjective, self).__init__(reference_traces=reference_traces,
+                                                          record_time=record_time,
+                                                          record_variable=record_variable,
+                                                          resample=resample, 
                                                           num_bins=num_bins, v_range=v_range, 
                                                           dvdt_range=dvdt_range)
         # Pre-calculate the Gaussian kernel
