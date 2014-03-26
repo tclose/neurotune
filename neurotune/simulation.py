@@ -4,7 +4,11 @@ Run the simulation
 from collections import namedtuple
 from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
+import numpy
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller as nineline_controller
+import neuron
+import neo
+import quantities as pq
 
 
 class ExperimentalConditions(object):
@@ -29,7 +33,7 @@ class ExperimentalConditions(object):
 class RecordingRequest(object):
     """"
     RecordingRequests are raised by objective functions and are passed to Simulation objects so they
-    can set up the required simulation conditions (eg IClamp, VClamp, spike input) and recorders
+    can set up the required simulation conditions (eg IClamp, VClamp, spike inumpyut) and recorders
     """
     
     def __init__(self, record_time=2000.0, record_variable=None, conditions=None):
@@ -51,7 +55,7 @@ class _Simulation():
     ## Groups together all the information to interface to and from a requested simulation
     SimulationSetup = namedtuple('SimulationSetup', "time conditions record_variables request_keys")
         
-    def _prepare_all(self, simulation_setups):
+    def _prepare_all(self):
         """
         Prepares the simulations that are required by the chosen objective functions
         
@@ -209,3 +213,97 @@ class NineLineSimulation(_Simulation):
         for key, val in zip(self.genome_keys, candidate):
             setattr(self.cell, key, val)
 
+
+class _CustomSimulation(_Simulation):
+    """
+    A convenient base class for custom simulation objects. Provides record time from requested 
+    recordings
+    """
+    
+    __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
+    
+            
+    def _prepare_all(self):
+        """
+        Prepares the simulations that are required by the chosen objective functions
+        
+        `simulation_setups` -- a of simulation setups [list(_Simulation.SimulationSetup)]
+        """
+        if (len(self.simulation_setups) != 1 or self.simulation_setups.record_variable is not None 
+            or self.simulation_setups.conditions is not None):
+            raise Exception("Custom simulation '{}' can only handle default recordings (typically "
+                            "voltage traces from the soma)".format(self.__class__.__name__))
+        self.record_time = self.simulation_setups.record_time
+        
+    def _run_all(self, candidate):
+        """
+        Wraps the _run method in a list to be returned to the _Simulation.run method
+        
+        `candidate` -- a list of parameters [list(float)]
+        """
+        t, v = self._run(candidate)
+        return [neo.AnalogSignal(v, sampling_period = t[1] - t[0] * pq.ms, 
+                                 t_start=t[0]* pq.ms, name='custom_simulation', units='ms')]
+            
+    def _run(self, candidate):
+        """
+        At a high level - accepts a candidate (a list of cell parameters that are being tuned)
+        
+        `candidate` -- a list of parameters [list(float)]
+        returns     -- a time and voltage vector
+        """
+        raise NotImplementedError("Derived Simulation class '{}' does not implement '_run'"
+                                  " method".format(self.__class__.__name__))            
+            
+
+class MasasIOSimulation(_CustomSimulation):
+    
+    class singleIO :
+        def __init__(self, g_l, g_ca, e_l):
+            soma = neuron.h.Section()
+            soma.diam=25
+            soma.L=25
+            soma.nseg = 1
+            soma.insert('leak')
+            soma.insert('stoca')
+    ##        soma.insert('iona')
+    ##        soma.insert('iokdr')
+            for seg in soma:
+                seg.gbar_leak = g_l
+                seg.el_leak = e_l
+                seg.gbar_stoca = g_ca
+    ##            seg.gbar_iona = g_na
+    ##            seg.gbar_iokdr = g_k
+            self.soma = soma #put soma on the class
+            vec1, vec2 = self.record()
+            self.runsim()
+            self.recordedt, self.recordedV = self.getRecordedVm(vec1,vec2)
+    
+        def record(self): #record t and Vm from hoc to vector
+            vec = {}
+            for var in 'v_soma', 'i_stoca','t':
+                vec[var] = neuron.h.Vector()
+            vec['v_soma'].record(self.soma(0.5)._ref_v) #record Vm of soma
+            vec['t'].record(neuron.h._ref_t) #record time
+    
+            return vec['v_soma'],vec['t']
+            
+        def getRecordedVm(self,vec1,vec2) : # traslate hoc data to array
+            rec = {}
+            rec['t'] = numpy.array(vec2)
+            rec['vm'] = numpy.array(vec1)
+            tsize = len(vec2)
+        ##    print 'Vm recorded'
+            return rec['t'], rec['vm']
+    
+        def runsim(self):    # run simulation in neuron simlator
+            #h.v_init = -55
+            #h.tstop = 3000.0
+            #h.init()
+            neuron.h.finitialize(-55)
+            neuron.run(3000)
+            
+    def _run(self, candidate):
+        io_cell = self.singleIO(*candidate)
+        return io_cell.recordedt, io_cell.recordedV
+        
