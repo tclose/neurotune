@@ -6,6 +6,7 @@ from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller as nineline_controller
 
+
 class ExperimentalConditions(object):
     """
     Defines the experimental conditions an objective function requires to make its evaluation. Can
@@ -31,7 +32,7 @@ class RecordingRequest(object):
     can set up the required simulation conditions (eg IClamp, VClamp, spike input) and recorders
     """
     
-    def __init__(self, record_time, record_variable=None, conditions=None):
+    def __init__(self, record_time=2000.0, record_variable=None, conditions=None):
         """
         `record_time` -- the length of the recording required by the simulation
         `record_variable` -- the name of the section/synapse/current to record from (controller specific)
@@ -130,8 +131,8 @@ class NineLineSimulation(_Simulation):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml
         self.celltype = NineCellMetaClass(cell_9ml)
-        default_seg = self.celltype().source_section.name
-        self.genome_keys = [default_seg + '.' + k if isinstance(k, basestring) else '.'.join(k) 
+        self.default_seg = self.celltype().source_section.name
+        self.genome_keys = [self.default_seg + '.' + k if isinstance(k, basestring) else '.'.join(k) 
                             for k in genome_keys]
 
     def _prepare_all(self):
@@ -142,15 +143,21 @@ class NineLineSimulation(_Simulation):
         # component names
         for setup in self.simulation_setups:
             for i, rec in enumerate(setup.record_variables):
-                parts = rec.split('.')
-                if len(parts) == 1:
-                    var = parts[0]
-                    segname = component = None
-                elif len(parts) == 2:
-                    segname, var = parts
+                if rec is None:
+                    var = 'v' # Records the voltage in the default segment by default
+                    segname = self.default_seg
                     component = None
                 else:
-                    segname, component, var = parts
+                    parts = rec.split('.')
+                    if len(parts) == 1:
+                        var = parts[0]
+                        segname = self.default_seg
+                        component = None
+                    elif len(parts) == 2:
+                        segname, var = parts
+                        component = None
+                    else:
+                        segname, component, var = parts
                 setup.record_variables[i] = (var, segname, component)
         # Check to see if there are multiple setups, because if there aren't the cell can be 
         # initialised (they can't in general if there are multiple as there is only ever one 
