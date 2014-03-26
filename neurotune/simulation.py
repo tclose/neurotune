@@ -21,6 +21,9 @@ class ExperimentalConditions(object):
         """
         self.initial_v = initial_v
         
+    def __eq__(self, other):
+        return self.initial_v == other.initial_v
+    
 
 class RecordingRequest(object):
     """"
@@ -28,14 +31,14 @@ class RecordingRequest(object):
     can set up the required simulation conditions (eg IClamp, VClamp, spike input) and recorders
     """
     
-    def __init__(self, record_time, record_site=None, conditions=None):
+    def __init__(self, record_time, record_variable=None, conditions=None):
         """
         `record_time` -- the length of the recording required by the simulation
-        `record_site` -- the name of the section/synapse/current to record from (controller specific)
+        `record_variable` -- the name of the section/synapse/current to record from (controller specific)
         `conditions`  -- the experimental conditions required (eg. initial voltage, current clamp)
         """
         self.record_time = record_time
-        self.record_site = record_site
+        self.record_variable = record_variable
         self.conditions = conditions
         
 
@@ -61,27 +64,31 @@ class _Simulation():
         Merge recording requests so that the same recording/simulation doesn't get performed 
         multiple times
         
-        `recording_requests`  -- a list of recording requests from the objective functions
+        `recording_requests`  -- a list of recording requests from the objective functions [.RecordingRequest]
         """
         # Group into requests by common experimental conditions
-        common_conditions = groupby(recording_requests.items(), 
-                                    key=lambda x, y: x[1].conditions == y[1].conditions)
+        request_items = recording_requests.items()
+        request_items.sort(key=lambda x: x[1].conditions)
+        common_conditions = groupby(request_items, key=lambda x: x[1].conditions)
+        # Merge the common requests into simulation setups
         self.simulation_setups = []
-        for com_cond in common_conditions:
-            # Get the conditions object which is common to the group
-            conditions = com_cond[0][1].conditions
+        for conditions, requests_iter in common_conditions:
+            requests = [r for r in requests_iter]
             # Get the maxium record time in the group
-            record_time = max([r[1].record_time for r in com_cond])
+            record_time = max([r[1].record_time for r in requests])
             # Group the requests by common recording sites
-            common_record_vars = groupby(com_cond, 
-                                          key=lambda x, y: x[1].record_site == y[1].record_site)
+            requests.sort(key=lambda x: x[1].record_variable)
+            common_record_variables = groupby(requests, key=lambda x: x[1].record_variable)
             # Get the common recording sites
-            record_variables = [com_record[0][1].record_site for com_record in common_record_vars]
+            record_variables, requests_iters = zip(*common_record_variables)
             # Get the list of request keys for each requested recording
-            request_keys = [[key for key, val in com_record] for com_record in common_record_vars] #@UnusedVariable
+            request_keys = [zip(*com_record)[0] for com_record in requests_iters]
             # Append the simulation request to the 
             self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
-                                                               record_variables, request_keys))
+                                                               list(record_variables),
+                                                               request_keys))
+        # Do initial preparation for simulation (how much preparation can be done depends on whether
+        # the same experimental conditions are used throughout the evaluation process.
         self._prepare_all()
         
     def _run_all(self, candidate):
@@ -100,10 +107,9 @@ class _Simulation():
         
         `candidate` -- a list of parameters [list(float)]
         """
-        simulations = self._run_all(candidate)
+        all_recordings = self._run_all(candidate)
         requests_dict = {}
-        for simulation, setup in zip(simulations, self.simulation_setups):
-            recordings = simulation.segments[0].analogsignalarrays
+        for recordings, setup in zip(all_recordings, self.simulation_setups):
             assert len(recordings) == len(setup.request_keys)
             for recording, request_keys in zip(recordings, setup.request_keys):
                 requests_dict.update([(key, recording) for key in request_keys])
@@ -119,10 +125,13 @@ class NineLineSimulation(_Simulation):
         `genome_keys` -- A list of genome keys which are used to map the candidate parameters to 
                          parameters of the model [list(str)]
         """
+        if isinstance(genome_keys, basestring):
+            raise Exception("'genome_keys' argument should be a list of keys not a single key")
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml
-        self.celltype = NineCellMetaClass('TestCell', cell_9ml)
-        self.genome_keys = ['source_section.' + k if isinstance(k, basestring) else '.'.join(k) 
+        self.celltype = NineCellMetaClass(cell_9ml)
+        default_seg = self.celltype().source_section.name
+        self.genome_keys = [default_seg + '.' + k if isinstance(k, basestring) else '.'.join(k) 
                             for k in genome_keys]
 
     def _prepare_all(self):
@@ -136,7 +145,7 @@ class NineLineSimulation(_Simulation):
                 parts = rec.split('.')
                 if len(parts) == 1:
                     var = parts[0]
-                    segname, component = None
+                    segname = component = None
                 elif len(parts) == 2:
                     segname, var = parts
                     component = None
@@ -165,7 +174,7 @@ class NineLineSimulation(_Simulation):
                 self.cell.reset_recordings()
             self._set_candidate_params(candidate)
             nineline_controller.run(setup.time)
-            recordings.append(self.cell.get_recording(*zip(setup.record_variables)))
+            recordings.append(self.cell.get_recording(*zip(*setup.record_variables)))
         return recordings
         
     def _prepare(self, simulation_setup):

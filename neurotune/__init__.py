@@ -57,8 +57,8 @@ class _BaseTuner(object):
 
 class Tuner(_BaseTuner):
     
-    def tune(self, num_candidates, max_iterations, random_seed=None, stats_filename=None, 
-             indiv_filename=None, **kwargs):
+    def tune(self, num_candidates, max_iterations, seeds=None, random_seed=None, 
+             stats_filename=None, indiv_filename=None, **kwargs):
         """
         Runs the optimisation algorithm and returns the final population and algorithm state
         
@@ -71,7 +71,8 @@ class Tuner(_BaseTuner):
         """
         self._open_readout_files(stats_filename, indiv_filename, kwargs)
         result = self.algorithm.optimize(num_candidates, self._evaluate_all_candidates, 
-                                         max_iterations, random_seed, **kwargs)
+                                         max_iterations, seeds=seeds, random_seed=random_seed,
+                                         **kwargs)
         self._close_readout_files()
         return result
         

@@ -29,6 +29,11 @@ class _Algorithm(object):
         self.maximize = maximize
         self.mutation_rate = mutation_rate
         self.seeds = seeds
+        
+    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
+                 random_seed=None, **kwargs):
+        raise NotImplementedError("'optimize' is not implemented by derived class of '_Algorithm'"
+                                  ",'{}'".format(self.__class__.__name__))
 
     def uniform_random_chromosome(self, random, args):
         chromosome = []
@@ -47,7 +52,7 @@ class _Algorithm(object):
             from inspyred.ec import analysis
             analysis.generation_plot(stat_file_name, errorbars=False)
 
-    def generate_description(self, random):
+    def generate_description(self, random, args=None): #UnusedVariable
         ret = [random.uniform(0.0, 1.) for i in xrange(self.genome_size)] #@UnusedVariable
         return ret
 
@@ -72,22 +77,25 @@ class _InspyredAlgorithm(_Algorithm):
 
 class EDAAlgorithm(_InspyredAlgorithm):
 
-    def optimize(self, population_size, evaluator, random_seed=None, **kwargs):
+    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
+                 random_seed=None, **kwargs):
         if random_seed is None:
-            random_seed = (long(time.time() * 256))
+            random_seed = (long(time() * 256))
         rng = Random()
         rng.seed(random_seed)
         ea = ec.EDA(rng)
         ea.observer = self.observer
         ea.variator = self.variator
         ea.terminator = self.terminator
-        for key in ('mutation_rate', 'num_elites' 'stdev'):
-            kwargs[key] = self.__getattr__(key)
+        for key in ('mutation_rate', 'num_elites', 'stdev'):
+            kwargs[key] = getattr(self, key)
         pop = ea.evolve(generator=self.generate_description,
                         evaluator=evaluator,
                         pop_size=population_size,
                         bounder=self.bounder,
                         maximize=False,
+                        seeds=seeds,
+                        max_generations=max_generations,
                         **kwargs)
         return pop, ea
 
@@ -107,7 +115,7 @@ class NSGA2Algorithm(_InspyredAlgorithm):
         self.replacer = replacer
         
 
-    def optimize(self, population_size, run_and_evaluate, max_generations=100, seeds=None,  
+    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
                  random_seed=None, **kwargs):
         if random_seed is None:
             random_seed = long(time.time() * 256)
@@ -121,7 +129,7 @@ class NSGA2Algorithm(_InspyredAlgorithm):
         for key in ('mutation_rate', 'num_elites' 'stdev'):
             kwargs[key] = self.__getattr__(key)
         pop = ea.evolve(generator=self.generate_description,
-                        evaluator=run_and_evaluate,
+                        evaluator=evaluator,
                         pop_size=population_size,
                         bounder=self.bounder,
                         maximize=False,

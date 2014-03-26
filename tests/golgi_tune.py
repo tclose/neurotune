@@ -9,18 +9,20 @@ from neurotune import Tuner
 from neurotune.simulation import NineLineSimulation
 from neurotune.algorithm import EDAAlgorithm
 from neurotune.objective import PhasePlaneHistObjective
+from matplotlib import pyplot as plt
 
 cell_9ml=os.path.join('/home', 'tclose', 'git', 'kbrain', '9ml', 'neurons', 'Golgi_Solinas08.9ml')
-genome_keys='{soma}diam'
+genome_keys=['diam']
 constraints=[(10.0, 40.0)]
 simulation_time = 2000.0
 
 cell = NineCellMetaClass(cell_9ml)()
 cell.record('v')
-simulation_controller.run(simulation_time)
+simulation_controller.run(simulation_time, timestep=0.25)
 reference_trace = cell.get_recording('v')
 
-tuner = Tuner(PhasePlaneHistObjective(reference_trace, simulation_time), EDAAlgorithm(constraints), 
+tuner = Tuner(PhasePlaneHistObjective(reference_trace, simulation_time), 
+              EDAAlgorithm(constraints), 
               NineLineSimulation(cell_9ml, genome_keys))
 pop, ea = tuner.tune(10, 100)
 

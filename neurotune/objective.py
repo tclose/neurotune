@@ -36,8 +36,9 @@ class PhasePlaneHistObjective(_Objective):
     DVDT_RANGE_DEFAULT=(-0.5, 0.5) # Default range of dV/dt values in the histogram
     RECORDING_KEY='volt_trace'
     
-    def __init__(self, reference_traces, record_time=2000.0, record_site=None, exp_conditions=None,
-                 num_bins=(10, 10), v_range=V_RANGE_DEFAULT, dvdt_range=DVDT_RANGE_DEFAULT):
+    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', 
+                 exp_conditions=None, num_bins=(10, 10), v_range=V_RANGE_DEFAULT, 
+                 dvdt_range=DVDT_RANGE_DEFAULT):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -45,7 +46,7 @@ class PhasePlaneHistObjective(_Objective):
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
         `record_time`      -- the length of the recording [float]
-        `record_site`      -- the recording site [str]
+        `record_variable`      -- the recording site [str]
         `exp_conditions`   -- the required experimental conditions (eg. initial voltage, current 
                               clamps, etc...) [neurotune.controllers.ExperimentalConditions] 
         `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
@@ -58,8 +59,10 @@ class PhasePlaneHistObjective(_Objective):
             f = neo.io.PickleIO(reference_traces)
             seg = f.read_segment()
             reference_traces = seg.analogsignals
+        elif isinstance(reference_traces, neo.AnalogSignal):
+            reference_traces = [reference_traces]
         # Save the recording site and number of bins
-        self.record_site = record_site
+        self.record_variable = record_variable
         self.record_time = record_time
         self.exp_conditions = exp_conditions
         self.num_bins = num_bins
@@ -72,7 +75,10 @@ class PhasePlaneHistObjective(_Objective):
         self.ref_phase_plane_hist /= len(reference_traces)
         
     def get_recording_requests(self):
-        return {self.RECORDING_KEY: RecordingRequest(record_site=self.record_site, 
+        """
+        Gets all recording requests required by the objective function
+        """
+        return {self.RECORDING_KEY: RecordingRequest(record_variable=self.record_variable, 
                                                      record_time=self.record_time, 
                                                      conditions=self.exp_conditions)}
 
@@ -94,12 +100,12 @@ class PhasePlaneHistObjective(_Objective):
         dv=numpy.diff(trace)
         dt=numpy.diff(trace.times)
         return numpy.histogram2d(trace[:-1], dv/dt, bins=self.num_bins, range=self.range, 
-                                 normed=False, weights=None)
+                                 normed=True, weights=None)[0]
         
         
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     
-    def __init__(self, reference_traces, record_site, num_bins=(100, 100), 
+    def __init__(self, reference_traces, record_variable, num_bins=(100, 100), 
                  v_range=PhasePlaneHistObjective.V_RANGE_DEFAULT, 
                  dvdt_range=PhasePlaneHistObjective.DVDT_RANGE_DEFAULT, 
                  kernel_stdev=(5, 5), kernel_width=(3.5, 3.5)):
@@ -109,7 +115,7 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
-        `record_site`      -- the recording site [str]
+        `record_variable`      -- the recording site [str]
         `num_bins`         -- the number of bins to use for the histogram [tuple(int)]
         `v_range`          -- the range of voltages over which the histogram is generated for 
                               [tuple[2](float)]
@@ -121,7 +127,7 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         """
         # Call the parent class __init__ method
         super(ConvPhasePlaneHistObjective, self).__init__(reference_traces=reference_traces, 
-                                                          record_site=record_site, 
+                                                          record_variable=record_variable, 
                                                           num_bins=num_bins, v_range=v_range, 
                                                           dvdt_range=dvdt_range)
         # Pre-calculate the Gaussian kernel
