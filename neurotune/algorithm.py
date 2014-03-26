@@ -19,11 +19,7 @@ class _Algorithm(object):
     """
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, max_constraints, min_constraints, evaluator,
-                mutation_rate, maximize, seeds, population_size):
-
-        self.max_constraints = max_constraints
-        self.min_constraints = min_constraints
+    def __init__(self, evaluator, mutation_rate, maximize, seeds, population_size):
         self.evaluator = evaluator
         self.population_size = population_size
         self.maximize = maximize
@@ -34,10 +30,16 @@ class _Algorithm(object):
                  random_seed=None, **kwargs):
         raise NotImplementedError("'optimize' is not implemented by derived class of '_Algorithm'"
                                   ",'{}'".format(self.__class__.__name__))
+        
+    def _set_tuneable_parameters(self, tuneable_parameters):
+        self.genome_size = len(tuneable_parameters)
+        _, _, lbounds, ubounds = zip(*tuneable_parameters)
+        self.constraints = zip(lbounds, ubounds)
+        
 
-    def uniform_random_chromosome(self, random, args):
+    def uniform_random_chromosome(self, random, _):
         chromosome = []
-        for lo, hi in zip(self.max_constraints, self.min_constraints):
+        for lo, hi in zip(self.constraints):
             chromosome.append(random.uniform(lo, hi))
         return chromosome
 
@@ -61,19 +63,21 @@ class _InspyredAlgorithm(_Algorithm):
 
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, constraints, mutation_rate=None, num_elites=None, stdev=None, 
+    def __init__(self, mutation_rate=None, num_elites=None, stdev=None, 
                  terminator=terminators.generation_termination,
                  variator=[variators.blend_crossover, variators.gaussian_mutation],
                  observer=observers.file_observer):
-        self.genome_size = len(constraints)
         self.mutation_rate = mutation_rate
         self.num_elites=num_elites
         self.stdev=stdev
         self.observer = observer
         self.variator = variator
         self.terminator = terminator
-        self.bounder = ec.Bounder(*zip(constraints))  
         
+    def _set_tuneable_parameters(self, tuneable_parameters):
+        super(_InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
+        self.bounder = ec.Bounder(*zip(self.constraints))
+
 
 class EDAAlgorithm(_InspyredAlgorithm):
 
@@ -102,12 +106,12 @@ class EDAAlgorithm(_InspyredAlgorithm):
 
 class NSGA2Algorithm(_InspyredAlgorithm):
 
-    def __init__(self, constraints, mutation_rate, num_elites=None, stdev=None, 
+    def __init__(self, mutation_rate, num_elites=None, stdev=None, 
                  allow_indentical=True, terminator=terminators.generation_termination,
                  variator=[variators.blend_crossover, variators.gaussian_mutation],
                  replacer= replacers.random_replacement,
                  observer=observers.file_observer):
-        super(NSGA2Algorithm, self).__init__(constraints=constraints, mutation_rate=mutation_rate, 
+        super(NSGA2Algorithm, self).__init__(mutation_rate=mutation_rate, 
                                              num_elites=num_elites, stdev=stdev, 
                                              terminator=terminator, variator=variator, 
                                              observer=observer)

@@ -1,5 +1,5 @@
 import numpy
-from collections import deque
+from collections import deque, namedtuple
 from abc import ABCMeta # Metaclass for abstract base classes
 try:
     from mpi4py import MPI
@@ -7,23 +7,29 @@ except ImportError:
     pass
 
 
+Parameter = namedtuple('Parameter', 'name units lbound ubound')
+       
+
 class _BaseTuner(object):
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
-    def __init__(self, objective, algorithm, controller):
+    def __init__(self, tuneable_parameters, objective, algorithm, simulation):
         """
         Initialises the Tuner object
         
         `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
         `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
-        `controller` -- The interface to the neuronal simulator used [neurotune.controllers.*Controller] 
+        `simulation` -- The interface to the neuronal simulator used [neurotune.simulations.*Controller] 
         """
+        self.tuneable_parameters = tuneable_parameters
         self.objective = objective
         self.algorithm = algorithm
-        self.controller = controller
-        self.controller.process_requests(objective.get_recording_requests())
-
+        self.algorithm._set_tuneable_parameters(tuneable_parameters)
+        self.simulation = simulation
+        self.simulation.process_requests(objective.get_recording_requests())
+        self.simulation._set_tuneable_parameters(tuneable_parameters)
+        
     def tune(self, pop_size, max_iterations, random_seed=None, stats_filename=None, #@UnusedVariable
              indiv_filename=None, **kwargs): #@UnusedVariable
         """
@@ -35,7 +41,7 @@ class _BaseTuner(object):
         """
         Evaluate the fitness of a single candidate
         """
-        simulation_data = self.controller.run(candidate)
+        simulation_data = self.simulation.run(candidate)
         return self.objective.fitness(simulation_data)
     
     def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
