@@ -58,7 +58,7 @@ class MasasIOSimulation(nt.simulation.SimpleCustomSimulation):
 
 
 io_cell = SingleIO(1,1,1)
-reference_trace = neo.AnalogSignal(io_cell.recordedV, sample_time=neuron.h.dt * pq.ms)
+reference_trace = neo.AnalogSignal(io_cell.recordedV, sample_time=neuron.h.dt * pq.ms, units='ms')
 
 tuner = nt.Tuner([nt.Parameter('diam', 'um', 10.0, 40.0)], 
                  nt.objective.PhasePlaneHistObjective(reference_trace, simulation_time=2000.0), 
