@@ -80,7 +80,7 @@ class InspyredAlgorithm(Algorithm):
         
     def _set_tuneable_parameters(self, tuneable_parameters):
         super(InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
-        self.bounder = ec.Bounder(*zip(self.constraints))
+        self.bounder = ec.Bounder(*zip(*self.constraints))
 
 
 class EDAAlgorithm(InspyredAlgorithm):

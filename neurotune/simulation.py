@@ -122,6 +122,8 @@ class Simulation():
             assert len(recordings) == len(setup.request_keys)
             for recording, request_keys in zip(recordings, setup.request_keys):
                 requests_dict.update([(key, recording) for key in request_keys])
+        if len(requests_dict) == 1 and requests_dict.keys()[0] is None:
+            requests_dict = requests_dict.values()[0]
         return requests_dict
 
     
@@ -250,15 +252,15 @@ class SimpleCustomSimulation(Simulation):
         """
         v, t = self.simulate(candidate)
         try:
-            sampling_period = t[1] - t[0] * pq.ms # Assume time is sampled evenly
+            sampling_period = (t[1] - t[0]) * pq.ms # Assume time is sampled evenly
             t_start = t[0] * pq.ms
             t_stop = t[-1] * pq.ms
         except TypeError: # If t is a timestep rather than a time vector
             sampling_period = t * pq.ms
             t_start = 0.0 * pq.ms
             t_stop = t * len(v) * pq.ms
-        return [neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, t_stop=t_stop, 
-                                 name='custom_simulation', units='ms')]
+        return [[neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, t_stop=t_stop, 
+                                 name='custom_simulation', units='ms')]]
             
     def simulate(self, candidate):
         """
