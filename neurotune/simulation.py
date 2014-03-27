@@ -45,7 +45,7 @@ class RecordingRequest(object):
         self.conditions = conditions
         
 
-class _Simulation():
+class Simulation():
     "Base class of Simulation objects"
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
@@ -57,7 +57,7 @@ class _Simulation():
         """
         Prepares the simulations that are required by the chosen objective functions
         
-        `simulation_setups` -- a of simulation setups [list(_Simulation.SimulationSetup)]
+        `simulation_setups` -- a of simulation setups [list(Simulation.SimulationSetup)]
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
@@ -73,7 +73,10 @@ class _Simulation():
         `recording_requests`  -- a list of recording requests from the objective functions [.RecordingRequest]
         """
         # Group into requests by common experimental conditions
-        request_items = recording_requests.items()
+        try:
+            request_items = recording_requests.items()
+        except AttributeError:
+            request_items = [(None, recording_requests)]
         request_items.sort(key=lambda x: x[1].conditions)
         common_conditions = groupby(request_items, key=lambda x: x[1].conditions)
         # Merge the common requests into simulation setups
@@ -122,7 +125,7 @@ class _Simulation():
         return requests_dict
 
     
-class NineLineSimulation(_Simulation):
+class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
     
     def __init__(self, cell_9ml, genome_keys):
@@ -199,7 +202,7 @@ class NineLineSimulation(_Simulation):
         (segment name - property) pairs. Therefore in order to record from component states you must
         also provide the segment name to disambiguate it from the segment name - property case. 
         
-        `simulation_setup` -- A set of simulation setup instructions [_Simulation.SimulationSetup] 
+        `simulation_setup` -- A set of simulation setup instructions [Simulation.SimulationSetup] 
         """
         #Initialise cell
         self.cell = self.celltype()
@@ -217,7 +220,7 @@ class NineLineSimulation(_Simulation):
             setattr(self.cell, key, val)
 
 
-class SimpleCustomSimulation(_Simulation):
+class SimpleCustomSimulation(Simulation):
     """
     A convenient base class for custom simulation objects. Provides record time from requested 
     recordings
@@ -230,17 +233,18 @@ class SimpleCustomSimulation(_Simulation):
         """
         Prepares the simulations that are required by the chosen objective functions
         
-        `simulation_setups` -- a of simulation setups [list(_Simulation.SimulationSetup)]
+        `simulation_setups` -- a of simulation setups [list(Simulation.SimulationSetup)]
         """
-        if (len(self.simulation_setups) != 1 or self.simulation_setups.record_variable is not None 
-            or self.simulation_setups.conditions is not None):
+        if (len(self.simulation_setups) != 1 or 
+            self.simulation_setups[0].record_variables != [None] or
+            self.simulation_setups[0].conditions is not None):
             raise Exception("Custom simulation '{}' can only handle default recordings (typically "
                             "voltage traces from the soma)".format(self.__class__.__name__))
-        self.record_time = self.simulation_setups.record_time
+        self.record_time = self.simulation_setups[0].time
         
     def _run_all(self, candidate):
         """
-        Wraps the _run method in a list to be returned to the _Simulation.run method
+        Wraps the _run method in a list to be returned to the Simulation.run method
         
         `candidate` -- a list of parameters [list(float)]
         """

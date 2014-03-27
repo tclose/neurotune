@@ -13,7 +13,7 @@ from random import Random
 from time import time
 
 
-class _Algorithm(object):
+class Algorithm(object):
     """
     Base optimization algorithm class
     """
@@ -28,7 +28,7 @@ class _Algorithm(object):
         
     def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
                  random_seed=None, **kwargs):
-        raise NotImplementedError("'optimize' is not implemented by derived class of '_Algorithm'"
+        raise NotImplementedError("'optimize' is not implemented by derived class of 'Algorithm'"
                                   ",'{}'".format(self.__class__.__name__))
         
     def _set_tuneable_parameters(self, tuneable_parameters):
@@ -59,7 +59,11 @@ class _Algorithm(object):
         return ret
 
 
-class _InspyredAlgorithm(_Algorithm):
+class InspyredAlgorithm(Algorithm):
+    """
+    Base class for inspyred (https://pypi.python.org/pypi/inspyred) evolutionary algorithms based 
+    algorithm objects
+    """
 
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
 
@@ -75,11 +79,11 @@ class _InspyredAlgorithm(_Algorithm):
         self.terminator = terminator
         
     def _set_tuneable_parameters(self, tuneable_parameters):
-        super(_InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
+        super(InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
         self.bounder = ec.Bounder(*zip(self.constraints))
 
 
-class EDAAlgorithm(_InspyredAlgorithm):
+class EDAAlgorithm(InspyredAlgorithm):
 
     def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
                  random_seed=None, **kwargs):
@@ -104,7 +108,7 @@ class EDAAlgorithm(_InspyredAlgorithm):
         return pop, ea
 
 
-class NSGA2Algorithm(_InspyredAlgorithm):
+class NSGA2Algorithm(InspyredAlgorithm):
 
     def __init__(self, mutation_rate, num_elites=None, stdev=None, 
                  allow_indentical=True, terminator=terminators.generation_termination,

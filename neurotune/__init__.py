@@ -1,6 +1,9 @@
 import numpy
 from collections import deque, namedtuple
 from abc import ABCMeta # Metaclass for abstract base classes
+import neurotune.simulation as simulation
+import neurotune.algorithm as algorithm
+import neurotune.objective as objective
 try:
     from mpi4py import MPI
 except ImportError:
@@ -10,7 +13,7 @@ except ImportError:
 Parameter = namedtuple('Parameter', 'name units lbound ubound')
        
 
-class _BaseTuner(object):
+class BaseTuner(object):
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
@@ -61,7 +64,10 @@ class _BaseTuner(object):
             self.indiv_file.close()
     
 
-class Tuner(_BaseTuner):
+class Tuner(BaseTuner):
+    """
+    A basic tuner class that runs the complete algorithm on the current node (good for debugging)
+    """
     
     def tune(self, num_candidates, max_iterations, seeds=None, random_seed=None, 
              stats_filename=None, indiv_filename=None, **kwargs):
@@ -90,7 +96,7 @@ class Tuner(_BaseTuner):
         return [self._evaluate_candidate(c) for c in candidates]
     
 
-class MPITuner(_BaseTuner):
+class MPITuner(BaseTuner):
     """
     A tuner class that runs the optimisation algorithm on a master node and distributes candidates
     to slave nodes for simulation and evaluation of their fitness

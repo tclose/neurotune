@@ -6,7 +6,7 @@ import neo.io
 from .simulation import RecordingRequest
 
 
-class _Objective(object):
+class Objective(object):
 
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
     
@@ -35,7 +35,7 @@ class _Objective(object):
         return RecordingRequest(record_time=self.record_time)
 
 
-class SpikeFrequencyObjective(_Objective):
+class SpikeFrequencyObjective(Objective):
     
     def __init__(self, frequency, record_time):
         """
@@ -57,12 +57,12 @@ class SpikeFrequencyObjective(_Objective):
         return RecordingRequest(record_time=self.record_time, record_variable='spikes')
 
 
-class PhasePlaneHistObjective(_Objective):
+class PhasePlaneHistObjective(Objective):
 
     V_RANGE_DEFAULT = (-90, 60)  # Default range of voltages in the histogram
     DVDT_RANGE_DEFAULT = (-0.5, 0.5)  # Default range of dV/dt values in the histogram
 
-    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', resample=False,
+    def __init__(self, reference_traces, record_time=2000.0, record_variable=None, resample=False,
                  exp_conditions=None, num_bins=(10, 10), v_range=V_RANGE_DEFAULT,
                  dvdt_range=DVDT_RANGE_DEFAULT):
         """
@@ -192,7 +192,7 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         return scipy.signal.convolve2d(unconv_hist, self.kernel)
 
 
-class _CombinedObjective(_Objective):
+class CombinedObjective(Objective):
     
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
     
@@ -235,7 +235,7 @@ class _CombinedObjective(_Objective):
         return recordings_request
 
 
-class WeightedSumObjective(_CombinedObjective):
+class WeightedSumObjective(CombinedObjective):
     """
     A container class for multiple objectives, to be used with multiple objective optimisation
     algorithms
@@ -258,7 +258,7 @@ class WeightedSumObjective(_CombinedObjective):
         return weighted_sum
 
 
-class MultiObjective(_CombinedObjective):
+class MultiObjective(CombinedObjective):
     """
     A container class for multiple objectives, to be used with multiple objective optimisation
     algorithms
