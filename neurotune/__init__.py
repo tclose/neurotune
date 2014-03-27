@@ -44,8 +44,7 @@ class BaseTuner(object):
         """
         Evaluate the fitness of a single candidate
         """
-        simulation_data = self.simulation.run(candidate)
-        return self.objective.fitness(simulation_data)
+        return self.objective.fitness(self.simulation.run(candidate))
     
     def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
         if stats_filename:

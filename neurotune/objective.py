@@ -4,17 +4,19 @@ import scipy
 import inspyred
 import neo.io
 from .simulation import RecordingRequest
+from matplotlib import pyplot as plt
 
 
 class Objective(object):
 
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
     
-    def __init__(self, record_time=2000.0):
+    def __init__(self, time_start=0, time_stop=2000.0):
         """
-        `record_time` -- the required length of the recording required to evaluate the objective
+        `time_stop` -- the required length of the recording required to evaluate the objective
         """
-        self.record_time = record_time
+        self.time_start = time_start
+        self.time_stop = time_stop
 
     def fitness(self, recordings):
         """
@@ -32,21 +34,21 @@ class Objective(object):
         Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
         representing the recordings that are required from the simulation controller
         """
-        return RecordingRequest(record_time=self.record_time)
+        return RecordingRequest(time_stop=self.time_stop)
 
 
 class SpikeFrequencyObjective(Objective):
     
-    def __init__(self, frequency, record_time):
+    def __init__(self, frequency, time_start, time_stop):
         """
         `frequency`  -- the desired spike frequency
-        `record_time` -- the length of time to run the simulation
+        `time_stop` -- the length of time to run the simulation
         """
-        super(SpikeFrequencyObjective, self).__init__(record_time)
+        super(SpikeFrequencyObjective, self).__init__(time_start, time_stop)
         self.frequency = frequency
         
     def fitness(self, recordings):
-        recording_frequency = len(recordings[recordings < self.record_time]) / self.record_time
+        recording_frequency = len(recordings[recordings < self.time_stop]) / self.time_stop
         return (self.frequency - recording_frequency) ** 2
         
     def get_recording_requests(self):
@@ -54,34 +56,33 @@ class SpikeFrequencyObjective(Objective):
         Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
         representing the recordings that are required from the simulation controller
         """
-        return RecordingRequest(record_time=self.record_time, record_variable='spikes')
+        return RecordingRequest(time_stop=self.time_stop, record_variable='spikes')
 
 
 class PhasePlaneHistObjective(Objective):
 
-    V_RANGE_DEFAULT = (-90, 60)  # Default range of voltages in the histogram
-    DVDT_RANGE_DEFAULT = (-0.5, 0.5)  # Default range of dV/dt values in the histogram
+    DEFAULT_RANGE_MULT = 1.5
 
-    def __init__(self, reference_traces, record_time=2000.0, record_variable=None, resample=False,
-                 exp_conditions=None, num_bins=(10, 10), v_range=V_RANGE_DEFAULT,
-                 dvdt_range=DVDT_RANGE_DEFAULT):
+    def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
+                 resample=False, exp_conditions=None, num_bins=(10, 10), v_bounds=None, 
+                 dvdt_bounds=None):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
         
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
-        `record_time`      -- the length of the recording [float]
+        `time_stop`      -- the length of the recording [float]
         `record_variable`      -- the recording site [str]
         `exp_conditions`   -- the required experimental conditions (eg. initial voltage, current 
                               clamps, etc...) [neurotune.controllers.ExperimentalConditions] 
         `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
-        `v_range`          -- the range of voltages over which the histogram is generated for 
+        `v_bounds`          -- the range of voltages over which the histogram is generated for 
                               [tuple[2](float)] 
-        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated 
+        `dvdt_bounds`       -- the range of rates of change of voltage the histogram is generated 
                               for [tuple[2](float)]
         """
-        super(PhasePlaneHistObjective, self).__init__(record_time)
+        super(PhasePlaneHistObjective, self).__init__(time_start, time_stop)
         if isinstance(reference_traces, str):
             f = neo.io.PickleIO(reference_traces)
             seg = f.read_segment()
@@ -93,27 +94,58 @@ class PhasePlaneHistObjective(Objective):
         self.resample = resample
         self.exp_conditions = exp_conditions
         self.num_bins = num_bins
-        self.range = (v_range, dvdt_range)
+        self._set_range(v_bounds, dvdt_bounds, reference_traces)
         # Generate the reference phase plane the simulated data will be compared against
         self.ref_phase_plane_hist = numpy.zeros(num_bins)
         for ref_trace in reference_traces:
             self.ref_phase_plane_hist += self._generate_phase_plane_hist(ref_trace)
         # Normalise the reference phase plane
         self.ref_phase_plane_hist /= len(reference_traces)
+        
+    def _set_range(self, v_bounds, dvdt_bounds, reference_traces):
+        v, dvdt = zip(*[self._calculate_v_dv_dvdt(t)[0:4:2] for t in reference_traces])
+        if v_bounds is None:
+            v = numpy.array(v)
+            min_v, max_v = numpy.min(v), numpy.max(v)
+            half_v_range = (max_v - min_v) / 2.0
+            v_bounds = (min_v - (self.DEFAULT_RANGE_MULT - 1.0) * half_v_range,
+                        max_v + (self.DEFAULT_RANGE_MULT - 1.0) * half_v_range) 
+        if dvdt_bounds is None:
+            dvdt = numpy.array(dvdt)
+            min_dvdt, max_dvdt = numpy.min(dvdt), numpy.max(dvdt)
+            half_dvdt_range = (max_dvdt - min_dvdt) / 2.0
+            dvdt_bounds = (min_dvdt - (self.DEFAULT_RANGE_MULT - 1.0) * half_dvdt_range,
+                           max_dvdt + (self.DEFAULT_RANGE_MULT - 1.0) * half_dvdt_range)
+        self.range = (v_bounds, dvdt_bounds)
 
     def get_recording_requests(self):
         """
         Gets all recording requests required by the objective function
         """
-        return RecordingRequest(record_variable=self.record_variable, record_time=self.record_time,
+        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
                                 conditions=self.exp_conditions)
 
     def fitness(self, recordings):
         phase_plane_hist = self._generate_phase_plane_hist(recordings)
         # Get the root-mean-square difference between the reference and simulated histograms
+        plt.figure(0)
+        plt.imshow(self.ref_phase_plane_hist, interpolation='nearest')
+        plt.figure(1)
+        plt.imshow(phase_plane_hist, interpolation='nearest')
+        plt.show()
         diff = self.ref_phase_plane_hist - phase_plane_hist
         diff **= 2
         return numpy.sqrt(diff.sum())
+    
+    def _calculate_v_dv_dvdt(self, trace):
+        # Calculate dv/dt via difference between trace samples
+        start_index = int(round(trace.sampling_period * (self.time_start + float(trace.t_start))))
+        stop_index = int(round(trace.sampling_period * (self.time_stop + float(trace.t_start))))
+        v = trace[start_index:stop_index]
+        dv = numpy.diff(v)
+        dt = numpy.diff(v.times)
+        v = trace[:-1]
+        return v, dv, dv / dt
 
     def _generate_phase_plane_hist(self, trace):
         """
@@ -121,11 +153,7 @@ class PhasePlaneHistObjective(Objective):
         
         `trace` -- a voltage trace [neo.Anaologsignal]
         """
-        # Calculate dv/dt via difference between trace samples
-        dv = numpy.diff(trace)
-        dt = numpy.diff(trace.times)
-        v = trace[:-1]
-        dv_dt = dv / dt
+        v, dv, dv_dt = self._calculate_v_dv_dvdt(trace)
         if self.resample:
             # Get the lengths of the intervals between v-dv/dt samples
             d_dv_dt = numpy.diff(dv_dt)
@@ -142,33 +170,22 @@ class PhasePlaneHistObjective(Objective):
 
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
 
-    def __init__(self, reference_traces, record_time=2000.0, record_variable='v', resample=False,
-                 num_bins=(100, 100), v_range=PhasePlaneHistObjective.V_RANGE_DEFAULT,
-                 dvdt_range=PhasePlaneHistObjective.DVDT_RANGE_DEFAULT,
-                 kernel_stdev=(5, 5), kernel_width=(3.5, 3.5)):
+    def __init__(self, reference_traces, num_bins=(100, 100), kernel_stdev=(5, 5), 
+                 kernel_width=(3.5, 3.5), **kwargs):
         """
         Creates a phase plane histogram convolved with a Gaussian kernel from the reference traces 
         and compares that with a similarly convolved histogram of the simulated traces
         
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
-        `record_variable`      -- the recording site [str]
         `num_bins`         -- the number of bins to use for the histogram [tuple(int)]
-        `v_range`          -- the range of voltages over which the histogram is generated for 
-                              [tuple[2](float)]
-        `dvdt_range`       -- the range of rates of change of voltage the histogram is generated 
-                              for [tuple[2](float)]
         `kernel_stdev`     -- the standard deviation of the Gaussian kernel used to convolve the 
                               histogram [tuple[2](float)]
         `kernel_width`     -- the number of standard deviations the Gaussian kernel extends over
         """
         # Call the parent class __init__ method
-        super(ConvPhasePlaneHistObjective, self).__init__(reference_traces=reference_traces,
-                                                          record_time=record_time,
-                                                          record_variable=record_variable,
-                                                          resample=resample,
-                                                          num_bins=num_bins, v_range=v_range,
-                                                          dvdt_range=dvdt_range)
+        super(ConvPhasePlaneHistObjective, self).__init__(reference_traces, num_bins=num_bins, 
+                                                          **kwargs)
         # Pre-calculate the Gaussian kernel
         kernel_extent = numpy.asarray(kernel_width) / (2 * numpy.asarray(kernel_stdev) ** 2)
         # Get the range of x-values for the y = 1/(stdev * sqrt(2*pi)) * exp(-x^2/(2*stdev^2))
