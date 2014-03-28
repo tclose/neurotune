@@ -1,10 +1,10 @@
 from abc import ABCMeta  # Metaclass for abstract base classes
+import math
 import numpy
 import scipy
 import inspyred
 import neo.io
 from .simulation import RecordingRequest
-from matplotlib import pyplot as plt
 
 
 class Objective(object):
@@ -61,10 +61,10 @@ class SpikeFrequencyObjective(Objective):
 
 class PhasePlaneHistObjective(Objective):
 
-    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.25
+    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.1
 
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
-                 resample=False, exp_conditions=None, num_bins=(50, 50), v_bounds=None, 
+                 resample=False, exp_conditions=None, num_bins=(100, 100), v_bounds=None, 
                  dvdt_bounds=None):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
@@ -93,16 +93,39 @@ class PhasePlaneHistObjective(Objective):
             reference_traces = [reference_traces]
         # Save the recording site and number of bins
         self.record_variable = record_variable
-        self.resample = resample
         self.exp_conditions = exp_conditions
         self.num_bins = num_bins
         self._set_range(v_bounds, dvdt_bounds, reference_traces)
+        # Set resampling default
+        if resample is True:
+            self.resample = self.bin_size / 3.0
+        else:
+            self.resample = resample
         # Generate the reference phase plane the simulated data will be compared against
         self.ref_phase_plane_hist = numpy.zeros(num_bins)
         for ref_trace in reference_traces:
             self.ref_phase_plane_hist += self._generate_phase_plane_hist(ref_trace)
         # Normalise the reference phase plane
         self.ref_phase_plane_hist /= len(reference_traces)
+    
+    @property
+    def bin_size(self):
+        return numpy.array(((self.range[0][1] - self.range[0][0]) / float(self.num_bins[0]),
+                            (self.range[1][1] - self.range[1][0]) / float(self.num_bins[1])))
+     
+    def fitness(self, recordings):
+        phase_plane_hist = self._generate_phase_plane_hist(recordings)
+        # Get the root-mean-square difference between the reference and simulated histograms
+        diff = self.ref_phase_plane_hist - phase_plane_hist
+        diff **= 2
+        return numpy.sqrt(diff.sum())
+
+    def get_recording_requests(self):
+        """
+        Gets all recording requests required by the objective function
+        """
+        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
+                                conditions=self.exp_conditions)        
         
     def _set_range(self, v_bounds, dvdt_bounds, reference_traces):
         """
@@ -129,29 +152,9 @@ class PhasePlaneHistObjective(Objective):
                 max_trace = numpy.max(trace)
                 # Extend the range by the fraction in DEFAULT_RANGE_EXTEND
                 range_extend = (max_trace - min_trace) * self._FRAC_TO_EXTEND_DEFAULT_BOUNDS
-                bounds = (min_trace - range_extend, max_trace + range_extend)
+                bounds = (math.floor(min_trace - range_extend), math.ceil(max_trace + range_extend))
             self.range.append(bounds)
-
-    def fitness(self, recordings):
-        phase_plane_hist = self._generate_phase_plane_hist(recordings)
-        # Get the root-mean-square difference between the reference and simulated histograms
-        plt.figure(0)
-        plt.imshow(self.ref_phase_plane_hist, interpolation='nearest')
-        plt.figure(1)
-        plt.imshow(phase_plane_hist, interpolation='nearest')
-        plt.show()
-        diff = self.ref_phase_plane_hist - phase_plane_hist
-        diff **= 2
-        return numpy.sqrt(diff.sum())
-
-    def get_recording_requests(self):
-        """
-        Gets all recording requests required by the objective function
-        """
-        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
-                                conditions=self.exp_conditions)
-
-    
+ 
     def _calculate_v_dv_dvdt(self, trace):
         """
         Trims the trace to the indices within the time_start and time_stop then calculates the 
@@ -162,12 +165,12 @@ class PhasePlaneHistObjective(Objective):
         returns trimmed voltage trace, dV and dV/dt in a tuple
         """
         # Calculate dv/dt via difference between trace samples
-        start_index = int(round(trace.sampling_period * (self.time_start + float(trace.t_start))))
-        stop_index = int(round(trace.sampling_period * (self.time_stop + float(trace.t_start))))
+        start_index = int(round(trace.sampling_rate * (self.time_start + float(trace.t_start))))
+        stop_index = int(round(trace.sampling_rate * (self.time_stop + float(trace.t_start))))
         v = trace[start_index:stop_index]
         dv = numpy.diff(v)
         dt = numpy.diff(v.times)
-        v = trace[:-1]
+        v = v[:-1]
         return v, dv, dv / dt
 
     def _generate_phase_plane_hist(self, trace):
@@ -180,17 +183,40 @@ class PhasePlaneHistObjective(Objective):
         """
         v, dv, dv_dt = self._calculate_v_dv_dvdt(trace)
         if self.resample:
+            resample_norm = numpy.norm(self.resample)
+            rescale = 2.0 * self.resample / resample_norm
             # Get the lengths of the intervals between v-dv/dt samples
             d_dv_dt = numpy.diff(dv_dt)
-            interval_lengths = numpy.sqrt(dv[:-1] ** 2 + d_dv_dt ** 2)
+            interval_lengths = numpy.sqrt((dv[:-1] / rescale[0]) ** 2 + 
+                                          (d_dv_dt / rescale[1]) ** 2)
             # Calculate the "positions" of the samples in terms of the fraction of the length
             # of the v-dv/dt path
             s = numpy.concatenate(([0.0], numpy.ufunc.accumulate(interval_lengths)))
             # Interpolate the samples onto an evenly spaced grid of "positions"
-            new_s = numpy.arange(0, s[-1], self.resample)
+            new_s = numpy.arange(0, s[-1], resample_norm)
             v = scipy.interp(new_s, s, v)
             dv_dt = scipy.interp(new_s, s, dv_dt)
-        return numpy.histogram2d(v, dv_dt, bins=self.num_bins, range=self.range, normed=True)[0]
+        return numpy.histogram2d(v, dv_dt, bins=self.num_bins, range=self.range, normed=False)[0]
+    
+    def plot_hist(self, trace, range=None, show=True):
+        """
+        Used in debugging to plot a histogram from a given trace
+        
+        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
+        `show`  -- whether to call the matplotlib 'show' function (depends on whether there are
+                   subsequent plots to compare or not) [bool]
+        """
+        from matplotlib import pyplot as plt
+        hist = self._generate_phase_plane_hist(trace)
+        kwargs = {}
+        if range is not None:
+            kwargs['vmin'], kwargs['vmax'] = range
+        plt.figure()
+        plt.imshow(hist.T, interpolation='nearest', origin='lower', **kwargs)
+        plt.xlabel('v')
+        plt.ylabel('dV/dt')
+        if show:
+            plt.show()
 
 
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):

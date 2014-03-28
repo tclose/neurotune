@@ -30,8 +30,8 @@ class BaseTuner(object):
         self.algorithm = algorithm
         self.algorithm._set_tuneable_parameters(tuneable_parameters)
         self.simulation = simulation
-        self.simulation.process_requests(objective.get_recording_requests())
         self.simulation._set_tuneable_parameters(tuneable_parameters)
+        self.simulation.process_requests(objective.get_recording_requests())
         
     def tune(self, pop_size, max_iterations, random_seed=None, stats_filename=None, #@UnusedVariable
              indiv_filename=None, **kwargs): #@UnusedVariable

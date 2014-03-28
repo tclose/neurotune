@@ -130,14 +130,10 @@ class Simulation():
 class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
     
-    def __init__(self, cell_9ml, genome_keys):
+    def __init__(self, cell_9ml):
         """
         `cell_9ml`    -- A 9ml file [str]
-        `genome_keys` -- A list of genome keys which are used to map the candidate parameters to 
-                         parameters of the model [list(str)]
         """
-        if isinstance(genome_keys, basestring):
-            raise Exception("'genome_keys' argument should be a list of keys not a single key")
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml
         self.celltype = NineCellMetaClass(cell_9ml)
