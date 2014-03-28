@@ -61,10 +61,10 @@ class SpikeFrequencyObjective(Objective):
 
 class PhasePlaneHistObjective(Objective):
 
-    DEFAULT_RANGE_MULT = 1.5
+    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.25
 
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
-                 resample=False, exp_conditions=None, num_bins=(10, 10), v_bounds=None, 
+                 resample=False, exp_conditions=None, num_bins=(50, 50), v_bounds=None, 
                  dvdt_bounds=None):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
@@ -72,15 +72,17 @@ class PhasePlaneHistObjective(Objective):
         
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
-        `time_stop`      -- the length of the recording [float]
-        `record_variable`      -- the recording site [str]
+        `time_stop`        -- the length of the recording [float]
+        `record_variable`  -- the recording site [str]
         `exp_conditions`   -- the required experimental conditions (eg. initial voltage, current 
                               clamps, etc...) [neurotune.controllers.ExperimentalConditions] 
         `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
-        `v_bounds`          -- the range of voltages over which the histogram is generated for 
+        `v_bounds`         -- the range of voltages over which the histogram is generated for. If 
+                              'None' then it is calculated from the range of the reference traces
                               [tuple[2](float)] 
-        `dvdt_bounds`       -- the range of rates of change of voltage the histogram is generated 
-                              for [tuple[2](float)]
+        `dvdt_bounds`      -- the range of rates of change of voltage the histogram is generated 
+                              for. If 'None' then it is calculated from the range of the reference
+                              traces [tuple[2](float)]
         """
         super(PhasePlaneHistObjective, self).__init__(time_start, time_stop)
         if isinstance(reference_traces, str):
@@ -103,27 +105,32 @@ class PhasePlaneHistObjective(Objective):
         self.ref_phase_plane_hist /= len(reference_traces)
         
     def _set_range(self, v_bounds, dvdt_bounds, reference_traces):
-        v, dvdt = zip(*[self._calculate_v_dv_dvdt(t)[0:4:2] for t in reference_traces])
-        if v_bounds is None:
-            v = numpy.array(v)
-            min_v, max_v = numpy.min(v), numpy.max(v)
-            half_v_range = (max_v - min_v) / 2.0
-            v_bounds = (min_v - (self.DEFAULT_RANGE_MULT - 1.0) * half_v_range,
-                        max_v + (self.DEFAULT_RANGE_MULT - 1.0) * half_v_range) 
-        if dvdt_bounds is None:
-            dvdt = numpy.array(dvdt)
-            min_dvdt, max_dvdt = numpy.min(dvdt), numpy.max(dvdt)
-            half_dvdt_range = (max_dvdt - min_dvdt) / 2.0
-            dvdt_bounds = (min_dvdt - (self.DEFAULT_RANGE_MULT - 1.0) * half_dvdt_range,
-                           max_dvdt + (self.DEFAULT_RANGE_MULT - 1.0) * half_dvdt_range)
-        self.range = (v_bounds, dvdt_bounds)
-
-    def get_recording_requests(self):
         """
-        Gets all recording requests required by the objective function
+        Sets the range of the histogram. If v_bounds or dvdt_bounds is not provided (i.e. is None)
+        then the range is taken to be the range between the maximum and minium values of the 
+        reference trace extended in both directions by _FRAC_TO_EXTEND_DEFAULT_BOUNDS
+        
+        `v_bounds`         -- the range of voltages over which the histogram is generated for. If 
+                              'None' then it is calculated from the range of the reference traces 
+                              [tuple[2](float)]
+        `dvdt_bounds`      -- the range of rates of change of voltage the histogram is generated for.
+                              If 'None' then it is calculated from the range of the reference traces 
+                              [tuple[2](float)]
+        `reference_traces` -- traces (in Neo format) that are to be compared against 
+                              [list(neo.AnalogSignal)]
         """
-        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
-                                conditions=self.exp_conditions)
+        v, _, dvdt = zip(*[self._calculate_v_dv_dvdt(t) for t in reference_traces])
+        self.range = []
+        for bounds, trace in ((v_bounds, v), (dvdt_bounds, dvdt)):
+            if bounds is None:
+                # Calculate the range of the reference traces
+                trace = numpy.array(trace)
+                min_trace = numpy.min(trace)
+                max_trace = numpy.max(trace)
+                # Extend the range by the fraction in DEFAULT_RANGE_EXTEND
+                range_extend = (max_trace - min_trace) * self._FRAC_TO_EXTEND_DEFAULT_BOUNDS
+                bounds = (min_trace - range_extend, max_trace + range_extend)
+            self.range.append(bounds)
 
     def fitness(self, recordings):
         phase_plane_hist = self._generate_phase_plane_hist(recordings)
@@ -136,8 +143,24 @@ class PhasePlaneHistObjective(Objective):
         diff = self.ref_phase_plane_hist - phase_plane_hist
         diff **= 2
         return numpy.sqrt(diff.sum())
+
+    def get_recording_requests(self):
+        """
+        Gets all recording requests required by the objective function
+        """
+        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
+                                conditions=self.exp_conditions)
+
     
     def _calculate_v_dv_dvdt(self, trace):
+        """
+        Trims the trace to the indices within the time_start and time_stop then calculates the 
+        discrete time derivative
+        
+        `trace` -- voltage trace (in Neo format) [list(neo.AnalogSignal)]
+        
+        returns trimmed voltage trace, dV and dV/dt in a tuple
+        """
         # Calculate dv/dt via difference between trace samples
         start_index = int(round(trace.sampling_period * (self.time_start + float(trace.t_start))))
         stop_index = int(round(trace.sampling_period * (self.time_stop + float(trace.t_start))))
@@ -152,6 +175,8 @@ class PhasePlaneHistObjective(Objective):
         Generates the phase plane histogram see Neurofitter paper (Van Geit 2007)
         
         `trace` -- a voltage trace [neo.Anaologsignal]
+        
+        returns 2D histogram
         """
         v, dv, dv_dt = self._calculate_v_dv_dvdt(trace)
         if self.resample:
