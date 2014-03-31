@@ -74,7 +74,7 @@ class PhasePlaneHistObjective(Objective):
 
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
                  exp_conditions=None, num_bins=(100, 100), v_bounds=None, 
-                 dvdt_bounds=None, resample=True, resample_type='slinear'):
+                 dvdt_bounds=None, resample=True, resample_type='linear'):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -179,12 +179,22 @@ class PhasePlaneHistObjective(Objective):
             # Get a regularly spaced array of new positions along the phase-plane path to 
             # interpolate the 
             new_s = numpy.arange(0, s[-1], resample_norm)
-#             # If using a more computationally intensive interpolation technique, perform a 
-#             # pre-processing interpolation  
-#             if self.resample_type in ('slinear', 'quadratic', 'cubic'):
-#                 v = scipy.interpolate.interp1d(s, v, kind=self.resample_type)(new_s)
-#                 dvdt = scipy.interpolate.interp1d(s, dvdt, kind=self.resample_type)(new_s)
-#             else:
+            # If using a more computationally intensive interpolation technique, perform a 
+            # pre-process decimation on the densely sampled sections of the path 
+            if self.resample_type in ('slinear', 'quadratic', 'cubic'):
+                # Get a list of landmark samples that should be retained in the coarse sampling
+                # i.e. samples either side of a 
+                course_resample_norm = resample_norm * 10.0
+                # Make the samples on both sides of large intervals "landmark" samples
+                landmarks = numpy.empty(len(v)+1)
+                landmarks[:-2] = interval_lengths > course_resample_norm
+                landmarks[landmarks[:-2].nonzero()+1] = True
+                landmarks[-2:] = True
+                start_indices = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
+                end_indices = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)  
+                v = scipy.interpolate.interp1d(s, v, kind=self.resample_type)(new_s)
+                dvdt = scipy.interpolate.interp1d(s, dvdt, kind=self.resample_type)(new_s)
+                
             # Interpolate the samples onto an evenly spaced grid of "positions"
             v = numpy.interp(new_s, s, v)
             dvdt = numpy.interp(new_s, s, dvdt)
