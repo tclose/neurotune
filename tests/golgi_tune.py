@@ -13,12 +13,13 @@ reference_trace = cell.get_recording('v')
 
 #Instantiate the tuner
 parameters = [nt.Parameter('diam', 'um', 10.0, 40.0)]
-objective = nt.objective.PhasePlaneHistObjective(reference_trace, resample=True)
+# objective = nt.objective.PhasePlaneHistObjective(reference_trace, resample=True)
+objective = nt.objective.ConvPhasePlaneHistObjective(reference_trace, kernel_width=(15, 37.5))
 algorithm = nt.algorithm.EDAAlgorithm()
 simulation = nt.simulation.NineLineSimulation(cell_9ml)
 tuner = nt.Tuner(parameters, objective, algorithm, simulation)
 
-
+# objective.plot_kernel()
 objective.plot_hist(reference_trace)
 
 # Run the tuner
