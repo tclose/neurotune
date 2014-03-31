@@ -190,30 +190,61 @@ class PhasePlaneHistObjective(Objective):
         # improve performance, so a basic interpolation can be performed.
         if self.resample_type == 'linear':
             # Interpolate the samples onto an evenly spaced grid of "positions"
-            v = numpy.interp(new_s, s, v)
-            dvdt = numpy.interp(new_s, s, dvdt)
+            new_v = numpy.interp(new_s, s, v)
+            new_dvdt = numpy.interp(new_s, s, dvdt)
         # If using a more computationally intensive interpolation technique, the v-dV/dt paths are 
         # pre-processed to decimate the densely sampled sections of the path
         else:
             # Get a list of landmark samples that should be retained in the coarse sampling
             # i.e. samples either side of a 
-            course_resample_norm = resample_norm * 10.0
+            coarse_resample_norm = 10.0
             # Make the samples on both sides of large intervals "landmark" samples
             landmarks = numpy.empty(len(v)+1)
-            landmarks[:-2] = interval_lengths > course_resample_norm
-            landmarks[landmarks[:-2].nonzero()+1] = True
+            landmarks[:-2] = interval_lengths > coarse_resample_norm
+            landmarks[landmarks[:-2].nonzero()[0]+1] = True
             landmarks[-2:] = True
             # Break the path up into chains of densely and sparsely sampled sections (i.e. fast and
             # slow parts of the voltage trace)
             end_dense_samples = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
             end_sparse_samples = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)
-            split_indices = numpy.logical_or(end_dense_samples, end_sparse_samples).nonzero()
+            split_indices = numpy.logical_or(end_dense_samples, end_sparse_samples).nonzero()[0] + 1
             v_chains = numpy.split(v, split_indices)
             dvdt_chains = numpy.split(dvdt, split_indices)
-            # Up to here!!
-            v = scipy.interpolate.interp1d(s, v, kind=self.resample_type)(new_s)
-            dvdt = scipy.interpolate.interp1d(s, dvdt, kind=self.resample_type)(new_s)
-        return v, dvdt
+            s_chains = numpy.split(s, split_indices)
+            # Resample dense parts of the path and keep sparse parts
+            coarse_v_list = []
+            coarse_dvdt_list = []
+            coarse_s_list = []
+            is_landmark_chain = landmarks[0]
+            for v_chain, dvdt_chain, s_chain in zip(v_chains, dvdt_chains, s_chains):
+                # Check whether in sparse (landmark) or dense chain
+                if is_landmark_chain:
+                    # if sparse chain append to coarse chain as is
+                    coarse_v_list.append(v_chain)
+                    coarse_dvdt_list.append(dvdt_chain)
+                    coarse_s_list.append(s_chain)
+                else:
+                    # if dense chain interpolate to a coarse 's' resolution and append to coarse chain
+                    coarse_new_s_chain = numpy.arange(s_chain[0], s_chain[-1], coarse_resample_norm)
+                    coarse_v_list.append(numpy.interp(coarse_new_s_chain, s_chain, v_chain))
+                    coarse_dvdt_list.append(numpy.interp(coarse_new_s_chain, s_chain, dvdt_chain))
+                    coarse_s_list.append(coarse_new_s_chain)
+                # Alternate to and from dense and sparse chains
+                is_landmark_chain = not is_landmark_chain
+            # Concatenate coarse chains into numpy arrays
+            coarse_v = numpy.concatenate(coarse_v_list)
+            coarse_dvdt = numpy.concatenate(coarse_dvdt_list)
+            coarse_s = numpy.concatenate(coarse_s_list)
+            # Finally interpolate coarse with computationally intensive method
+            new_v = scipy.interpolate.interp1d(coarse_s, coarse_v, kind=self.resample_type)(new_s)
+            new_dvdt = scipy.interpolate.interp1d(coarse_s, coarse_dvdt, kind=self.resample_type)(new_s)
+#             from matplotlib import pyplot as plt
+#             plt.figure()
+#             plt.plot(v, dvdt)
+#             plt.plot(v, dvdt, 'x')
+#             plt.plot(new_v, new_dvdt)
+#             plt.show()
+        return new_v, new_dvdt
         
         
     def _set_bounds(self, v_bounds, dvdt_bounds, reference_traces):
@@ -281,12 +312,14 @@ class PhasePlaneHistObjective(Objective):
         plt.imshow(hist.T, interpolation='nearest', origin='lower', **kwargs)
         plt.xlabel('v')
         plt.ylabel('dV/dt')
-        plt.xticks(numpy.arange(0, self.num_bins[0], self.num_bins[0] / 10.0))
-        plt.yticks(numpy.arange(0, self.num_bins[1], self.num_bins[1] / 10.0))
-        ax.set_xticklabels([str(l) for l in numpy.arange(self.bounds[0][0], self.bounds[0][1], 
+        plt.xticks(numpy.linspace(0, self.num_bins[0]-1, 11.0))
+        plt.yticks(numpy.linspace(0, self.num_bins[1]-1, 11.0))
+        ax.set_xticklabels([str(l) for l in numpy.arange(self.bounds[0][0], 
+                                                         self.bounds[0][1] + self.range[0] / 20.0,
                                                          self.range[0] / 10.0)])
-        ax.set_yticklabels([str(l) for l in numpy.arange(self.bounds[1][0], self.bounds[1][1], 
-                                                         self.range[1] / 10.0)])
+        ax.set_yticklabels([str(l) for l in numpy.arange(self.bounds[1][0], 
+                                                         self.bounds[1][1] + self.range[1] / 20.0,
+                                                         self.range[1] / 10.0)])                                                          
         if show:
             plt.show()
 
