@@ -62,6 +62,7 @@ class SpikeFrequencyObjective(Objective):
 class PhasePlaneHistObjective(Objective):
 
     _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.1
+    _BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT = 3.0
 
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
                  resample=False, exp_conditions=None, num_bins=(100, 100), v_bounds=None, 
@@ -98,7 +99,7 @@ class PhasePlaneHistObjective(Objective):
         self._set_range(v_bounds, dvdt_bounds, reference_traces)
         # Set resampling default
         if resample is True:
-            self.resample = self.bin_size / 3.0
+            self.resample = self.bin_size / self._BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT
         else:
             self.resample = resample
         # Generate the reference phase plane the simulated data will be compared against
@@ -126,6 +127,24 @@ class PhasePlaneHistObjective(Objective):
         """
         return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
                                 conditions=self.exp_conditions)        
+ 
+    def _calculate_v_and_dvdt(self, trace):
+        """
+        Trims the trace to the indices within the time_start and time_stop then calculates the 
+        discrete time derivative
+        
+        `trace` -- voltage trace (in Neo format) [list(neo.AnalogSignal)]
+        
+        returns trimmed voltage trace, dV and dV/dt in a tuple
+        """
+        # Calculate dv/dt via difference between trace samples
+        start_index = int(round(trace.sampling_rate * (self.time_start + float(trace.t_start)))) # the float() call is required to remove the "python-quantities" units
+        stop_index = int(round(trace.sampling_rate * (self.time_stop + float(trace.t_start)))) # the float() call is required to remove the "python-quantities" units
+        v = trace[start_index:stop_index]
+        dv = numpy.diff(v)
+        dt = numpy.diff(v.times)
+        v = v[:-1]
+        return v, dv/dt
         
     def _set_range(self, v_bounds, dvdt_bounds, reference_traces):
         """
@@ -142,7 +161,7 @@ class PhasePlaneHistObjective(Objective):
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
         """
-        v, _, dvdt = zip(*[self._calculate_v_dv_dvdt(t) for t in reference_traces])
+        v, dvdt = zip(*[self._calculate_v_and_dvdt(t) for t in reference_traces])
         self.range = []
         for bounds, trace in ((v_bounds, v), (dvdt_bounds, dvdt)):
             if bounds is None:
@@ -154,24 +173,6 @@ class PhasePlaneHistObjective(Objective):
                 range_extend = (max_trace - min_trace) * self._FRAC_TO_EXTEND_DEFAULT_BOUNDS
                 bounds = (math.floor(min_trace - range_extend), math.ceil(max_trace + range_extend))
             self.range.append(bounds)
- 
-    def _calculate_v_dv_dvdt(self, trace):
-        """
-        Trims the trace to the indices within the time_start and time_stop then calculates the 
-        discrete time derivative
-        
-        `trace` -- voltage trace (in Neo format) [list(neo.AnalogSignal)]
-        
-        returns trimmed voltage trace, dV and dV/dt in a tuple
-        """
-        # Calculate dv/dt via difference between trace samples
-        start_index = int(round(trace.sampling_rate * (self.time_start + float(trace.t_start))))
-        stop_index = int(round(trace.sampling_rate * (self.time_stop + float(trace.t_start))))
-        v = trace[start_index:stop_index]
-        dv = numpy.diff(v)
-        dt = numpy.diff(v.times)
-        v = v[:-1]
-        return v, dv, dv / dt
 
     def _generate_phase_plane_hist(self, trace):
         """
@@ -181,17 +182,18 @@ class PhasePlaneHistObjective(Objective):
         
         returns 2D histogram
         """
-        v, dv, dv_dt = self._calculate_v_dv_dvdt(trace)
-        if self.resample:
-            resample_norm = numpy.norm(self.resample)
+        v, dv_dt = self._calculate_v_and_dvdt(trace)
+        if self.resample is not False:
+            resample_norm = numpy.sqrt((self.resample * self.resample).sum())
             rescale = 2.0 * self.resample / resample_norm
             # Get the lengths of the intervals between v-dv/dt samples
-            d_dv_dt = numpy.diff(dv_dt)
-            interval_lengths = numpy.sqrt((dv[:-1] / rescale[0]) ** 2 + 
+            dv = numpy.asarray(numpy.diff(v))
+            d_dv_dt = numpy.asarray(numpy.diff(dv_dt))
+            interval_lengths = numpy.sqrt((dv / rescale[0]) ** 2 + 
                                           (d_dv_dt / rescale[1]) ** 2)
             # Calculate the "positions" of the samples in terms of the fraction of the length
             # of the v-dv/dt path
-            s = numpy.concatenate(([0.0], numpy.ufunc.accumulate(interval_lengths)))
+            s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
             # Interpolate the samples onto an evenly spaced grid of "positions"
             new_s = numpy.arange(0, s[-1], resample_norm)
             v = scipy.interp(new_s, s, v)
@@ -211,10 +213,19 @@ class PhasePlaneHistObjective(Objective):
         kwargs = {}
         if range is not None:
             kwargs['vmin'], kwargs['vmax'] = range
-        plt.figure()
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
         plt.imshow(hist.T, interpolation='nearest', origin='lower', **kwargs)
         plt.xlabel('v')
         plt.ylabel('dV/dt')
+        plt.xticks(numpy.arange(0, self.num_bins[0], int(round(self.num_bins[0] / 10.0))))
+        plt.yticks(numpy.arange(0, self.num_bins[1], int(round(self.num_bins[1] / 10.0))))
+        v_range = self.range[0][1] - self.range[0][0]
+        dvdt_range = self.range[1][1] - self.range[1][0]
+        ax.set_xticklabels([str(l) for l in numpy.arange(self.range[0][0], self.range[0][1], 
+                                                         v_range / 10.0)])
+        ax.set_yticklabels([str(l) for l in numpy.arange(self.range[1][0], self.range[1][1], 
+                                                         dvdt_range / 10.0)])
         if show:
             plt.show()
 

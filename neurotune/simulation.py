@@ -256,7 +256,7 @@ class SimpleCustomSimulation(Simulation):
             t_start = 0.0 * pq.ms
             t_stop = t * len(v) * pq.ms
         return [[neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, t_stop=t_stop, 
-                                 name='custom_simulation', units='ms')]]
+                                 name='custom_simulation', units='mV')]]
             
     def simulate(self, candidate):
         """
