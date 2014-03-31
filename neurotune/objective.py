@@ -167,38 +167,54 @@ class PhasePlaneHistObjective(Objective):
         v = v[:-1]
         dvdt = dv/dt
         if self.resample is not False:
-            resample_norm = numpy.sqrt((self.resample * self.resample).sum())
-            rescale = 2.0 * self.resample / resample_norm
-            # Get the lengths of the intervals between v-dv/dt samples
-            d_dvdt = numpy.diff(dvdt)
-            interval_lengths = numpy.sqrt((numpy.asarray(dv[:-1]) / rescale[0]) ** 2 + 
-                                          (numpy.asarray(d_dvdt) / rescale[1]) ** 2)
-            # Calculate the "positions" of the samples in terms of the fraction of the length
-            # of the v-dv/dt path
-            s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
-            # Get a regularly spaced array of new positions along the phase-plane path to 
-            # interpolate the 
-            new_s = numpy.arange(0, s[-1], resample_norm)
-            # If using a more computationally intensive interpolation technique, perform a 
-            # pre-process decimation on the densely sampled sections of the path 
-            if self.resample_type in ('slinear', 'quadratic', 'cubic'):
-                # Get a list of landmark samples that should be retained in the coarse sampling
-                # i.e. samples either side of a 
-                course_resample_norm = resample_norm * 10.0
-                # Make the samples on both sides of large intervals "landmark" samples
-                landmarks = numpy.empty(len(v)+1)
-                landmarks[:-2] = interval_lengths > course_resample_norm
-                landmarks[landmarks[:-2].nonzero()+1] = True
-                landmarks[-2:] = True
-                start_indices = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
-                end_indices = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)  
-                v = scipy.interpolate.interp1d(s, v, kind=self.resample_type)(new_s)
-                dvdt = scipy.interpolate.interp1d(s, dvdt, kind=self.resample_type)(new_s)
-                
+            v, dvdt = self._resample_traces(v, dvdt)
+        return v, dvdt
+    
+    def _resample_traces(self, v, dvdt):
+        # In order to resample the traces, the length of each v-dV/dt path segment needs to be 
+        # calculated 
+        resample_norm = numpy.sqrt((self.resample * self.resample).sum())
+        rescale = 2.0 * self.resample / resample_norm
+        # Get the lengths of the intervals between v-dv/dt samples
+        dv = numpy.diff(v)
+        d_dvdt = numpy.diff(dvdt)
+        interval_lengths = numpy.sqrt((numpy.asarray(dv) / rescale[0]) ** 2 + 
+                                      (numpy.asarray(d_dvdt) / rescale[1]) ** 2)
+        # Calculate the "positions" of the samples in terms of the fraction of the length
+        # of the v-dv/dt path
+        s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
+        # Get a regularly spaced array of new positions along the phase-plane path to 
+        # interpolate the 
+        new_s = numpy.arange(0, s[-1], resample_norm)
+        # If using a basic resampling type there is no need to preprocess the v-dV/dt paths to  
+        # improve performance, so a basic interpolation can be performed.
+        if self.resample_type == 'linear':
             # Interpolate the samples onto an evenly spaced grid of "positions"
             v = numpy.interp(new_s, s, v)
             dvdt = numpy.interp(new_s, s, dvdt)
+        # If using a more computationally intensive interpolation technique, the v-dV/dt paths are 
+        # pre-processed to decimate the densely sampled sections of the path
+        else:
+            # Get a list of landmark samples that should be retained in the coarse sampling
+            # i.e. samples either side of a 
+            course_resample_norm = resample_norm * 10.0
+            # Make the samples on both sides of large intervals "landmark" samples
+            landmarks = numpy.empty(len(v)+1)
+            landmarks[:-2] = interval_lengths > course_resample_norm
+            landmarks[landmarks[:-2].nonzero()+1] = True
+            landmarks[-2:] = True
+            # Break the path up into chains of densely and sparsely sampled sections (i.e. fast and
+            # slow parts of the voltage trace)
+            end_dense_samples = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
+            end_sparse_samples = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)
+            split_indices = numpy.logical_or(end_dense_samples, end_sparse_samples).nonzero()
+            v_chains = numpy.split(v, split_indices)
+            dvdt_chains = numpy.split(dvdt, split_indices)
+            # Up to here!!
+            v = scipy.interpolate.interp1d(s, v, kind=self.resample_type)(new_s)
+            dvdt = scipy.interpolate.interp1d(s, dvdt, kind=self.resample_type)(new_s)
         return v, dvdt
+        
         
     def _set_bounds(self, v_bounds, dvdt_bounds, reference_traces):
         """
