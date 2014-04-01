@@ -64,6 +64,187 @@ class SpikeFrequencyObjective(Objective):
         return RecordingRequest(time_stop=self.time_stop, record_variable='spikes')
 
 
+class PhasePlaneObjective(Objective):
+    """
+    Phase-plane histogram objective function based on the objective in Van Geit 2007 (Neurofitter)
+    """
+    
+    __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
+
+    def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None, 
+                 exp_conditions=None, resample=True, resample_type='cubic'):
+        """
+        Creates a phase plane histogram from the reference traces and compares that with the 
+        histograms from the simulated traces
+        
+        `reference_traces` -- traces (in Neo format) that are to be compared against 
+                              [list(neo.AnalogSignal)]
+        `time_stop`        -- the length of the recording [float]
+        `record_variable`  -- the recording site [str]
+        `exp_conditions`   -- the required experimental conditions (eg. initial voltage, current 
+                              clamps, etc...) [neurotune.controllers.ExperimentalConditions] 
+        `num_bins`         -- the number of bins to use for the histogram [tuple[2](int)]
+        `v_bounds`         -- the bounds of voltages over which the histogram is generated for. If 
+                              'None' then it is calculated from the bounds of the reference traces
+                              [tuple[2](float)] 
+        `dvdt_bounds`      -- the bounds of rates of change of voltage the histogram is generated 
+                              for. If 'None' then it is calculated from the bounds of the reference
+                              traces [tuple[2](float)]
+        `resample`         -- the periods used to resample the traces on the v-dV/dt plot. Can be:
+                              * False: no resampling)
+                              * True: resampling to default sizes determinted by bin size and 
+                                      _BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT
+                              * tuple(float)[2]: a pair of sample periods for v & dV/dt respectively
+        `resample_type`    -- the type of interpolation used to resample the traces 
+                              (see scipy.interpolate.interp1d for list of options) [str]
+        """
+        super(PhasePlaneHistObjective, self).__init__(time_start, time_stop)
+        if isinstance(reference_traces, str):
+            f = neo.io.PickleIO(reference_traces)
+            seg = f.read_segment()
+            reference_traces = seg.analogsignals
+        elif isinstance(reference_traces, neo.AnalogSignal):
+            reference_traces = [reference_traces]
+        # Save the recording site and number of bins
+        self.record_variable = record_variable
+        self.exp_conditions = exp_conditions
+        self.resample = resample
+        self.resample_type = resample_type
+     
+    def fitness(self, recordings):
+        phase_plane_hist = self._generate_phase_plane_hist(recordings)
+        # Get the root-mean-square difference between the reference and simulated histograms
+        diff = self.ref_phase_plane_hist - phase_plane_hist
+        diff **= 2
+        return numpy.sqrt(diff.sum())
+
+    def get_recording_requests(self):
+        """
+        Gets all recording requests required by the objective function
+        """
+        return RecordingRequest(record_variable=self.record_variable, record_time=self.time_stop,
+                                conditions=self.exp_conditions)        
+ 
+    def _calculate_v_and_dvdt(self, trace):
+        """
+        Trims the trace to the indices within the time_start and time_stop then calculates the 
+        discrete time derivative and resamples the trace to the resampling interval if provided
+        
+        `trace` -- voltage trace (in Neo format) [list(neo.AnalogSignal)]
+        
+        returns trimmed voltage trace, dV and dV/dt in a tuple
+        """
+        # Calculate dv/dt via difference between trace samples. NB # the float() call is required to
+        # remove the "python-quantities" units
+        start_index = int(round(trace.sampling_rate * (self.time_start + float(trace.t_start)))) 
+        stop_index = int(round(trace.sampling_rate * (self.time_stop + float(trace.t_start))))
+        v = trace[start_index:stop_index]
+        dv = numpy.diff(v)
+        dt = numpy.diff(v.times)
+        v = v[:-1]
+        dvdt = dv/dt
+        if self.resample is not False:
+            v, dvdt = self._resample_traces(v, dvdt)
+        return v, dvdt
+    
+    def _resample_traces(self, v, dvdt):
+        # In order to resample the traces, the length of each v-dV/dt path segment needs to be 
+        # calculated 
+        resample_norm = numpy.sqrt((self.resample * self.resample).sum())
+        rescale = 2.0 * self.resample / resample_norm
+        # Get the lengths of the intervals between v-dv/dt samples
+        dv = numpy.diff(v)
+        d_dvdt = numpy.diff(dvdt)
+        interval_lengths = numpy.sqrt((numpy.asarray(dv) / rescale[0]) ** 2 + 
+                                      (numpy.asarray(d_dvdt) / rescale[1]) ** 2)
+        # Calculate the "positions" of the samples in terms of the fraction of the length
+        # of the v-dv/dt path
+        s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
+        # Get a regularly spaced array of new positions along the phase-plane path to 
+        # interpolate the 
+        new_s = numpy.arange(0, s[-1], resample_norm)
+        # If using a basic resampling type there is no need to preprocess the v-dV/dt paths to  
+        # improve performance, so a basic interpolation can be performed.
+        if self.resample_type == 'linear':
+            # Interpolate the samples onto an evenly spaced grid of "positions"
+            new_v = numpy.interp(new_s, s, v)
+            new_dvdt = numpy.interp(new_s, s, dvdt)
+        # If using a more computationally intensive interpolation technique, the v-dV/dt paths are 
+        # pre-processed to decimate the densely sampled sections of the path
+        else:
+            # Get a list of landmark samples that should be retained in the coarse sampling
+            # i.e. samples with large intervals between them that occur during fast sections of 
+            # the phase plane (i.e. spikes)
+            coarse_resample_norm = 10.0
+            # Make the samples on both sides of large intervals "landmark" samples
+            landmarks = numpy.empty(len(v)+1)
+            landmarks[:-2] = interval_lengths > coarse_resample_norm # low edge of the large intervals
+            landmarks[landmarks[:-2].nonzero()[0]+1] = True # high edge of the large intervals
+            landmarks[0] = landmarks[-2:] = True # Ensure the first and last samples are also included
+            # Break the path up into chains of densely and sparsely sampled sections (i.e. fast and
+            # slow parts of the voltage trace)
+            end_dense_samples = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
+            end_sparse_samples = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)
+            split_indices = numpy.logical_or(end_dense_samples, end_sparse_samples).nonzero()[0] + 1
+            v_chains = numpy.split(v, split_indices)
+            dvdt_chains = numpy.split(dvdt, split_indices)
+            s_chains = numpy.split(s, split_indices)
+            # Resample dense parts of the path and keep sparse parts
+            coarse_v_list = []
+            coarse_dvdt_list = []
+            coarse_s_list = []
+            is_landmark_chain = landmarks[0]
+            for v_chain, dvdt_chain, s_chain in zip(v_chains, dvdt_chains, s_chains):
+                # Check whether in sparse (landmark) or dense chain
+                if is_landmark_chain:
+                    # if sparse chain append to coarse chain as is
+                    coarse_v_list.append(v_chain)
+                    coarse_dvdt_list.append(dvdt_chain)
+                    coarse_s_list.append(s_chain)
+                else:
+                    # if dense chain interpolate to a coarse 's' resolution and append to coarse chain
+                    coarse_new_s_chain = numpy.arange(s_chain[0], s_chain[-1], coarse_resample_norm)
+                    coarse_v_list.append(numpy.interp(coarse_new_s_chain, s_chain, v_chain))
+                    coarse_dvdt_list.append(numpy.interp(coarse_new_s_chain, s_chain, dvdt_chain))
+                    coarse_s_list.append(coarse_new_s_chain)
+                # Alternate to and from dense and sparse chains
+                is_landmark_chain = not is_landmark_chain
+            # Concatenate coarse chains into numpy arrays
+            coarse_v = numpy.concatenate(coarse_v_list)
+            coarse_dvdt = numpy.concatenate(coarse_dvdt_list)
+            coarse_s = numpy.concatenate(coarse_s_list)
+            # Finally interpolate coarse with computationally intensive method
+            new_v = scipy.interpolate.interp1d(coarse_s, coarse_v, kind=self.resample_type)(new_s)
+            new_dvdt = scipy.interpolate.interp1d(coarse_s, coarse_dvdt, 
+                                                  kind=self.resample_type)(new_s)
+        return new_v, new_dvdt
+    
+    def plot_d_dvdt(self, trace, show=True):
+        """
+        Used in debugging to plot a histogram from a given trace
+        
+        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
+        `show`  -- whether to call the matplotlib 'show' function (depends on whether there are
+                   subsequent plots to compare or not) [bool]
+        """
+        from matplotlib import pyplot as plt
+        
+        # Temporarily switch of resampling to get original positions of v dvdt plot
+        orig_resample = self.resample
+        self.resample = False
+        orig_v, orig_dvdt = self._calculate_v_and_dvdt(trace)
+        self.resample = orig_resample
+        v, dvdt = self._calculate_v_and_dvdt(trace)
+        # Plot original positions and interpolated traces
+        plt.figure()
+        plt.plot(orig_v, orig_dvdt, 'x')
+        plt.plot(v, dvdt)
+        plt.xlabel('v')
+        plt.ylabel('dV/dt')
+        if show:
+            plt.show()
+
+
 class PhasePlaneHistObjective(Objective):
     """
     Phase-plane histogram objective function based on the objective in Van Geit 2007 (Neurofitter)
