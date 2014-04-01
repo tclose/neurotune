@@ -20,8 +20,5 @@ algorithm = nt.algorithm.EDAAlgorithm()
 simulation = nt.simulation.NineLineSimulation(cell_9ml)
 tuner = nt.Tuner(parameters, objective, algorithm, simulation)
 
-# objective.plot_kernel()
-objective.plot_hist(reference_trace)
-
 # Run the tuner
-#pop, ea = tuner.tune(10, 100)
+pop, ea = tuner.tune(10, 100)
