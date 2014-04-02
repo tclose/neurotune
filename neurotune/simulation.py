@@ -183,10 +183,10 @@ class NineLineSimulation(Simulation):
         for setup in self.simulation_setups:
             # If there aren't multiple simulation setups the same setup can be reused with just the
             # recorders being reset
-            if True: # len(self.simulation_setups) != 1:
+            if len(self.simulation_setups) != 1:
                 self._prepare(setup)
             else:
-                self.cell.reset_recordings()
+                nineline_controller.reset()
             self._set_candidate_params(candidate)
             nineline_controller.run(setup.time)
             recordings.append(self.cell.get_recording(*zip(*setup.record_variables)))

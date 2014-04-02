@@ -285,10 +285,10 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     Phase-plane histogram objective function based on the objective in Van Geit 2007 (Neurofitter)
     """
 
-    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.1
+    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.5
     _BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT = 3.0
 
-    def __init__(self, reference_traces, num_bins=(100, 100), v_bounds=None, dvdt_bounds=None, 
+    def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=None, dvdt_bounds=None, 
                  **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
@@ -312,7 +312,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         for ref_trace in self.reference_traces:
             self.ref_phase_plane_hist += self._generate_phase_plane_hist(ref_trace)
         # Normalise the reference phase plane
-        self.ref_phase_plane_hist /= len(reference_traces)
+        self.ref_phase_plane_hist /= len(self.reference_traces)
 
     @property
     def range(self):
@@ -461,7 +461,7 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     with the exception that the histograms are smoothed by a Gaussian kernel after they are generated
     """
 
-    def __init__(self, reference_traces, num_bins=(100, 100), kernel_width=(5.25, 18.75),
+    def __init__(self, reference_traces, num_bins=(150, 150), kernel_width=(5.25, 18.75),
                  num_stdevs=(5, 5), **kwargs):
         """
         Creates a phase plane histogram convolved with a Gaussian kernel from the reference traces 
