@@ -43,10 +43,10 @@ for j, obj in enumerate(objectives):
     fitnesses = numpy.empty(grid_length)    
     for i, param in enumerate(param_range):
         recordings = simulation.run([param])
-#         obj.plot_hist(recordings)
         fitnesses[i] = obj.fitness(recordings)
         print "finished param {} of objective {}".format(i, j)
     to_pickle.append(fitnesses)
+    plt.figure()
     plt.plot(param_range, fitnesses)
 to_pickle.append(param_range)
 with open('/home/tclose/Documents/objective_functions.pkl', 'w') as f:
