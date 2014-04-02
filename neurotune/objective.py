@@ -157,14 +157,15 @@ class PhasePlaneObjective(Objective):
                 interp_type = self.interp_type
         # Normalise the relative weights
         resample_norm = numpy.sqrt((resample * resample).sum())
-        rescale = (0.5 * resample_norm) / resample
+        relative_scale = (0.5 * resample_norm) / resample
         # Get interpolators for v and dV/dt
-        v_interp, dvdt_interp, s = self._get_interpolators(v, dvdt, rescale, interp_type)
+        v_interp, dvdt_interp, s = self._get_interpolators(v, dvdt, relative_scale, interp_type)
         # Get a regularly spaced array of new positions along the phase-plane path to interpolate to
         new_s = numpy.arange(0, s[-1], resample_norm)
         return v_interp(new_s), dvdt_interp(new_s)
 
-    def _get_interpolators(self, v, dvdt, relative_scale, interp_type, sparse_period=10.0):
+    def _get_interpolators(self, v, dvdt, relative_scale=None, interp_type=None, 
+                           sparse_period=10.0):
         """
         Gets interpolators as returned from scipy.interpolate.interp1d for v and dV/dt as well as 
         the length of the trace in the phase plane
@@ -187,6 +188,12 @@ class PhasePlaneObjective(Objective):
         """
         # In order to resample the traces, the length of each v-dV/dt path segment needs to be
         # calculated (as defined by the relative scale between them)
+        if relative_scale is None:
+            # Normalise the relative weights
+            resample_norm = numpy.sqrt((self.resample * self.resample).sum())
+            relative_scale = (0.5 * resample_norm) / self.resample
+        if interp_type is None:
+            interp_type = self.interp_type
         dv = numpy.diff(v)
         d_dvdt = numpy.diff(dvdt)
         interval_lengths = numpy.sqrt((numpy.asarray(dv) * relative_scale[0]) ** 2 +
@@ -409,10 +416,10 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                 plt.show()
 
 
-class PhasePlanePointToPointObjective(PhasePlaneObjective):
+class PhasePlanePointwiseObjective(PhasePlaneObjective):
     
     
-    def __init__(self, reference_traces, start_threshold, end_threshold, **kwargs):
+    def __init__(self, reference_traces, start_threshold, end_threshold, num_points **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -421,8 +428,9 @@ class PhasePlanePointToPointObjective(PhasePlaneObjective):
                               [list(neo.AnalogSignal)]
         """
         super(PhasePlaneHistObjective, self).__init__(reference_traces, **kwargs)
-        self.start_threshold = start_threshold
-        self.end_threshold = end_threshold
+        self.start_thresh = start_threshold
+        self.end_thresh = end_threshold
+        self.num_points = num_points
         self.reference_loops = [self._cut_out_loops(t) for t in self.reference_traces]
         
     def _cut_out_loops(self, trace):
@@ -435,21 +443,39 @@ class PhasePlanePointToPointObjective(PhasePlaneObjective):
         `end_threshold`    -- the threshold above which the loop is considered to have ended
                               [tuple[2](float)]                              
         """
-        v, dvdt = self._calculate_v_and_dvdt(trace)
-        # Get the points at which the trace passes the start and end thresholds
-        loop_started = numpy.logical_and(v >= self.start_threshold[0], 
-                                         dvdt >= self.start_threshold[1])
-        loop_ended = numpy.logical_and(v <= self.end_threshold[0], dvdt <= self.end_threshold[1])
-        loop_starts = numpy.logical_and(loop_started[:-1], loop_started[1:].invert())
-        loop_ends = numpy.logical_and(loop_ended[:-1], loop_ended[1:].invert())
-        split_indices = numpy.logical_or(loop_starts, loop_ends).nonzero()[0] + 1
-        v_chains = v.split(split_indices)
-        dvdt_chains = dvdt.split(split_indices)
-        # Check to see if first chain is in loop or not
-        first_loop_index = int(not (v[0] >= self.start_threshold[0] and 
-                                    dvdt[0] >=self.start_threshold[1]))
-        # return only chains that are in loop
-        return zip(v_chains, dvdt_chains)[first_loop_index:len(v_chains)+1:2]
+        v, dvdt = self._calculate_v_and_dvdt(trace, resample=False)
+        loop_starts = numpy.where((v[:-1] < self.start_thresh[0]) & 
+                                  (dvdt[:-1] < self.start_thresh[1]) &
+                                  (v[1:] >= self.start_thresh[0]) & 
+                                  (dvdt[:1] >= self.start_thresh[1]))[0] + 1
+        loop_ends = numpy.where((v[:-1] < self.end_thresh[0]) & 
+                                (dvdt[:-1] < self.end_thresh[1]) &
+                                (v[1:] >= self.end_thresh[0]) & 
+                                (dvdt[:1] >= self.end_thresh[1]))[0]
+        v_spline, dvdt_spline = self._get_interpolators(v, dvdt)
+        loops = []
+        for start_index, end_index in zip(loop_starts, loop_ends):
+            start = float('-inf')
+            if v[start_index - 1] < self.start_thresh[0]: 
+                start = scipy.optimize.brentq(lambda s: v_spline(s) - self.start_thresh[0], 
+                                              v[start_index - 1], v[start_index])
+            if dvdt[start_index - 1] < self.start_thresh[1]:
+                dvdt_start = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1], 
+                                                   dvdt[start_index - 1], dvdt[start_index])
+                if dvdt_start > start:
+                    start = dvdt_start
+            end = float('inf')
+            if v[end_index - 1] >= self.end_thresh[0]: 
+                end = scipy.optimize.brentq(lambda s: v_spline(s) - self.end_thresh[0], 
+                                            v[end_index - 1], v[end_index])
+            if dvdt[end_index - 1] >= self.end_thresh[1]:
+                dvdt_end = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1],
+                                                 dvdt[end_index - 1], dvdt[end_index])
+                if dvdt_end > end:
+                    end = dvdt_end
+            s_range = numpy.linspace(start, end, self.num_points)
+            loops.append(numpy.array((v_spline(s_range), dvdt_spline(s_range))))
+        return loops
     
     def fitness(self, recordings):
         v_dvdt_loops = self._cut_out_loops(recordings)
