@@ -56,7 +56,7 @@ class InspyredAlgorithm(Algorithm):
         pop = ea.evolve(generator=self.generate_description,
                         evaluator=evaluator,
                         pop_size=self.population_size,
-                        bounder=self.bounder,
+                        bounder=ec.Bounder(*zip(*self.constraints)),
                         maximize=False,
                         seeds=self.seeds,
                         max_generations=self.max_generations,
@@ -87,10 +87,6 @@ class InspyredAlgorithm(Algorithm):
         if do_plot:
             from inspyred.ec import analysis
             analysis.generation_plot(stat_file_name, errorbars=False)    
-
-    def _set_tuneable_parameters(self, tuneable_parameters):
-        super(InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
-        self.bounder = ec.Bounder(*zip(*self.constraints))
 
     def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
         if stats_filename:

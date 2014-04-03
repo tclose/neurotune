@@ -29,7 +29,6 @@ class Algorithm(object):
         _, _, lbounds, ubounds = zip(*tuneable_parameters)
         self.constraints = zip(lbounds, ubounds)
         
-
     def uniform_random_chromosome(self, random, _):
         chromosome = []
         for lo, hi in zip(self.constraints):

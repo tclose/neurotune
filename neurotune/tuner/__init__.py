@@ -7,7 +7,7 @@ class Tuner(object):
     simulation objects) and runs the algorithm
     """    
     
-    def __init__(self, tuneable_parameters, objective, algorithm, simulation):
+    def __init__(self, tuneable_parameters, objective, algorithm, simulation, verbose=False):
         """
         `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
         `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
@@ -18,6 +18,7 @@ class Tuner(object):
         self.objective = objective
         self.algorithm = algorithm
         self.simulation = simulation
+        self.verbose = verbose
         # Register tuneable parameters and recording requests
         self.algorithm._set_tuneable_parameters(tuneable_parameters)
         self.simulation._set_tuneable_parameters(tuneable_parameters)
@@ -34,6 +35,8 @@ class Tuner(object):
         """
         Evaluate the fitness of a single candidate
         """
+        if self.verbose:
+            print "Evaluating candidate {}".format(candidate)
         return self.objective.fitness(self.simulation.run(candidate))
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
@@ -46,5 +49,3 @@ class Tuner(object):
         `args`       -- unused but provided to match inspyred API
         """
         return [self._evaluate_candidate(c) for c in candidates]
-
-
