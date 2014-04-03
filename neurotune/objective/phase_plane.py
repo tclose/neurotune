@@ -1,67 +1,12 @@
+from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 import scipy.signal
-import inspyred
+import scipy.interpolate
+import scipy.optimize
 import neo.io
-from .simulation import RecordingRequest
-
-
-class Objective(object):
-    """
-    Base Objective class
-    """
-
-    __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
-
-    def __init__(self, time_start=0, time_stop=2000.0):
-        """
-        `time_stop` -- the required length of the recording required to evaluate the objective
-        """
-        self.time_start = time_start
-        self.time_stop = time_stop
-
-    def fitness(self, recordings):
-        """
-        Evaluates the fitness function given the simulated data
-        
-        `recordings` -- a dictionary containing the simulated data to be assess, with the keys 
-                            corresponding to the keys of the recording request dictionary returned 
-                            by 'get_recording requests'
-        """
-        raise NotImplementedError("Derived Objective class '{}' does not implement fitness method"
-                                  .format(self.__class__.__name__))
-
-    def get_recording_requests(self):
-        """
-        Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
-        representing the recordings that are required from the simulation controller
-        """
-        return RecordingRequest(time_stop=self.time_stop)
-
-
-class SpikeFrequencyObjective(Objective):
-    """
-    A simple objective based on the squared difference between the spike frequencies
-    """
-
-    def __init__(self, frequency, time_start, time_stop):
-        """
-        `frequency`  -- the desired spike frequency
-        `time_stop` -- the length of time to run the simulation
-        """
-        super(SpikeFrequencyObjective, self).__init__(time_start, time_stop)
-        self.frequency = frequency
-
-    def fitness(self, recordings):
-        recording_frequency = len(recordings[recordings < self.time_stop]) / self.time_stop
-        return (self.frequency - recording_frequency) ** 2
-
-    def get_recording_requests(self):
-        """
-        Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
-        representing the recordings that are required from the simulation controller
-        """
-        return RecordingRequest(time_stop=self.time_stop, record_variable='spikes')
+from .__init__ import Objective
+from ..simulation.__init__ import RecordingRequest
 
 
 class PhasePlaneObjective(Objective):
@@ -92,13 +37,15 @@ class PhasePlaneObjective(Objective):
                               (see scipy.interpolate.interp1d for list of options) [str]
         """
         super(PhasePlaneObjective, self).__init__(time_start, time_stop)
+        # Save reference trace(s) as a list, converting if a single trace or loading from file
+        # if a valid filename
         if isinstance(reference_traces, str):
             f = neo.io.PickleIO(reference_traces)
             seg = f.read_segment()
             self.reference_traces = seg.analogsignals
         elif isinstance(reference_traces, neo.AnalogSignal):
             self.reference_traces = [reference_traces]
-        # Save the recording site and number of bins
+        # Save members
         self.record_variable = record_variable
         self.exp_conditions = exp_conditions
         self.resample = numpy.asarray(resample, dtype=float) if resample is not False else False
@@ -381,19 +328,20 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         v, dv_dt = self._calculate_v_and_dvdt(trace)
         return numpy.histogram2d(v, dv_dt, bins=self.num_bins, range=self.bounds, normed=False)[0]
 
-    def plot_hist(self, trace, range=None, show=True):
+    def plot_hist(self, trace, min_max=None, show=True):
         """
         Used in debugging to plot a histogram from a given trace
         
-        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
-        `show`  -- whether to call the matplotlib 'show' function (depends on whether there are
-                   subsequent plots to compare or not) [bool]
+        `trace`   -- the trace to generate the histogram from [neo.AnalogSignal]
+        `min_max` -- the minimum and maximum values the histogram bins will be capped at
+        `show`    -- whether to call the matplotlib 'show' function (depends on whether 
+                     there are subsequent plots to compare or not) [bool]
         """
         from matplotlib import pyplot as plt
         hist = self._generate_phase_plane_hist(trace)
         kwargs = {}
-        if range is not None:
-            kwargs['vmin'], kwargs['vmax'] = range
+        if min_max is not None:
+            kwargs['vmin'], kwargs['vmax'] = min_max
         fig = plt.figure()
         ax = fig.add_subplot(111)
         if isinstance(show, str):
@@ -558,87 +506,3 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
                                                           self.kernel_extent[1] / 5.0)])
         if show:
             plt.show()
-
-
-class CombinedObjective(Objective):
-
-    __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
-
-    def __init__(self, *objectives):
-        """
-        A list of objectives that are to be combined
-        
-        `objectives` -- a list of Objective objects [list(Objective)]
-        """
-        self.objectives = objectives
-
-    def _iterate_recordings(self, recordings):
-        """
-        Yields a matching set of requested recordings with their objectives
-        
-        `recordings` -- the recordings returned from a neurotune.simulation.Simulation object
-        """
-        for objective in self.objectives:
-            # Unzip the objective objects from the keys to pass them to the objective functions
-            recordings = dict([(key[1], val)
-                               for key, val in recordings.iteritems() if key[0] == objective])
-            # Unwrap the dictionary from a single requested recording
-            if len(recordings) == 1 and recordings.has_key(None):
-                recordings = recordings.values()[0]
-            yield objective, recordings
-
-    def get_recording_requests(self):
-        # Zip the recording requests keys with objective object in a tuple to guarantee unique
-        # keys
-        recordings_request = {}
-        for objective in self.objectives:
-            # Get the recording requests from the sub-objective function
-            objective_rec_requests = objective.get_recording_requests()
-            # Wrap single recording requests in a dictionary
-            if isinstance(objective_rec_requests, RecordingRequest):
-                objective_rec_requests = {None:objective_rec_requests}
-            # Add the recording request to the collated dictionary
-            recordings_request.upate([((objective, key), val)
-                                      for key, val in objective_rec_requests.iteritems()])
-        return recordings_request
-
-
-class WeightedSumObjective(CombinedObjective):
-    """
-    A container class for multiple objectives, to be used with multiple objective optimisation
-    algorithms
-    """
-
-    def __init__(self, *weighted_objectives):
-        """
-        `weighted_objectives` -- a list of weight-objective pairs [list((float, Objective))]
-        """
-        self.weights, self.objectives = zip(*weighted_objectives)
-
-    def fitness(self, recordings):
-        """
-        Returns a inspyred.ec.emo.Pareto list of the fitness functions in the order the objectives
-        were passed to the __init__ method
-        """
-        weighted_sum = 0.0
-        for i, (objective, recordings) in enumerate(self._iterate_recordings(recordings)):
-            weighted_sum += self.weight[i] * objective.fitness(recordings)
-        return weighted_sum
-
-
-class MultiObjective(CombinedObjective):
-    """
-    A container class for multiple objectives, to be used with multiple objective optimisation
-    algorithms
-    """
-
-    def fitness(self, recordings):
-        """
-        Returns a inspyred.ec.emo.Pareto list of the fitness functions in the order the objectives
-        were passed to the __init__ method
-        """
-        fitnesses = []
-        for objective, recordings in self._iterate_recordings(recordings):
-            fitnesses.append(objective.fitness(recordings))
-        return inspyred.ec.emo.Pareto(fitnesses)
-
