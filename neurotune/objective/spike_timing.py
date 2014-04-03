@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from .__init__ import Objective
+from ..simulation.__init__ import RecordingRequest
 
 
 class SpikeFrequencyObjective(Objective):
