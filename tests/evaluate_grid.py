@@ -1,7 +1,9 @@
 #!/usr/bin/python
 import os.path
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
-from neurotune import Tuner, Parameter
+from neurotune import Parameter
+# from neurotune import Tuner
+from neurotune.tuner.mpi import MPITuner as Tuner
 from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
@@ -23,7 +25,7 @@ parameters = [Parameter('diam', 'um', 10.0, 40.0),
 # Instantiate the tuner
 tuner = Tuner(parameters,
               ConvPhasePlaneHistObjective(reference_trace),
-              GridAlgorithm(5),
+              GridAlgorithm(num_steps=2),
               NineLineSimulation(cell_9ml))
 
 # Run the tuner

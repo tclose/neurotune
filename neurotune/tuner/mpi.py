@@ -38,8 +38,7 @@ class MPITuner(Tuner):
         """
         return cls.rank == cls.MASTER       
        
-    def tune(self, num_candidates, max_iterations, random_seed=None, stats_filename=None, 
-             indiv_filename=None, **kwargs):
+    def tune(self, **kwargs):
         """
         Runs the optimisation algorithm and returns the final population and algorithm state
         
@@ -52,18 +51,14 @@ class MPITuner(Tuner):
         """
         
         if self.is_master():
-            self._open_readout_files(stats_filename, indiv_filename, kwargs)
-            result = self.algorithm.optimize(num_candidates, 
-                                             self._distribute_candidates_for_evaluation, 
-                                             max_iterations, random_seed, **kwargs)
-            self._close_readout_files()
+            result = self.algorithm.optimize(self._distribute_candidates_for_evaluation, **kwargs)
             self._release_slaves()
             return result
         else:
             self._listen_for_candidates_to_evaluate()
             return None
 
-    def _distribute_candidates_for_evaluation(self, candidates, args): #@UnusedVariable args
+    def _distribute_candidates_for_evaluation(self, candidates, args=None): #@UnusedVariable args
         """
         Run on the master node, this method distributes candidates to to the slave nodes to be 
         evaluated then collates their results into a single numpy vector
@@ -90,7 +85,7 @@ class MPITuner(Tuner):
         assert not all([e != [] for e in evaluations]), "One or more evaluations were not set"
         return evaluations
 
-    def _listen_for_candidate_to_evaluate(self):
+    def _listen_for_candidates_to_evaluate(self):
         """
         Run on the slave nodes, this method receives candidates to evaluate from the master node,
         evaluates them and sends back the master
@@ -99,6 +94,8 @@ class MPITuner(Tuner):
         command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         while command != 'stop':
             jobID, candidate = command
+            print "Evaluating jobID: {}, candidate: {} on process {}".format(jobID, candidate, 
+                                                                             self.rank)
             evaluation = self._evaluate_candidate(candidate)
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
