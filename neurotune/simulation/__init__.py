@@ -5,7 +5,6 @@ from __future__ import absolute_import
 from collections import namedtuple
 from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller as nineline_controller
 import neo
 import quantities as pq
 
@@ -52,13 +51,13 @@ class Simulation():
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
     
     ## Groups together all the information to interface to and from a requested simulation
-    SimulationSetup = namedtuple('SimulationSetup', "time conditions record_variables request_keys")
+    Setup = namedtuple('Setup', "time conditions record_variables request_keys")
         
     def _prepare_simulations(self):
         """
         Prepares the simulations that are required by the chosen objective functions
         
-        `simulation_setups` -- a of simulation setups [list(Simulation.SimulationSetup)]
+        `simulation_setups` -- a of simulation setups [list(Simulation.Setup)]
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
@@ -94,9 +93,8 @@ class Simulation():
             # Get the list of request keys for each requested recording
             request_keys = [zip(*com_record)[0] for com_record in requests_iters]
             # Append the simulation request to the 
-            self.simulation_setups.append(self.SimulationSetup(record_time, conditions, 
-                                                               list(record_variables),
-                                                               request_keys))
+            self.simulation_setups.append(self.Setup(record_time, conditions, 
+                                                     list(record_variables), request_keys))
         # Do initial preparation for simulation (how much preparation can be done depends on whether
         # the same experimental conditions are used throughout the evaluation process.
         self._prepare_simulations()
@@ -141,7 +139,7 @@ class SimpleCustomSimulation(Simulation):
         """
         Prepares the simulations that are required by the chosen objective functions
         
-        `simulation_setups` -- a of simulation setups [list(Simulation.SimulationSetup)]
+        `simulation_setups` -- a of simulation setups [list(Simulation.Setup)]
         """
         if (len(self.simulation_setups) != 1 or 
             self.simulation_setups[0].record_variables != [None] or
