@@ -419,7 +419,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
     
     
-    def __init__(self, reference_traces, start_threshold, end_threshold, num_points **kwargs):
+    def __init__(self, reference_traces, start_threshold, end_threshold, num_points, **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
