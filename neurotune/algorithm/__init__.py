@@ -20,8 +20,7 @@ class Algorithm(object):
         self.mutation_rate = mutation_rate
         self.seeds = seeds
         
-    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
-                 random_seed=None, **kwargs):
+    def optimize(self, evaluator):
         raise NotImplementedError("'optimize' is not implemented by derived class of 'Algorithm'"
                                   ",'{}'".format(self.__class__.__name__))
         

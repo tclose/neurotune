@@ -33,7 +33,7 @@ class PhasePlaneObjective(Objective):
                               * True: resampling to default sizes determinted by bin size and 
                                       _BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT
                               * tuple(float)[2]: a pair of sample periods for v & dV/dt respectively
-        `interp_type`    -- the type of interpolation used to resample the traces 
+        `interp_type`      -- the type of interpolation used to resample the traces 
                               (see scipy.interpolate.interp1d for list of options) [str]
         """
         super(PhasePlaneObjective, self).__init__(time_start, time_stop)

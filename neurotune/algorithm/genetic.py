@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from abc import ABCMeta # Metaclass for abstract base classes
+from abc import ABCMeta  # Metaclass for abstract base classes
 from random import Random
 from time import time
 from inspyred import ec
@@ -16,23 +16,67 @@ class InspyredAlgorithm(Algorithm):
     algorithm objects
     """
 
-    __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
+    __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, mutation_rate=None, num_elites=None, stdev=None, 
-                 terminator=terminators.generation_termination,
+    def __init__(self, population_size=100, max_generations=100, mutation_rate=None,
+                 num_elites=None, stdev=None, terminator=terminators.generation_termination,
                  variator=[variators.blend_crossover, variators.gaussian_mutation],
-                 observer=observers.file_observer):
+                 observer=observers.file_observer, seeds=None,
+                 random_seed=None, replacer=replacers.random_replacement, allow_identical=True, 
+                 stats_filename=None, indiv_filename=None,
+                 **kwargs):
+        """
+        `max_iterations`  -- the maximum number of iterations to perform
+        `random_seed`     -- the seed to initialise the candidates with
+        `stats_filename`  -- the name of the file to save the generation-based statistics in
+        `indiv_filename`  -- the name of the file to save the candidate parameters in
+        `kwargs`          -- optional arguments to be passed to the optimisation algorithm
+        """
+        self.population_size = population_size
+        self.max_generations = max_generations
         self.mutation_rate = mutation_rate
-        self.num_elites=num_elites
-        self.stdev=stdev
+        self.num_elites = num_elites
+        self.stdev = stdev
         self.observer = observer
         self.variator = variator
         self.terminator = terminator
-        
-    def _set_tuneable_parameters(self, tuneable_parameters):
-        super(InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
-        self.bounder = ec.Bounder(*zip(*self.constraints))
+        self.replacer = replacer
+        self.allow_indentical = allow_identical
+        self.set_seeds(seeds)
+        self._rng = Random()
+        self.set_random_seed(random_seed)
+        self.evolve_kwargs = kwargs
+        self.stats_filename=stats_filename
+        self.indiv_filename=indiv_filename
 
+    def optimize(self, evaluator, **kwargs):
+        ea = self._InspyredClass(self._rng)
+        ea.observer, ea.variator, ea.terminator = self.observer, self.variator, self.terminator
+        self._open_readout_files(self.stats_filename, self.indiv_filename, kwargs)
+        pop = ea.evolve(generator=self.generate_description,
+                        evaluator=evaluator,
+                        pop_size=self.population_size,
+                        bounder=self.bounder,
+                        maximize=False,
+                        seeds=self.seeds,
+                        max_generations=self.max_generations,
+                        mutation_rate=self.mutation_rate,
+                        num_elites=self.num_elites,
+                        replacer=self.replacer,
+                        stdev=self.stdev,
+                        allow_indetical=self.allow_indentical,
+                        **self.evolve_kwargs)
+        self._close_readout_files()
+        return pop, ea
+
+    def set_random_seed(self, seed=None):
+        if seed is None:
+            seed = (long(time() * 256))
+        self._rng.seed(seed)
+
+    def set_seeds(self, seeds):
+        self.seeds = seeds
+        
     def print_report(self, final_pop, do_plot, stat_file_name):
         print(max(final_pop))
         # Sort and print the fitest individual, which will be at index 0.
@@ -42,68 +86,36 @@ class InspyredAlgorithm(Algorithm):
 
         if do_plot:
             from inspyred.ec import analysis
-            analysis.generation_plot(stat_file_name, errorbars=False)
+            analysis.generation_plot(stat_file_name, errorbars=False)    
+
+    def _set_tuneable_parameters(self, tuneable_parameters):
+        super(InspyredAlgorithm, self)._set_tuneable_parameters(tuneable_parameters)
+        self.bounder = ec.Bounder(*zip(*self.constraints))
+
+    def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
+        if stats_filename:
+            self.stats_file = kwargs['statistics_file'] = open(stats_filename, 'w')
+        else:
+            self.stats_file = None
+        if indiv_filename:
+            self.indiv_file = kwargs['individual_file'] = open(indiv_filename, 'w')
+        else:
+            self.indiv_file = None
+            
+    def _close_readout_files(self):
+        if self.stats_file:
+            self.stats_file.close()
+        if self.indiv_file:
+            self.indiv_file.close()
+
 
 
 class EDAAlgorithm(InspyredAlgorithm):
 
-    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
-                 random_seed=None, **kwargs):
-        if random_seed is None:
-            random_seed = (long(time() * 256))
-        rng = Random()
-        rng.seed(random_seed)
-        ea = ec.EDA(rng)
-        ea.observer = self.observer
-        ea.variator = self.variator
-        ea.terminator = self.terminator
-        for key in ('mutation_rate', 'num_elites', 'stdev'):
-            kwargs[key] = getattr(self, key)
-        pop = ea.evolve(generator=self.generate_description,
-                        evaluator=evaluator,
-                        pop_size=population_size,
-                        bounder=self.bounder,
-                        maximize=False,
-                        seeds=seeds,
-                        max_generations=max_generations,
-                        **kwargs)
-        return pop, ea
+    _InspyredClass = ec.EDA
 
 
 class NSGA2Algorithm(InspyredAlgorithm):
 
-    def __init__(self, mutation_rate, num_elites=None, stdev=None, 
-                 allow_indentical=True, terminator=terminators.generation_termination,
-                 variator=[variators.blend_crossover, variators.gaussian_mutation],
-                 replacer= replacers.random_replacement,
-                 observer=observers.file_observer):
-        super(NSGA2Algorithm, self).__init__(mutation_rate=mutation_rate, 
-                                             num_elites=num_elites, stdev=stdev, 
-                                             terminator=terminator, variator=variator, 
-                                             observer=observer)
-        self.allow_identical=allow_indentical,
-        self.replacer = replacer
-        
+    _InspyredClass = ec.emo.NSGA2
 
-    def optimize(self, population_size, evaluator, max_generations=100, seeds=None, 
-                 random_seed=None, **kwargs):
-        if random_seed is None:
-            random_seed = long(time.time() * 256)
-            print "Using random seed: {}".format(random_seed)
-        rng = Random()
-        rng.seed(random_seed)
-        ea = ec.emo.NSGA2(rng)
-        ea.observer = self.observer
-        ea.variator = self.variator
-        ea.terminator = self.terminator
-        for key in ('mutation_rate', 'num_elites' 'stdev'):
-            kwargs[key] = self.__getattr__(key)
-        pop = ea.evolve(generator=self.generate_description,
-                        evaluator=evaluator,
-                        pop_size=population_size,
-                        bounder=self.bounder,
-                        maximize=False,
-                        seeds=seeds,
-                        max_generations=max_generations,
-                        **kwargs)
-        return pop, ea
