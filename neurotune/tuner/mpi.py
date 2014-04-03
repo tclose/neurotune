@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from collections import deque
 from mpi4py import MPI
 from .__init__ import Tuner
