@@ -362,72 +362,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                                                              self.range[1] / 10.0)])
             if show:
                 plt.show()
-
-
-class PhasePlanePointwiseObjective(PhasePlaneObjective):
-    
-    
-    def __init__(self, reference_traces, start_threshold, end_threshold, num_points, **kwargs):
-        """
-        Creates a phase plane histogram from the reference traces and compares that with the 
-        histograms from the simulated traces
-        
-        `reference_traces` -- traces (in Neo format) that are to be compared against 
-                              [list(neo.AnalogSignal)]
-        """
-        super(PhasePlaneHistObjective, self).__init__(reference_traces, **kwargs)
-        self.start_thresh = start_threshold
-        self.end_thresh = end_threshold
-        self.num_points = num_points
-        self.reference_loops = [self._cut_out_loops(t) for t in self.reference_traces]
-        
-    def _cut_out_loops(self, trace):
-        """
-        Cuts outs loops (either spikes or sub-threshold oscillations) from the v-dV/dt trace
-        
-        `trace`            -- the voltage trace [numpy.array(float)]
-        `start_threshold`  -- the threshold above which the loop is considered to have started
-                              [tuple[2](float)]
-        `end_threshold`    -- the threshold above which the loop is considered to have ended
-                              [tuple[2](float)]                              
-        """
-        v, dvdt = self._calculate_v_and_dvdt(trace, resample=False)
-        loop_starts = numpy.where((v[:-1] < self.start_thresh[0]) & 
-                                  (dvdt[:-1] < self.start_thresh[1]) &
-                                  (v[1:] >= self.start_thresh[0]) & 
-                                  (dvdt[:1] >= self.start_thresh[1]))[0] + 1
-        loop_ends = numpy.where((v[:-1] < self.end_thresh[0]) & 
-                                (dvdt[:-1] < self.end_thresh[1]) &
-                                (v[1:] >= self.end_thresh[0]) & 
-                                (dvdt[:1] >= self.end_thresh[1]))[0]
-        v_spline, dvdt_spline = self._get_interpolators(v, dvdt)
-        loops = []
-        for start_index, end_index in zip(loop_starts, loop_ends):
-            start = float('-inf')
-            if v[start_index - 1] < self.start_thresh[0]: 
-                start = scipy.optimize.brentq(lambda s: v_spline(s) - self.start_thresh[0], 
-                                              v[start_index - 1], v[start_index])
-            if dvdt[start_index - 1] < self.start_thresh[1]:
-                dvdt_start = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1], 
-                                                   dvdt[start_index - 1], dvdt[start_index])
-                if dvdt_start > start:
-                    start = dvdt_start
-            end = float('inf')
-            if v[end_index - 1] >= self.end_thresh[0]: 
-                end = scipy.optimize.brentq(lambda s: v_spline(s) - self.end_thresh[0], 
-                                            v[end_index - 1], v[end_index])
-            if dvdt[end_index - 1] >= self.end_thresh[1]:
-                dvdt_end = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1],
-                                                 dvdt[end_index - 1], dvdt[end_index])
-                if dvdt_end > end:
-                    end = dvdt_end
-            s_range = numpy.linspace(start, end, self.num_points)
-            loops.append(numpy.array((v_spline(s_range), dvdt_spline(s_range))))
-        return loops
-    
-    def fitness(self, recordings):
-        v_dvdt_loops = self._cut_out_loops(recordings)
-        
+                
 
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     """
@@ -506,3 +441,108 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
                                                           self.kernel_extent[1] / 5.0)])
         if show:
             plt.show()
+
+
+class PhasePlanePointwiseObjective(PhasePlaneObjective):
+    
+    
+    def __init__(self, reference_traces, start_threshold, end_threshold, num_points, **kwargs):
+        """
+        Creates a phase plane histogram from the reference traces and compares that with the 
+        histograms from the simulated traces
+        
+        `reference_traces` -- traces (in Neo format) that are to be compared against 
+                              [list(neo.AnalogSignal)]
+        `start_threshold`  -- the threshold above which the loop is considered to have started
+                              [tuple[2](float)]
+        `end_threshold`    -- the threshold above which the loop is considered to have ended
+                              [tuple[2](float)]
+        `num_points`       -- the number of sample points to interpolate between the loop start and
+                              end points   
+        """
+        super(PhasePlaneHistObjective, self).__init__(reference_traces, **kwargs)
+        self.start_thresh = start_threshold
+        self.end_thresh = end_threshold
+        self.num_points = num_points
+        self.reference_loops = []
+        for t in self.reference_traces:
+            self.reference_loops.extend(self._cut_out_loops(t))
+        if len(self.reference_loops) == 0:
+            raise Exception("No loops found in reference signal")
+        
+    def _cut_out_loops(self, trace):
+        """
+        Cuts outs loops (either spikes or sub-threshold oscillations) from the v-dV/dt trace based
+        on the provided threshold values
+        
+        `trace`            -- the voltage trace [numpy.array(float)]                           
+        """
+        # Get the v and dvdt and their spline interpolators 
+        v, dvdt = self._calculate_v_and_dvdt(trace, resample=False)
+        v_spline, dvdt_spline = self._get_interpolators(v, dvdt)
+        # Find the indices where the v-dV/dt trace crosses the start and end thresholds respectively
+        loop_starts = numpy.where((v[:-1] < self.start_thresh[0]) & 
+                                  (dvdt[:-1] < self.start_thresh[1]) &
+                                  (v[1:] >= self.start_thresh[0]) & 
+                                  (dvdt[:1] >= self.start_thresh[1]))[0] + 1
+        loop_ends = numpy.where((v[:-1] < self.end_thresh[0]) & 
+                                (dvdt[:-1] < self.end_thresh[1]) &
+                                (v[1:] >= self.end_thresh[0]) & 
+                                (dvdt[:1] >= self.end_thresh[1]))[0]
+        # Cut up the traces from where the trace crosses both start thresholds and both end thresholds
+        loops = []
+        for start_index, end_index in zip(loop_starts, loop_ends):
+            start = float('-inf')
+            # If passed the v start threshold
+            if v[start_index - 1] < self.start_thresh[0]: 
+                start = scipy.optimize.brentq(lambda s: v_spline(s) - self.start_thresh[0], 
+                                              v[start_index - 1], v[start_index])
+            # If passed the dvdt start threshold
+            if dvdt[start_index - 1] < self.start_thresh[1]:
+                dvdt_start = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1], 
+                                                   dvdt[start_index - 1], dvdt[start_index])
+                if dvdt_start > start:
+                    start = dvdt_start
+            end = float('inf')
+            # If passed the v end threshold
+            if v[end_index - 1] >= self.end_thresh[0]: 
+                end = scipy.optimize.brentq(lambda s: v_spline(s) - self.end_thresh[0], 
+                                            v[end_index - 1], v[end_index])
+            # If passed the dvdt end threshold
+            if dvdt[end_index - 1] >= self.end_thresh[1]:
+                dvdt_end = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1],
+                                                 dvdt[end_index - 1], dvdt[end_index])
+                if dvdt_end > end:
+                    end = dvdt_end
+            # Over the loop length interpolate the splines at a fixed number of points
+            s_range = numpy.linspace(start, end, self.num_points)
+            loops.append(numpy.array((v_spline(s_range), dvdt_spline(s_range))))
+        return loops
+    
+    def fitness(self, recordings):
+        """
+        Evaluates the fitness of the recordings by comparing all reference and recorded loops 
+        (spikes or sub-threshold oscillations) and taking the sum of nearest matches from both
+        reference-to-recorded and recorded-to-reference.
+        
+        `recordings`  -- a voltage trace [neo.AnalogSignal]
+        """
+        recorded_loops = self._cut_out_loops(recordings)
+        # If the recording doesn't contain any loops make a dummy one which forms a straight line
+        # between the start threshold and the end threshold
+        if len(recorded_loops) == 0:
+            recorded_loops = [numpy.array((numpy.linspace(self.start_thresh[0], self.end_thresh[0],
+                                                          self.num_points),
+                                           numpy.linspace(self.start_thresh[1], self.end_thresh[1],
+                                                          self.num_points)))]
+        # Create matrix of sum-squared-differences between recorded to reference loops 
+        fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
+        for row_i, rec_loop in enumerate(recorded_loops):
+            for col_i, ref_loop in enumerate(self.reference_loops):
+                fit_mat[row_i, col_i] = numpy.sum((rec_loop - ref_loop) ** 2)
+        # Get the minimum along every row and every colum and sum them together for the nearest 
+        # loop difference for every recorded loop to every reference loop and vice-versa 
+        fitness = (numpy.sum(numpy.amin(fit_mat, axis=0)) + 
+                   numpy.sum(numpy.amin(fit_mat, axis=1))) / (fit_mat.shape[0] + fit_mat.shape[1])
+        return fitness
+             
