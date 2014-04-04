@@ -17,7 +17,7 @@ class PhasePlaneObjective(Objective):
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None,
-                 exp_conditions=None, resample=(0.375,  1.5), interp_type='cubic'):
+                 exp_conditions=None, resample=(0.375, 1.5), interp_type='cubic'):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -111,7 +111,7 @@ class PhasePlaneObjective(Objective):
         new_s = numpy.arange(0, s[-1], resample_norm)
         return v_interp(new_s), dvdt_interp(new_s)
 
-    def _get_interpolators(self, v, dvdt, relative_scale=None, interp_type=None, 
+    def _get_interpolators(self, v, dvdt, relative_scale=None, interp_type=None,
                            sparse_period=10.0):
         """
         Gets interpolators as returned from scipy.interpolate.interp1d for v and dV/dt as well as 
@@ -184,7 +184,7 @@ class PhasePlaneObjective(Objective):
                     sparse_dvdt_list.append(dvdt_chain)
                     sparse_s_list.append(s_chain)
                 else:
-                    # if non landmark chain, interpolate to a sparse 's' resolution and append to 
+                    # if non landmark chain, interpolate to a sparse 's' resolution and append to
                     # sparse chain
                     new_s_chain = numpy.arange(s_chain[0], s_chain[-1] + sparse_period / 2.0,
                                                sparse_period)
@@ -242,7 +242,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.5
     _BIN_TO_SAMPLE_FREQ_RATIO_DEFAULT = 3.0
 
-    def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=None, dvdt_bounds=None, 
+    def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=None, dvdt_bounds=None,
                  **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
@@ -362,7 +362,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                                                              self.range[1] / 10.0)])
             if show:
                 plt.show()
-                
+
 
 class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     """
@@ -444,81 +444,73 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
 
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
-    
-    
-    def __init__(self, reference_traces, start_threshold, end_threshold, num_points, **kwargs):
+
+
+    def __init__(self, reference_traces, dvdt_thresholds, num_points, **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
         
         `reference_traces` -- traces (in Neo format) that are to be compared against 
                               [list(neo.AnalogSignal)]
-        `start_threshold`  -- the threshold above which the loop is considered to have started
-                              [tuple[2](float)]
-        `end_threshold`    -- the threshold above which the loop is considered to have ended
+        `dvdt_thresholds`  -- the threshold above which the loop is considered to have ended
                               [tuple[2](float)]
         `num_points`       -- the number of sample points to interpolate between the loop start and
                               end points   
         """
-        super(PhasePlaneHistObjective, self).__init__(reference_traces, **kwargs)
-        self.start_thresh = start_threshold
-        self.end_thresh = end_threshold
+        super(PhasePlanePointwiseObjective, self).__init__(reference_traces, **kwargs)
+        self.thresh = dvdt_thresholds
+        if self.thresh[0] < 0.0 or self.thresh[1] > 0.0:
+            raise Exception("Start threshold must be above 0 and end threshold must be below 0 "
+                            "(found {})".format(self.thresh))
         self.num_points = num_points
         self.reference_loops = []
         for t in self.reference_traces:
             self.reference_loops.extend(self._cut_out_loops(t))
         if len(self.reference_loops) == 0:
             raise Exception("No loops found in reference signal")
-        
+
     def _cut_out_loops(self, trace):
         """
         Cuts outs loops (either spikes or sub-threshold oscillations) from the v-dV/dt trace based
         on the provided threshold values
         
-        `trace`            -- the voltage trace [numpy.array(float)]                           
+        `trace`  -- the voltage trace [numpy.array(float)]                           
         """
-        # Get the v and dvdt and their spline interpolators 
+        # Get the v and dvdt and their spline interpolators
         v, dvdt = self._calculate_v_and_dvdt(trace, resample=False)
-        v_spline, dvdt_spline = self._get_interpolators(v, dvdt)
+        v_spline, dvdt_spline, s_positions = self._get_interpolators(v, dvdt)
         # Find the indices where the v-dV/dt trace crosses the start and end thresholds respectively
-        loop_starts = numpy.where((v[:-1] < self.start_thresh[0]) & 
-                                  (dvdt[:-1] < self.start_thresh[1]) &
-                                  (v[1:] >= self.start_thresh[0]) & 
-                                  (dvdt[:1] >= self.start_thresh[1]))[0] + 1
-        loop_ends = numpy.where((v[:-1] < self.end_thresh[0]) & 
-                                (dvdt[:-1] < self.end_thresh[1]) &
-                                (v[1:] >= self.end_thresh[0]) & 
-                                (dvdt[:1] >= self.end_thresh[1]))[0]
-        # Cut up the traces from where the trace crosses both start thresholds and both end thresholds
+        loop_starts = numpy.where((dvdt[1:] >= self.thresh[0]) & (dvdt[:-1] < self.thresh[0]))[0] + 1
+        loop_ends = numpy.where((dvdt[1:] >= self.thresh[1]) & (dvdt[:-1] < self.thresh[1]))[0] + 1
+        # Cut up the traces in between where the interpolated curve exactly crosses the start
+        # and end thresholds
         loops = []
+        def ensure_s_bound(lbound_index, thresh, direction):
+            """
+            A helper function to ensure that the start and end indices of the loop fall exactly 
+            either side of the threshold and if not extend the search interval for the indices that do
+            """
+            try:
+                while (direction * dvdt_spline(s_positions[lbound_index])) < direction * thresh:
+                    lbound_index += direction
+                return s_positions[lbound_index]
+            except IndexError:
+                raise Exception("Spline interpolation is not accurate enough to detect of loop, "
+                                "consider using a smaller simulation timestep or greater loop "
+                                "threshold")
         for start_index, end_index in zip(loop_starts, loop_ends):
-            start = float('-inf')
-            # If passed the v start threshold
-            if v[start_index - 1] < self.start_thresh[0]: 
-                start = scipy.optimize.brentq(lambda s: v_spline(s) - self.start_thresh[0], 
-                                              v[start_index - 1], v[start_index])
-            # If passed the dvdt start threshold
-            if dvdt[start_index - 1] < self.start_thresh[1]:
-                dvdt_start = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1], 
-                                                   dvdt[start_index - 1], dvdt[start_index])
-                if dvdt_start > start:
-                    start = dvdt_start
-            end = float('inf')
-            # If passed the v end threshold
-            if v[end_index - 1] >= self.end_thresh[0]: 
-                end = scipy.optimize.brentq(lambda s: v_spline(s) - self.end_thresh[0], 
-                                            v[end_index - 1], v[end_index])
-            # If passed the dvdt end threshold
-            if dvdt[end_index - 1] >= self.end_thresh[1]:
-                dvdt_end = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.end_thresh[1],
-                                                 dvdt[end_index - 1], dvdt[end_index])
-                if dvdt_end > end:
-                    end = dvdt_end
+            start_s = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.thresh[0],
+                                            ensure_s_bound(start_index - 1, self.thresh[0], -1),
+                                            ensure_s_bound(start_index, self.thresh[0], 1))
+            end_s = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.thresh[1],
+                                            ensure_s_bound(end_index - 1, self.thresh[1], -1),
+                                            ensure_s_bound(end_index, self.thresh[1], 1))
             # Over the loop length interpolate the splines at a fixed number of points
-            s_range = numpy.linspace(start, end, self.num_points)
+            s_range = numpy.linspace(start_s, end_s, self.num_points)
             loops.append(numpy.array((v_spline(s_range), dvdt_spline(s_range))))
         return loops
-    
+
     def fitness(self, recordings):
         """
         Evaluates the fitness of the recordings by comparing all reference and recorded loops 
@@ -535,14 +527,15 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                                                           self.num_points),
                                            numpy.linspace(self.start_thresh[1], self.end_thresh[1],
                                                           self.num_points)))]
-        # Create matrix of sum-squared-differences between recorded to reference loops 
+        # Create matrix of sum-squared-differences between recorded to reference loops
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
         for row_i, rec_loop in enumerate(recorded_loops):
             for col_i, ref_loop in enumerate(self.reference_loops):
                 fit_mat[row_i, col_i] = numpy.sum((rec_loop - ref_loop) ** 2)
-        # Get the minimum along every row and every colum and sum them together for the nearest 
-        # loop difference for every recorded loop to every reference loop and vice-versa 
-        fitness = (numpy.sum(numpy.amin(fit_mat, axis=0)) + 
-                   numpy.sum(numpy.amin(fit_mat, axis=1))) / (fit_mat.shape[0] + fit_mat.shape[1])
+        # Get the minimum along every row and every colum and sum them together for the nearest
+        # loop difference for every recorded loop to every reference loop and vice-versa
+        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0) ** 2) +
+                    numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) / 
+                   (fit_mat.shape[0] + fit_mat.shape[1]))
         return fitness
-             
+
