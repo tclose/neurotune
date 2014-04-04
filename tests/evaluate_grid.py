@@ -25,7 +25,7 @@ parameters = [Parameter('diam', 'um', 10.0, 40.0),
 # Instantiate the tuner
 tuner = Tuner(parameters,
               ConvPhasePlaneHistObjective(reference_trace),
-              GridAlgorithm(num_steps=5),
+              GridAlgorithm(num_steps=11),
               NineLineSimulation(cell_9ml))
 
 # Run the tuner

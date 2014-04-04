@@ -18,6 +18,10 @@ class MPITuner(Tuner):
     rank = comm.Get_rank()          # The ID of the current process
     num_processes = comm.Get_size() # The number of processes available
        
+    def set(self, *args, **kwargs):
+        self.evaluate_on_master = kwargs.pop('evaluate_on_master', self.num_processes < 10)
+        super(MPITuner, self).set(*args, **kwargs)         
+    
     @classmethod
     def is_master(cls):
         """
@@ -40,7 +44,6 @@ class MPITuner(Tuner):
         if self.is_master():
             result = self.algorithm.optimize(self._distribute_candidates_for_evaluation, **kwargs)
             self._release_slaves()
-            
         else:
             self._listen_for_candidates_to_evaluate()
             result = (None, None)
@@ -50,7 +53,7 @@ class MPITuner(Tuner):
         """
         Calls MPI finalize, so care should be taken not to let MPITuner objects to go out of scope
         if you have multiple instantiations (why you would have multiple instantiations I am not 
-        sure though)
+        sure though as you can use 'set' to re-purpose an existing Tuner)
         """
         MPI.Finalize()
 
@@ -68,10 +71,21 @@ class MPITuner(Tuner):
         # Create a list of empty lists the same length as the candidate list
         evaluations = [[]] * len(candidates)
         remaining_evaluations = len(candidates)
+        if self.evaluate_on_master:
+            since_master_evaluation = 0
         while candidate_jobs:
             if free_processes:
                 self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
-                               tag=self.COMMAND_MSG) 
+                               tag=self.COMMAND_MSG)
+                if self.evaluate_on_master:
+                    since_master_evaluation += 1
+                    if since_master_evaluation == self.num_processes - 1:
+                        jobID, candidate = candidate_jobs.pop()
+                        print ("Evaluating jobID: {}, candidate: {} on process {}"
+                               .format(jobID, candidate, self.rank))
+                        evaluations[jobID] = self._evaluate_candidate(candidate)
+                        remaining_evaluations -= 1
+                        since_master_evaluation = 0
             else:    
                 processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                 evaluations[jobID] = result
