@@ -97,5 +97,7 @@ class NineLineSimulation(Simulation):
         `candidate` -- a list of parameters [list(float)]
         """
         assert len(candidate) == len(self.genome_keys), "length of candidate and genome keys do not match"
-        for key, val in zip(self.genome_keys, candidate):
+        for key, val, log_scale in zip(self.genome_keys, candidate, self.log_scales):
+            if log_scale:
+                val = 10 ** val
             setattr(self.cell, key, val)

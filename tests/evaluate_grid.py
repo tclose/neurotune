@@ -1,10 +1,18 @@
 #!/usr/bin/python
+use_mpi = False
+num_steps = 2
+
+if use_mpi:
+    from neurotune.tuner.mpi import MPITuner as Tuner  # @UnusedImport 
+else:
+    from neurotune import Tuner  # @Reimport
+
 import os.path
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter
-# from neurotune import Tuner
-from neurotune.tuner.mpi import MPITuner as Tuner
-from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective
+from neurotune.objective.combined import MultiObjective
+from neurotune.objective.phase_plane import (PhasePlaneHistObjective, ConvPhasePlaneHistObjective, 
+                                             PhasePlanePointwiseObjective)
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 import cPickle as pkl
@@ -22,10 +30,14 @@ reference_trace = cell.get_recording('v')
 parameters = [Parameter('diam', 'um', 10.0, 40.0),
               Parameter('soma.Lkg.gbar', 'S/cm^2', 1e-5, 3e-5)]
 
+objective = MultiObjective(PhasePlaneHistObjective(reference_trace), 
+                           ConvPhasePlaneHistObjective(reference_trace),
+                           PhasePlanePointwiseObjective(reference_trace, (20, -20), 100))
+
 # Instantiate the tuner
 tuner = Tuner(parameters,
-              ConvPhasePlaneHistObjective(reference_trace),
-              GridAlgorithm(num_steps=11),
+              objective,
+              GridAlgorithm(num_steps=num_steps),
               NineLineSimulation(cell_9ml))
 
 # Run the tuner

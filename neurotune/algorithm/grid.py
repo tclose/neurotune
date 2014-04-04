@@ -40,9 +40,16 @@ class GridAlgorithm(Algorithm):
         cand_mesh = numpy.concatenate([mesh.reshape([1] + list(mesh.shape)) for mesh in meshes])
         candidates = cand_mesh.reshape((self.num_dims, -1)).T
         # Evaluate fitnesses
-        fitnesses = evaluator(candidates)
-        # Get fittest candidate
-        fittest_candidate = candidates[numpy.argmin(fitnesses), :]
+        fitnesses = numpy.array(evaluator(candidates))
+        # Check to see if multi-objective
+        if fitnesses.ndim == 2:
+            # Get fittest candidates for each objective
+            fittest_candidate = [candidates[f.argmin(), :] for f in fitnesses.T]
+            fitness_grid = numpy.reshape(fitnesses, list(num_steps) + [fitnesses.shape[1]]) #FIXME: this probably doesn't work
+        else:
+            # Get fittest candidate
+            fittest_candidate = candidates[fitnesses.argmin(), :]
+            fitness_grid = numpy.reshape(fitnesses, num_steps)
         # return fittest candidate and grid of fitnesses (for plotting potentially)
-        return fittest_candidate, numpy.reshape(fitnesses, num_steps)
+        return fittest_candidate, fitness_grid
         

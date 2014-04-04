@@ -25,12 +25,12 @@ class CombinedObjective(Objective):
         """
         for objective in self.objectives:
             # Unzip the objective objects from the keys to pass them to the objective functions
-            recordings = dict([(key[1], val)
-                               for key, val in recordings.iteritems() if key[0] == objective])
+            rec = dict([(key[1], val) 
+                        for key, val in recordings.iteritems() if key[0] == objective])
             # Unwrap the dictionary from a single requested recording
-            if len(recordings) == 1 and recordings.has_key(None):
-                recordings = recordings.values()[0]
-            yield objective, recordings
+            if len(rec) == 1 and rec.has_key(None):
+                rec = rec.values()[0]
+            yield objective, rec
 
     def get_recording_requests(self):
         # Zip the recording requests keys with objective object in a tuple to guarantee unique
@@ -43,7 +43,7 @@ class CombinedObjective(Objective):
             if isinstance(objective_rec_requests, RecordingRequest):
                 objective_rec_requests = {None:objective_rec_requests}
             # Add the recording request to the collated dictionary
-            recordings_request.upate([((objective, key), val)
+            recordings_request.update([((objective, key), val)
                                       for key, val in objective_rec_requests.iteritems()])
         return recordings_request
 
@@ -83,7 +83,7 @@ class MultiObjective(CombinedObjective):
         were passed to the __init__ method
         """
         fitnesses = []
-        for objective, recordings in self._iterate_recordings(recordings):
-            fitnesses.append(objective.fitness(recordings))
+        for objective, objective_recordings in self._iterate_recordings(recordings):
+            fitnesses.append(objective.fitness(objective_recordings))
         return inspyred.ec.emo.Pareto(fitnesses)
 

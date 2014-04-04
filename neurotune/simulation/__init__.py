@@ -97,7 +97,8 @@ class Simulation():
             requests.sort(key=lambda x: x[1].record_variable)
             common_record_variables = groupby(requests, key=lambda x: x[1].record_variable)
             # Get the common recording sites
-            record_variables, requests_iters = zip(*common_record_variables)
+            record_variables, requests_iters = zip(*[(rv, [r for r in requests]) 
+                                                      for rv, requests in common_record_variables])
             # Get the list of request keys for each requested recording
             request_keys = [zip(*com_record)[0] for com_record in requests_iters]
             # Append the simulation request to the 

@@ -521,12 +521,13 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         """
         recorded_loops = self._cut_out_loops(recordings)
         # If the recording doesn't contain any loops make a dummy one which forms a straight line
-        # between the start threshold and the end threshold
+        # between the min and max dvdt values on the mean voltage
         if len(recorded_loops) == 0:
-            recorded_loops = [numpy.array((numpy.linspace(self.start_thresh[0], self.end_thresh[0],
-                                                          self.num_points),
-                                           numpy.linspace(self.start_thresh[1], self.end_thresh[1],
-                                                          self.num_points)))]
+            v, dvdt = self._calculate_v_and_dvdt(recordings)
+            dummy_v = numpy.empty(self.num_points)
+            dummy_v.fill(v.mean())
+            dummy_dvdt = numpy.linspace(dvdt.min(), dvdt.max(), self.num_points)
+            recorded_loops = [numpy.array((dummy_v, dummy_dvdt))]
         # Create matrix of sum-squared-differences between recorded to reference loops
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
         for row_i, rec_loop in enumerate(recorded_loops):
