@@ -20,6 +20,7 @@ class MPITuner(Tuner):
        
     def set(self, *args, **kwargs):
         self.evaluate_on_master = kwargs.pop('evaluate_on_master', self.num_processes < 10)
+        self.mpi_verbose = kwargs.pop('verbose', True)
         super(MPITuner, self).set(*args, **kwargs)         
     
     @classmethod
@@ -81,8 +82,9 @@ class MPITuner(Tuner):
                     since_master_evaluation += 1
                     if since_master_evaluation == self.num_processes - 1:
                         jobID, candidate = candidate_jobs.pop()
-                        print ("Evaluating jobID: {}, candidate: {} on process {}"
-                               .format(jobID, candidate, self.rank))
+                        if self.mpi_verbose:
+                            print ("Evaluating jobID: {}, candidate: {} on process {}"
+                                   .format(jobID, candidate, self.rank))
                         evaluations[jobID] = self._evaluate_candidate(candidate)
                         remaining_evaluations -= 1
                         since_master_evaluation = 0
@@ -106,12 +108,14 @@ class MPITuner(Tuner):
         command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         while command != 'stop':
             jobID, candidate = command
-            print "Evaluating jobID: {}, candidate: {} on process {}".format(jobID, candidate, 
-                                                                             self.rank)
+            if self.mpi_verbose:
+                print "Evaluating jobID: {}, candidate: {} on process {}".format(jobID, candidate, 
+                                                                                 self.rank)
             evaluation = self._evaluate_candidate(candidate)
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
-        print "Stopping listening on process {}".format(self.rank)
+        if self.mpi_verbose:
+            print "Stopping listening on process {}".format(self.rank)
 
         
     def _release_slaves(self):
