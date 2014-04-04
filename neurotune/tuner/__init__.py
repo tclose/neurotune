@@ -7,7 +7,10 @@ class Tuner(object):
     simulation objects) and runs the algorithm
     """    
     
-    def __init__(self, tuneable_parameters, objective, algorithm, simulation, verbose=False):
+    def __init__(self, *args, **kwargs):
+        self.set(*args, **kwargs)
+    
+    def set(self, tuneable_parameters, objective, algorithm, simulation, verbose=False):
         """
         `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
         `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
@@ -49,3 +52,10 @@ class Tuner(object):
         `args`       -- unused but provided to match inspyred API
         """
         return [self._evaluate_candidate(c) for c in candidates]
+    
+    @classmethod
+    def is_master(self):
+        """
+        Provided for convenient interoperability with the MPITuner class
+        """
+        return True

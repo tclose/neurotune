@@ -14,22 +14,9 @@ class MPITuner(Tuner):
     COMMAND_MSG = 1 # A message tag signifying that the passed message is a command to a slave node
     DATA_MSG = 2    # A message tag signifying that the passed message is data returned by a slave node
     
-    # Try to use the mpi4py import but fail silently if it wasn't imported. __init__ will check to 
-    # see if it was successful before initializing a MPITuner object. Allows other tuner types to be
-    # used if mpi4py is not installed.
-    try:
-        comm = MPI.COMM_WORLD           # The MPI communicator object
-        rank = comm.Get_rank()          # The ID of the current process
-        num_processes = comm.Get_size() # The number of processes available
-    except NameError:
-        pass
-    
-    def __init__(self, *args, **kwargs):
-        try:
-            MPI
-        except NameError:
-            raise Exception("MPITuner cannot be used because import 'mpi4py' was not found.")
-        super(MPITuner, self).__init__(*args, **kwargs)
+    comm = MPI.COMM_WORLD           # The MPI communicator object
+    rank = comm.Get_rank()          # The ID of the current process
+    num_processes = comm.Get_size() # The number of processes available
        
     @classmethod
     def is_master(cls):
@@ -53,10 +40,19 @@ class MPITuner(Tuner):
         if self.is_master():
             result = self.algorithm.optimize(self._distribute_candidates_for_evaluation, **kwargs)
             self._release_slaves()
-            return result
+            
         else:
             self._listen_for_candidates_to_evaluate()
-            return None
+            result = (None, None)
+        return result
+    
+    def __del__(self):
+        """
+        Calls MPI finalize, so care should be taken not to let MPITuner objects to go out of scope
+        if you have multiple instantiations (why you would have multiple instantiations I am not 
+        sure though)
+        """
+        MPI.Finalize()
 
     def _distribute_candidates_for_evaluation(self, candidates, args=None): #@UnusedVariable args
         """
@@ -70,7 +66,8 @@ class MPITuner(Tuner):
         candidate_jobs = deque(enumerate(candidates))
         free_processes = deque(xrange(1, self.num_processes))
         # Create a list of empty lists the same length as the candidate list
-        evaluations = [[]] * len(candidates) 
+        evaluations = [[]] * len(candidates)
+        remaining_evaluations = len(candidates)
         while candidate_jobs:
             if free_processes:
                 self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
@@ -78,11 +75,12 @@ class MPITuner(Tuner):
             else:    
                 processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                 evaluations[jobID] = result
+                remaining_evaluations -= 1
                 free_processes.append(processID)
-        while len(evaluations) < len(candidates):
+        while remaining_evaluations:
             processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
             evaluations[jobID] = result
-        assert not all([e != [] for e in evaluations]), "One or more evaluations were not set"
+            remaining_evaluations -= 1
         return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
@@ -107,4 +105,4 @@ class MPITuner(Tuner):
         Release slave nodes from listening to new candidates to evaluate
         """
         for processID in xrange(1, self.num_processes):
-            self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)   
+            self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)
