@@ -26,8 +26,7 @@ class Algorithm(object):
         
     def _set_tuneable_parameters(self, tuneable_parameters):
         self.genome_size = len(tuneable_parameters)
-        _, _, lbounds, ubounds = zip(*tuneable_parameters)
-        self.constraints = zip(lbounds, ubounds)
+        self.constraints = [(p.lbound, p.ubound) for p in tuneable_parameters]
         
     def uniform_random_chromosome(self, random, _):
         chromosome = []

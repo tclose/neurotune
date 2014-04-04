@@ -13,11 +13,18 @@ class NineLineSimulation(Simulation):
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml
         self.celltype = NineCellMetaClass(cell_9ml)
+        self.default_seg = self.celltype().source_section.name
         
     def _set_tuneable_parameters(self, tuneable_parameters):
-        genome_keys, _, _, _ = zip(*tuneable_parameters)
-        self.default_seg = self.celltype().source_section.name
-        self.genome_keys = [k if ('.' in k) else self.default_seg + '.' + k for k in genome_keys]
+        self.genome_keys = []
+        self.log_scales = []
+        for param in tuneable_parameters:
+            if '.' in param.name:
+                key = param.name
+            else:
+                key = self.default_seg + '.' + param.name
+            self.genome_keys.append(key)
+            self.log_scales.append(param.log_scale)
 
     def _prepare_simulations(self):
         """
