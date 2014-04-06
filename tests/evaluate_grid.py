@@ -10,7 +10,7 @@ else:
 import os.path
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter
-from neurotune.objective.combined import MultiObjective
+from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective, ConvPhasePlaneHistObjective, 
                                              PhasePlanePointwiseObjective)
 from neurotune.algorithm.grid import GridAlgorithm

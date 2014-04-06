@@ -1,13 +1,14 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
-import inspyred
 from .__init__ import Objective
 from ..simulation.__init__ import RecordingRequest
 
 
-class CombinedObjective(Objective):
-
-    __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
+class MultiObjective(Objective):
+    """
+    A container class for multiple objectives, to be used with multiple objective optimisation
+    algorithms
+    """
 
     def __init__(self, *objectives):
         """
@@ -16,6 +17,16 @@ class CombinedObjective(Objective):
         `objectives` -- a list of Objective objects [list(Objective)]
         """
         self.objectives = objectives
+
+    def fitness(self, recordings):
+        """
+        Returns a inspyred.ec.emo.Pareto list of the fitness functions in the order the objectives
+        were passed to the __init__ method
+        """
+        fitnesses = []
+        for objective, objective_recordings in self._iterate_recordings(recordings):
+            fitnesses.append(objective.fitness(objective_recordings))
+        return fitnesses
 
     def _iterate_recordings(self, recordings):
         """
@@ -48,10 +59,10 @@ class CombinedObjective(Objective):
         return recordings_request
 
 
-class WeightedSumObjective(CombinedObjective):
+class WeightedSumObjective(MultiObjective):
     """
-    A container class for multiple objectives, to be used with multiple objective optimisation
-    algorithms
+    Combines multiple objectives into a single weighted sum between objectives. Useful for 
+    optimization algorithms that require a single objective
     """
 
     def __init__(self, *weighted_objectives):
@@ -69,21 +80,4 @@ class WeightedSumObjective(CombinedObjective):
         for i, (objective, recordings) in enumerate(self._iterate_recordings(recordings)):
             weighted_sum += self.weight[i] * objective.fitness(recordings)
         return weighted_sum
-
-
-class MultiObjective(CombinedObjective):
-    """
-    A container class for multiple objectives, to be used with multiple objective optimisation
-    algorithms
-    """
-
-    def fitness(self, recordings):
-        """
-        Returns a inspyred.ec.emo.Pareto list of the fitness functions in the order the objectives
-        were passed to the __init__ method
-        """
-        fitnesses = []
-        for objective, objective_recordings in self._iterate_recordings(recordings):
-            fitnesses.append(objective.fitness(objective_recordings))
-        return inspyred.ec.emo.Pareto(fitnesses)
 
