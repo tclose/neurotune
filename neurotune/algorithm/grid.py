@@ -45,7 +45,7 @@ class GridAlgorithm(Algorithm):
         if fitnesses.ndim == 2:
             # Get fittest candidates for each objective
             fittest_candidate = [candidates[f.argmin(), :] for f in fitnesses.T]
-            fitness_grid = numpy.reshape(fitnesses, list(num_steps) + [fitnesses.shape[1]]) #FIXME: this probably doesn't work
+            fitness_grid = numpy.reshape(fitnesses.T, [fitnesses.shape[1]] + list(num_steps))
         else:
             # Get fittest candidate
             fittest_candidate = candidates[fitnesses.argmin(), :]
