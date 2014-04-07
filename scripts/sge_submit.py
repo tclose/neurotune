@@ -14,16 +14,16 @@ if ';' in script_name:
 submitter = SGESubmitter()
 try:
     exec("from {} import argparser as script_parser".format(script_name))
-    parser = submitter.add_sge_arguments(script_parser)  # @UndefinedVariable: script_parser
+    parser, script_args = submitter.add_sge_arguments(script_parser)  # @UndefinedVariable: script_parser
 except ImportError:
     script_parser = None
-    parser = submitter.add_sge_arguments(argparse.ArgumentParser())
+    parser, script_args = submitter.add_sge_arguments(argparse.ArgumentParser())
 # Parse arguments that were supplied to script
 args = parser.parse_args(sys.argv[2:])
 # Create work dir on 
 work_dir, output_dir = submitter.create_work_dir(script_name)
 # Create command line to be run in job script from parsed arguments
-cmdline = submitter.create_cmdline(script_name, script_parser, work_dir, args)
+cmdline = submitter.create_cmdline(script_name, script_args, work_dir, args)
 # Initialise work directory
 submitter.work_dir_init(work_dir)
 # Submit script to scheduler

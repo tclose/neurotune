@@ -158,6 +158,7 @@ class SGESubmitter(object):
     
     def add_sge_arguments(self, parser, np=256, que_name='short', max_memory='3g', 
                           virtual_memory='2g'):
+        original_actions = copy(parser._actions)
         def remove_parser_arg(argname):
             try:
                 parser._remove_action(next(a for a in parser._actions if a.dest == argname))
@@ -190,7 +191,7 @@ class SGESubmitter(object):
                                  "cluster for testing")
         parser.add_argument('--work_dir', type=str, default=None,
                             help="The work directory in which to run the simulation")
-        return parser
+        return parser, original_actions
         
     def create_env(self, work_dir):
         """
@@ -306,17 +307,21 @@ class SGESubmitter(object):
 #                     from_ = get_project_dir() + os.path.sep + from_
                 shutil.copytree(from_, os.path.join(dependency_dir, to_))
                 
-    def create_cmdline(self, script_name, script_parser, work_dir, args):
-        cmdline = 'time mpirun python {}.py --output {}/output/'.format(script_name, 
-                                                                                work_dir)
-        for arg in script_parser._actions:
+    def create_cmdline(self, script_name, script_args, work_dir, args):
+        cmdline = 'time mpirun python {}.py'.format(script_name)
+        options=' --output {}/output/'.format(work_dir)
+        for arg in script_args:
             name = arg.dest
             if hasattr(args, name):
                 val = getattr(args, name)
-                if val is not False:
-                    cmdline += ' --{}'.format(name)
-                    if val is not True:
+                if arg.required:
                         cmdline += ' {}'.format(val)
+                else:
+                    if val is not False:
+                        options += ' --{}'.format(name)
+                        if val is not True:
+                            options += ' {}'.format(val)
+        cmdline += options
         return cmdline
         
     def submit(self, script_name, cmds, work_dir, output_dir, args, que_name='longP', 
