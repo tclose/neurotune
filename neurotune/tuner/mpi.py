@@ -160,7 +160,7 @@ class SGESubmitter(object):
                           virtual_memory='2g'):
         def remove_parser_arg(argname):
             try:
-                parser._remove_action(next([a for a in parser._actions if a.dest == argname]))
+                parser._remove_action(next(a for a in parser._actions if a.dest == argname))
             except StopIteration:
                 pass
         remove_parser_arg('plot')

@@ -3,7 +3,6 @@
 Wraps a executable to enable that script to be submitted to an SGE cluster engine
 """
 import sys
-import shlex
 import argparse
 from neurotune.tuner.mpi import SGESubmitter
 script_name = sys.argv[1]
@@ -20,7 +19,7 @@ except ImportError:
     script_parser = None
     parser = submitter.add_sge_arguments(argparse.ArgumentParser())
 # Parse arguments that were supplied to script
-args = parser.parse(shlex.split(sys.argv[2:]))
+args = parser.parse_args(sys.argv[2:])
 # Create command line to be run in job script from parsed arguments
 cmdline = submitter.create_cmdline(script_name, script_parser, args)
 # Create work dir on 
