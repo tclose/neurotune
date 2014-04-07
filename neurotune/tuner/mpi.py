@@ -274,7 +274,9 @@ class SGESubmitter(object):
                           "attempts".format(work_dir)
                     raise e
                 # Replace old count at the end of work directory with new count
-                work_dir = '.'.join(work_dir.split('.')[:-1] + [str(count)])        
+                work_dir = '.'.join(work_dir.split('.')[:-1] + [str(count)])
+        # Make output directory for the generated files
+        os.mkdir(os.path.join(work_dir, 'output'))      
         # Write time string to file for future reference
         with open(os.path.join(work_dir, 'output', 'time_stamp'), 'w') as f:
             f.write(time_str + '\n')
@@ -289,8 +291,7 @@ class SGESubmitter(object):
         @param work_dir: The destination work directory
         @param required_dirs: The required sub-directories to be copied to the work directory
         """
-        # Make output directory for the generated files
-        os.mkdir(os.path.join(work_dir, 'output'))
+
         # Copy snapshot of selected subdirectories to working directory
         for directory in required_dirs:
             print "Copying '{}' sub-directory to work directory".format(directory)
@@ -305,19 +306,20 @@ class SGESubmitter(object):
 #                     from_ = get_project_dir() + os.path.sep + from_
                 shutil.copytree(from_, os.path.join(dependency_dir, to_))
                 
-    def create_cmdline(self, script_name, script_parser, args):
-        cmdline = 'time mpirun python {}.py --output {work_dir}/output/'.format(script_name)
+    def create_cmdline(self, script_name, script_parser, work_dir, args):
+        cmdline = 'time mpirun python {}.py --output {}/output/'.format(script_name, 
+                                                                                work_dir)
         for arg in script_parser._actions:
             name = arg.dest
-            if args.has_key(name):
-                val = args[name]
+            if hasattr(args, name):
+                val = getattr(args, name)
                 if val is not False:
                     cmdline += ' --{}'.format(name)
                     if val is not True:
                         cmdline += ' {}'.format(val)
         return cmdline
         
-    def submit(self, script_name, cmds, np, work_dir, output_dir, que_name='longP', 
+    def submit(self, script_name, cmds, work_dir, output_dir, args, que_name='longP', 
                    max_memory='4g', virtual_memory='3g', time_limit=None, env=None, 
                    copy_to_output=['xml'], strip_build_from_copy=True, name=None):
         """
@@ -428,7 +430,7 @@ cp {work_dir}/output_stream {output_dir}/output
 echo "============== Done ===============" 
 """
         .format(work_dir=work_dir, path=env['PATH'], pythonpath=env['PYTHONPATH'],
-          ld_library_path=env['LD_LIBRARY_PATH'], nine_src_path=os.path.join(work_dir,'src'), np=np,
+          ld_library_path=env['LD_LIBRARY_PATH'], nine_src_path=os.path.join(work_dir,'src'), np=args.np,
           que_name=que_name, max_mem=max_memory, virt_mem=virtual_memory, cmds=cmds, 
           output_dir=output_dir, name_cmd=name_cmd, copy_cmd=copy_cmd, jobscript_path=jobscript_path, 
           time_limit=time_limit_option))

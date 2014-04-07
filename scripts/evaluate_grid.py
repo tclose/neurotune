@@ -11,9 +11,7 @@ except ImportError:
     BUILD_MODE_OPTIONS = []
 
 argparser = argparse.ArgumentParser(description=__doc__)
-argparser.add_argument('cell_9ml', type=str, 
-                       default=os.path.join('/home', 'tclose', 'git', 'kbrain', '9ml', 'neurons', 
-                                            'Golgi_Solinas08.9ml'),
+argparser.add_argument('cell_9ml', type=str,
                        help="The path of the 9ml cell to test the objective function on"
                             "(default: %(default)s)") 
 argparser.add_argument('--num_steps', type=int, default=2, 
@@ -23,7 +21,7 @@ argparser.add_argument('--disable_mpi', action='store_true',
                     help="Disable MPI tuner and replace with basic tuner")
 argparser.add_argument('--simulator', type=str, default='neuron', 
                     help="simulator for NINEML+ (either 'neuron' or 'nest')")
-argparser.add_argument('--build', type=str, 'lazy', 
+argparser.add_argument('--build', type=str, default='lazy', 
                     help="Option to build the NMODL files before running (can be one of {})"
                          .format(BUILD_MODE_OPTIONS))
 argparser.add_argument('--timestep', type=float, default=0.025, 
