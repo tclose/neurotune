@@ -1,6 +1,8 @@
 from __future__ import absolute_import
+import sys
 import os
 import time
+from copy import deepcopy
 import shutil
 import subprocess
 from copy import copy
@@ -137,16 +139,33 @@ class SGESubmitter(object):
     cluster
     """
 
-    PYTHON_INSTALL_DIR='/apps/python/272'
-    OPEN_MPI_INSTALL_DIR='/opt/mpi/gnu/openmpi-1.6.3'
-    NEURON_INSTALL_DIR='/apps/DeschutterU/NEURON-7.3'
-    NEST_INSTALL_DIR='/apps/DeschutterU/nest-2.2.1'
-    SUNDIALS_INSTALL_DIR='/apps/DeschutterU/sundials-2.5.0'
-    NEUROFITTER_INSTALL_DIR='/home/t/tclose/git/neurofitter/bin'
+#     PYTHON_INSTALL_DIR='/apps/python/272'
+#     OPEN_MPI_INSTALL_DIR='/opt/mpi/gnu/openmpi-1.6.3'
+#     NEURON_INSTALL_DIR='/apps/DeschutterU/NEURON-7.3'
+#     NEST_INSTALL_DIR='/apps/DeschutterU/nest-2.2.1'
+#     SUNDIALS_INSTALL_DIR='/apps/DeschutterU/sundials-2.5.0'
+#     NEUROFITTER_INSTALL_DIR='/home/t/tclose/git/neurofitter/bin'
     
-    def add_script_arguments(self, parser, np=256, que_name='short', max_memory='3g', 
-                             virtual_memory='2g', time=2000.0, min_delay=0.05, timestep=0.025,
-                             exclude=[]):
+    def __init__(self, python_install_dir=None, open_mpi_install_dir=None, neuron_install_dir=None, 
+                 nest_install_dir=None, sundials_install_dir=None):
+        self.py_dir=python_install_dir if python_install_dir else os.environ.get('PYTHONHOME', None)
+        self.mpi_dir=(open_mpi_install_dir 
+                      if open_mpi_install_dir else os.environ.get('MPIHOME', None))
+        self.nrn_dir=neuron_install_dir if neuron_install_dir else os.environ.get('NRNHOME', None)
+        self.nest_dir=nest_install_dir if nest_install_dir else os.environ.get('NESTHOME', None)
+        self.sdials_dir=(sundials_install_dir 
+                         if sundials_install_dir else os.environ.get('SUNDIALSHOME', None))
+    
+    def add_sge_arguments(self, parser, np=256, que_name='short', max_memory='3g', 
+                          virtual_memory='2g'):
+        def remove_parser_arg(argname):
+            try:
+                parser._remove_action(next([a for a in parser._actions if a.dest == argname]))
+            except StopIteration:
+                pass
+        remove_parser_arg('plot')
+        remove_parser_arg('output')
+        remove_parser_arg('disable_mpi')
         parser.add_argument('--np', type=int, default=np, 
                         help="The the number of processes to use for the simulation "
                              "(default: %(default)s)")
@@ -169,24 +188,62 @@ class SGESubmitter(object):
         parser.add_argument('--dry_run', action='store_true', 
                             help="Performs a dry run without trying to  submit the job to the "
                                  "cluster for testing")
+        parser.add_argument('--work_dir', type=str, default=None,
+                            help="The work directory in which to run the simulation")
+        return parser
+        
+    def create_env(self, work_dir):
+        """
+        Creates a dictionary containing the appropriate environment variables
+        
+        @param work_dir: The work directory to set the envinroment variables for
+        """
+        env = os.environ.copy()
+        new_path = ''
+        if self.py_dir:
+            new_path += os.path.join(self.py_dir, 'bin') + os.pathsep
+        if self.mpi_dir:
+            new_path += os.path.join(self.mpi_dir, 'bin') + os.pathsep
+        if self.nrn_dir:
+            new_path += os.path.join(self.nrn_dir, 'x86_64', 'bin') + os.pathsep
+        if self.nest_dir:
+            new_path += os.path.join(self.nest_dir, 'bin') + os.pathsep
+        if self.sdials_dir:
+            os.path.join(self.sdials_dir, 'bin') + os.pathsep
+        env['PATH'] = new_path + env['PATH']
+        new_pythonpath = (os.path.join(work_dir, 'src') + os.pathsep +
+                          os.path.join(work_dir, 'depend') + os.pathsep)
+        if self.nest_dir:
+            new_pythonpath += (os.path.join(self.nest_dir, 'lib', 'python2.7', 'dist-packages') +
+                               os.pathsep)
+        env['PYTHONPATH'] = new_pythonpath + os.pathsep.join(sys.path)
+        new_library_path = ''
+        if self.mpi_dir:
+            new_library_path += os.path.join(self.mpi_dir, 'lib') + os.pathsep
+        if self.nest_dir:
+            new_library_path += os.path.join(self.nest_dir, 'lib', 'nest') + os.pathsep
+        if self.sdials_dir:
+            new_library_path += os.path.join(self.sdials_dir, 'lib')
+        env['NINEML_SRC_PATH'] = os.path.join(work_dir, 'src')
+        return env        
 
-    def get_project_dir(self):
-        """
-        Returns the root directory of the project
-        """
-        # Root directory of the project code
-        return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')) 
+#     def get_project_dir(self):
+#         """
+#         Returns the root directory of the project
+#         """
+#         # Root directory of the project code
+#         return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')) 
     
     def create_work_dir(self, script_name, output_dir_parent=None):
         """
         Generates unique paths for the work and output directories, creating the work directory in the 
         process.
         
-        @param script_name: The name of the script, used to name the directories appropriately
-        @param output_dir_parent: The name of the parent directory in which the output directory """ \
-        "will be created (defaults to $HOME/Output)." \
-        """@param required_dirs: The sub-directories that need to be copied into the work directory    
-        """
+        `script_name`       -- The name of the script, used to name the directories appropriately
+        `work_dir`          -- The name of the 
+        `output_dir_parent` -- The name of the parent directory in which the output directory """ \
+                               "will be created (defaults to $HOME/Output)." \
+        "`required_dirs`    -- The sub-directories that need to be copied into the work directory"
         if not output_dir_parent:
             output_dir_parent = os.path.join(os.environ['HOME'], 'output')
         work_dir_parent = os.path.realpath(os.path.join(os.environ['HOME'], 'work'))
@@ -218,69 +275,49 @@ class SGESubmitter(object):
                     raise e
                 # Replace old count at the end of work directory with new count
                 work_dir = '.'.join(work_dir.split('.')[:-1] + [str(count)])        
-        # Make output directory for the generated files
-        os.mkdir(os.path.join(work_dir, 'output'))
-        # Save the git revision in the output folder for reference
-        subprocess.call('cd {}; git rev-parse HEAD > {}'.\
-                        format(self.get_project_dir(), os.path.join(work_dir, 'output', 'git_revision')), 
-                        shell=True)
         # Write time string to file for future reference
-        f = open(os.path.join(work_dir, 'output', 'time_stamp'), 'w')
-        f.write(time_str + '\n')
-        f.close()
+        with open(os.path.join(work_dir, 'output', 'time_stamp'), 'w') as f:
+            f.write(time_str + '\n')
         # Determine the path for the output directory when it is copied to the output directory destination
         output_dir = os.path.join(output_dir_parent, os.path.split(work_dir)[1])
         return work_dir, output_dir
     
-    def work_dir_init(self, work_dir, required_dirs=REQUIRED_DIRS_DEFAULT, 
-                      dependencies=DEPENDENCIES_DEFAULT):
+    def work_dir_init(self, work_dir, required_dirs=[], dependencies=[]):
         """
         Copies directories from the project directory to the work directory
         
         @param work_dir: The destination work directory
         @param required_dirs: The required sub-directories to be copied to the work directory
-        """   
+        """
+        # Make output directory for the generated files
+        os.mkdir(os.path.join(work_dir, 'output'))
         # Copy snapshot of selected subdirectories to working directory
         for directory in required_dirs:
             print "Copying '{}' sub-directory to work directory".format(directory)
-            shutil.copytree(os.path.join(get_project_dir(),directory), 
-                            os.path.join(work_dir,directory), symlinks=True)
+            shutil.copytree(directory, os.path.join(work_dir,directory), symlinks=True)
         if dependencies:
             dependency_dir = os.path.join(work_dir, 'depend') 
             os.mkdir(dependency_dir)
             for from_, to_ in dependencies:
-                # If not an absolute path prepend the project directory as a relative path (useful for
-                # getting dependencies from directories installed alongside the project directory
-                if not from_.startswith('/'):
-                    from_ = get_project_dir() + os.path.sep + from_
-                shutil.copytree(from_, os.path.join(dependency_dir, to_))      
-    
-    def create_env(self, work_dir):
-        """
-        Creates a dictionary containing the appropriate environment variables
+#                 # If not an absolute path prepend the project directory as a relative path (useful for
+#                 # getting dependencies from directories installed alongside the project directory
+#                 if not from_.startswith('/'):
+#                     from_ = get_project_dir() + os.path.sep + from_
+                shutil.copytree(from_, os.path.join(dependency_dir, to_))
+                
+    def create_cmdline(self, script_name, script_parser, args):
+        cmdline = 'time mpirun python {}.py --output {work_dir}/output/'.format(script_name)
+        for arg in script_parser._actions:
+            name = arg.dest
+            if args.has_key(name):
+                val = args[name]
+                if val is not False:
+                    cmdline += ' --{}'.format(name)
+                    if val is not True:
+                        cmdline += ' {}'.format(val)
+        return cmdline
         
-        @param work_dir: The work directory to set the envinroment variables for
-        """
-        env = os.environ.copy()
-        env['PATH'] = (env['PATH'] + os.pathsep +
-                       os.path.join(PYTHON_INSTALL_DIR, 'bin') + os.pathsep +
-                       os.path.join(OPEN_MPI_INSTALL_DIR, 'bin') + os.pathsep +
-                       os.path.join(NEURON_INSTALL_DIR, 'x86_64', 'bin') + os.pathsep +
-                       os.path.join(NEST_INSTALL_DIR, 'bin') + os.pathsep +
-                       os.path.join(SUNDIALS_INSTALL_DIR, 'bin') + os.pathsep +
-                       os.path.join(NEUROFITTER_INSTALL_DIR, 'bin'))
-        env['PYTHONPATH'] = (os.path.join(NEST_INSTALL_DIR, 'lib', 'python2.7', 'dist-packages') +
-                             os.pathsep + os.path.join(work_dir, 'src') + os.pathsep +
-                             os.path.join(work_dir, 'depend') + os.pathsep +
-                             os.pathsep.join(sys.path))
-        env['LD_LIBRARY_PATH'] = (os.path.join(OPEN_MPI_INSTALL_DIR, 'lib') + os.pathsep +
-                                  os.path.join(NEST_INSTALL_DIR, 'lib', 'nest') + os.pathsep +
-                                  os.path.join(SUNDIALS_INSTALL_DIR, 'lib') + os.pathsep +
-                                  os.path.join(NEUROFITTER_INSTALL_DIR, 'lib'))
-        env['NINEML_SRC_PATH'] = os.path.join(work_dir, 'src')
-        return env
-
-    def submit_job(self, script_name, cmds, np, work_dir, output_dir, que_name='longP', 
+    def submit(self, script_name, cmds, np, work_dir, output_dir, que_name='longP', 
                    max_memory='4g', virtual_memory='3g', time_limit=None, env=None, 
                    copy_to_output=['xml'], strip_build_from_copy=True, name=None):
         """
@@ -298,7 +335,7 @@ class SGESubmitter(object):
         @param name: Records a name for the run (when generating multiple runs) so that the output directory can be easily renamed to a more informative name after it is copied to its destination via the command "mv <output_dir> `cat <output_dir>/name`"
         """
         if not env:
-            env = create_env(work_dir)
+            env = self.create_env(work_dir)
         else:
             env = copy(env)
         copy_cmd = ''
@@ -402,5 +439,7 @@ echo "============== Done ==============="
         print "Your job '%s' has been submitted" % jobscript_path
         print "The output stream can be viewed by:"
         print "less " + os.path.join(work_dir, 'output_stream')
-        print "Once completed the output files (including the output stream and job script) of this job will be copied to:"
+        print ("Once completed the output files (including the output stream and job script) of "
+               "this job will be copied to:")
         print output_dir
+        
