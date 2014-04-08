@@ -85,10 +85,13 @@ class MPITuner(Tuner):
         if self.evaluate_on_master:
             since_master_evaluation = 0
         while candidate_jobs:
-            if free_processes:
-                if self.num_processes > 1:
-                    self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
-                                   tag=self.COMMAND_MSG)
+            if self.num_processes == 1:   
+                jobID, candidate = candidate_jobs.pop()
+                evaluations[jobID] = self._evaluate_candidate(candidate)
+                remaining_evaluations -= 1
+            elif free_processes:
+                self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
+                               tag=self.COMMAND_MSG)
                 if self.evaluate_on_master:
                     since_master_evaluation += 1
                     if since_master_evaluation == self.num_processes - 1:
@@ -99,7 +102,7 @@ class MPITuner(Tuner):
                         evaluations[jobID] = self._evaluate_candidate(candidate)
                         remaining_evaluations -= 1
                         since_master_evaluation = 0
-            elif self.num_processes > 1:    
+            else:
                 processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                 evaluations[jobID] = result
                 remaining_evaluations -= 1
