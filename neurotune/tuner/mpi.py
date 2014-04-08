@@ -84,30 +84,38 @@ class MPITuner(Tuner):
         remaining_evaluations = len(candidates)
         if self.evaluate_on_master:
             since_master_evaluation = 0
-        while candidate_jobs:
-            if free_processes:
-                if self.num_processes > 1:
-                    self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
-                                   tag=self.COMMAND_MSG)
-                if self.evaluate_on_master:
-                    since_master_evaluation += 1
-                    if since_master_evaluation == self.num_processes - 1:
-                        jobID, candidate = candidate_jobs.pop()
-                        if self.mpi_verbose:
-                            print ("Evaluating jobID: {}, candidate: {} on process {}"
-                                   .format(jobID, candidate, self.rank))
-                        evaluations[jobID] = self._evaluate_candidate(candidate)
-                        remaining_evaluations -= 1
-                        since_master_evaluation = 0
-            elif self.num_processes > 1:    
-                processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+        try:
+            while candidate_jobs:
+                if free_processes:
+                    if self.num_processes > 1:
+                        self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
+                                       tag=self.COMMAND_MSG)
+                    if self.evaluate_on_master:
+                        since_master_evaluation += 1
+                        if since_master_evaluation == self.num_processes - 1:
+                            jobID, candidate = candidate_jobs.pop()
+                            if self.mpi_verbose:
+                                print ("Evaluating jobID: {}, candidate: {} on process {}"
+                                       .format(jobID, candidate, self.rank))
+                            evaluations[jobID] = self._evaluate_candidate(candidate)
+                            remaining_evaluations -= 1
+                            since_master_evaluation = 0
+                elif self.num_processes > 1:
+                    processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, 
+                                                              tag=self.DATA_MSG)
+                    evaluations[jobID] = result
+                    remaining_evaluations -= 1
+                    free_processes.append(processID)
+            while remaining_evaluations:
+                _, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                 evaluations[jobID] = result
                 remaining_evaluations -= 1
-                free_processes.append(processID)
-        while remaining_evaluations:
-            processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
-            evaluations[jobID] = result
-            remaining_evaluations -= 1
+        except Exception as e:
+            self._release_slaves()
+            if e.message == "need more than 0 values to unpack":
+                raise Exception("Quitting master after error on slave node")
+            else:
+                raise e
         return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
@@ -122,7 +130,12 @@ class MPITuner(Tuner):
             if self.mpi_verbose:
                 print "Evaluating jobID: {}, candidate: {} on process {}".format(jobID, candidate, 
                                                                                  self.rank)
-            evaluation = self._evaluate_candidate(candidate)
+            try:
+                evaluation = self._evaluate_candidate(candidate)
+            except Exception as e:
+                # This should cause an error on the master node causing all evaluations to stop
+                self.comm.send([], dest=self.MASTER, tag=self.DATA_MSG)
+                raise e
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
