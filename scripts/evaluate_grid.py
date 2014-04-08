@@ -97,5 +97,4 @@ def prepare_work_dir(work_dir, args):
     args.cell_9ml = copied_9ml
 
 if __name__ == '__main__':
-    args = parser.parse_args()
-    main()
+    main(parser.parse_args())
