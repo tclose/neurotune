@@ -71,7 +71,7 @@ def main(args):
         print "Fittest candidate {}".format(pop)
         
         # Save the grid to file
-        with open(args.output, 'w') as f:
+        with open(os.path.join(args.output, 'fitness_grid.pkl'), 'w') as f:
             pkl.dump(grid, f)
             
         # Plot the grid if asked
