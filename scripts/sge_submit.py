@@ -7,10 +7,6 @@ import os.path
 import argparse
 from neurotune.tuner.mpi import SGESubmitter
 script_name = sys.argv[1]
-# Most definitely overkill but just check to see that no malicious strings are going to be passed to 
-# exec function
-if ';' in script_name:
-    raise Exception("Malformed script name")
 # Create submitter object
 submitter = SGESubmitter()
 # Try to import argument parser from script in order to add those arguments to the SGE-related
