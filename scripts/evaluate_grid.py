@@ -5,51 +5,45 @@ Evaluates objective functions on a grid of positions in parameter space
 import os.path
 import argparse
 import numpy
-try:
-    from nineline.cells.build import BUILD_MODE_OPTIONS
-except ImportError:
-    BUILD_MODE_OPTIONS = []
+from nineline.cells.neuron import NineCellMetaClass, simulation_controller
+from nineline.cells.build import BUILD_MODE_OPTIONS
+from neurotune import Parameter
+from neurotune.objective.multi import MultiObjective
+from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
+                                             ConvPhasePlaneHistObjective, 
+                                             PhasePlanePointwiseObjective)
+from neurotune.algorithm.grid import GridAlgorithm
+from neurotune.simulation.nineline import NineLineSimulation
+import cPickle as pkl
 
-argparser = argparse.ArgumentParser(description=__doc__)
-argparser.add_argument('cell_9ml', type=str,
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('cell_9ml', type=str,
                        help="The path of the 9ml cell to test the objective function on"
                             "(default: %(default)s)") 
-argparser.add_argument('--num_steps', type=int, default=2, 
+parser.add_argument('--num_steps', type=int, default=2, 
                     help="The number of grid steps to take along each dimension "
                          "(default: %(default)s)")
-argparser.add_argument('--disable_mpi', action='store_true', 
+parser.add_argument('--disable_mpi', action='store_true', 
                     help="Disable MPI tuner and replace with basic tuner")
-argparser.add_argument('--simulator', type=str, default='neuron', 
+parser.add_argument('--simulator', type=str, default='neuron', 
                     help="simulator for NINEML+ (either 'neuron' or 'nest')")
-argparser.add_argument('--build', type=str, default='lazy', 
+parser.add_argument('--build', type=str, default='lazy', 
                     help="Option to build the NMODL files before running (can be one of {})"
                          .format(BUILD_MODE_OPTIONS))
-argparser.add_argument('--timestep', type=float, default=0.025, 
+parser.add_argument('--timestep', type=float, default=0.025, 
                     help="The timestep used for the simulation (default: %(default)s)")
-argparser.add_argument('--time', type=float, default=2000.0,
+parser.add_argument('--time', type=float, default=2000.0,
                        help="Recording time")
-argparser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'], 'grid.pkl'),
+parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                        help="The path to the output file where the grid will be written "
                             "(default: %(default)s)")
-argparser.add_argument('--plot', action='store_true', help="Plot the grid on a 1-2d mesh")
+parser.add_argument('--plot', action='store_true', help="Plot the grid on a 1-2d mesh")
 
-def main():
-    args = argparser.parse_args()    
+def main(args):
     if args.disable_mpi:
         from neurotune import Tuner  # @UnusedImport 
     else:
         from neurotune.tuner.mpi import MPITuner as Tuner # @Reimport  
-    from nineline.cells.neuron import NineCellMetaClass, simulation_controller
-    from neurotune import Parameter
-    from neurotune.objective.multi import MultiObjective
-    from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
-                                                 ConvPhasePlaneHistObjective, 
-                                                 PhasePlanePointwiseObjective)
-    from neurotune.algorithm.grid import GridAlgorithm
-    from neurotune.simulation.nineline import NineLineSimulation
-    import cPickle as pkl
-    from matplotlib import pyplot as plt
-    
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.cell_9ml)()
     cell.record('v')
@@ -81,6 +75,7 @@ def main():
             
         # Plot the grid if asked
         if args.plot:
+            from matplotlib import pyplot as plt
             if len(parameters) == 1:
                 plt.plot(numpy.linspace(parameters[0].lbound, parameters[0].ubound, args.num_steps),
                          grid)
@@ -93,5 +88,9 @@ def main():
                                 .format(len(parameters)))
             plt.show()
 
+def compile_model(args):
+    NineCellMetaClass(args.cell_9ml, build='build_only')
+
 if __name__ == '__main__':
+    args = parser.parse_args()
     main()

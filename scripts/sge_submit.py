@@ -13,10 +13,10 @@ if ';' in script_name:
 # Create submitter object
 submitter = SGESubmitter()
 try:
-    exec("from {} import argparser as script_parser".format(script_name))
+    exec("from {} import argparser as script_parser, compile_model".format(script_name))
     parser, script_args = submitter.add_sge_arguments(script_parser)  # @UndefinedVariable: script_parser
 except ImportError:
-    script_parser = None
+    script_parser = compile_model = None
     parser, script_args = submitter.add_sge_arguments(argparse.ArgumentParser())
 # Parse arguments that were supplied to script
 args = parser.parse_args(sys.argv[2:])
@@ -26,5 +26,7 @@ work_dir, output_dir = submitter.create_work_dir(script_name)
 cmdline = submitter.create_cmdline(script_name, script_args, work_dir, args)
 # Initialise work directory
 submitter.work_dir_init(work_dir)
+if compile_model is not None:
+    compile_model(args)
 # Submit script to scheduler
 submitter.submit(script_name, cmdline, work_dir, output_dir, args)

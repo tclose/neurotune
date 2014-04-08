@@ -2,7 +2,7 @@ import os.path
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Tuner, Parameter
 from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective
-from neurotune.algorithm.genetic import EDAAlgorithm
+from neurotune.algorithm.evolutionary import EDAAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 
 # The path to the original golgi cell 9ml file
