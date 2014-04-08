@@ -15,12 +15,14 @@ try:
     exec("from {} import parser as script_parser".format(script_name))
     parser, script_args = submitter.add_sge_arguments(script_parser)  # @UndefinedVariable: script_parser
 except ImportError:
+    print "Warning: failed to import 'parser' from '{}'".format(script_name)
     script_parser = None
     parser, script_args = submitter.add_sge_arguments(argparse.ArgumentParser())
 # Try to import 'src_dir_init' method from script otherwise fail gracefully
 try:
     exec("from {} import src_dir_init".format(script_name))
 except ImportError:
+    print "Warning: failed to import 'src_dir_init' from '{}'".format(script_name)
     src_dir_init = None
 # Parse arguments that were supplied to script
 args = parser.parse_args(sys.argv[2:])
