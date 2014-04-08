@@ -34,4 +34,4 @@ submitter.work_dir_init(work_dir)
 # Copy and 
 script.src_dir_init(os.path.join(work_dir, 'src'), args)
 # Submit script to scheduler
-submitter.submit(script_name, cmdline, work_dir, output_dir, args, dry_run=True)
+submitter.submit(script_name, cmdline, work_dir, output_dir, args)
