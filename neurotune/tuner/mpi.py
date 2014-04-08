@@ -26,7 +26,10 @@ class MPITuner(Tuner):
     num_processes = comm.Get_size() # The number of processes available
        
     def set(self, *args, **kwargs):
-        self.evaluate_on_master = kwargs.pop('evaluate_on_master', self.num_processes < 10)
+        if self.num_processes == 1:
+            self.evaluate_on_master = True
+        else:
+            self.evaluate_on_master = kwargs.pop('evaluate_on_master', self.num_processes < 10)
         self.mpi_verbose = kwargs.pop('verbose', True)
         super(MPITuner, self).set(*args, **kwargs)         
     
@@ -83,8 +86,9 @@ class MPITuner(Tuner):
             since_master_evaluation = 0
         while candidate_jobs:
             if free_processes:
-                self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
-                               tag=self.COMMAND_MSG)
+                if self.num_processes > 1:
+                    self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
+                                   tag=self.COMMAND_MSG)
                 if self.evaluate_on_master:
                     since_master_evaluation += 1
                     if since_master_evaluation == self.num_processes - 1:
@@ -95,7 +99,7 @@ class MPITuner(Tuner):
                         evaluations[jobID] = self._evaluate_candidate(candidate)
                         remaining_evaluations -= 1
                         since_master_evaluation = 0
-            else:    
+            elif self.num_processes > 1:    
                 processID, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                 evaluations[jobID] = result
                 remaining_evaluations -= 1
