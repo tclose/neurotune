@@ -5,6 +5,7 @@ Evaluates objective functions on a grid of positions in parameter space
 import os.path
 import argparse
 import numpy
+import shutil
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
@@ -88,8 +89,10 @@ def main(args):
                                 .format(len(parameters)))
             plt.show()
 
-def compile_model(args):
-    NineCellMetaClass(args.cell_9ml, build='build_only')
+def src_dir_init(src_dir, args):
+    copied_9ml = os.path.join(src_dir, os.path.basename(args.cell_9ml))
+    shutil.copy(args.cell_9ml, copied_9ml)
+    NineCellMetaClass(copied_9ml, build_mode='build_only')
 
 if __name__ == '__main__':
     args = parser.parse_args()

@@ -292,7 +292,7 @@ class SGESubmitter(object):
         `work_dir`      -- The destination work directory
         `required_dirs` -- The required sub-directories to be copied to the work directory
         """
-
+        os.mkdir(os.path.join(work_dir, 'src'))
         # Copy snapshot of selected subdirectories to working directory
         for directory in required_dirs:
             print "Copying '{}' sub-directory to work directory".format(directory)
@@ -326,7 +326,7 @@ class SGESubmitter(object):
         
     def submit(self, script_name, cmds, work_dir, output_dir, args, que_name='longP', 
                    max_memory='4g', virtual_memory='3g', time_limit=None, env=None, 
-                   copy_to_output=['xml'], strip_build_from_copy=True, name=None):
+                   copy_to_output=['xml'], strip_build_from_copy=True, name=None, dry_run=False):
         """
         Create a jobscript in the work directory and then submit it to the tombo que
         
@@ -442,7 +442,11 @@ echo "============== Done ==============="
         f.close()
         # Submit job
         print "Submitting job '%s' to que" % jobscript_path
-        subprocess.check_call('qsub %s' % jobscript_path, shell=True)
+        if dry_run:
+            print ("Would normally call 'qsub {}' here but 'dry_run' option was provided"
+                   .format(jobscript_path))
+        else:
+            subprocess.check_call('qsub {}'.format(jobscript_path), shell=True)
         print "Your job '%s' has been submitted" % jobscript_path
         print "The output stream can be viewed by:"
         print "less " + os.path.join(work_dir, 'output_stream')

@@ -3,6 +3,7 @@
 Wraps a executable to enable that script to be submitted to an SGE cluster engine
 """
 import sys
+import os.path
 import argparse
 from neurotune.tuner.mpi import SGESubmitter
 script_name = sys.argv[1]
@@ -12,12 +13,19 @@ if ';' in script_name:
     raise Exception("Malformed script name")
 # Create submitter object
 submitter = SGESubmitter()
+# Try to import argument parser from script in order to add those arguments to the SGE-related
+# arguments
 try:
-    exec("from {} import argparser as script_parser, compile_model".format(script_name))
+    exec("from {} import parser as script_parser".format(script_name))
     parser, script_args = submitter.add_sge_arguments(script_parser)  # @UndefinedVariable: script_parser
 except ImportError:
-    script_parser = compile_model = None
+    script_parser = None
     parser, script_args = submitter.add_sge_arguments(argparse.ArgumentParser())
+# Try to import 'src_dir_init' method from script otherwise fail gracefully
+try:
+    exec("from {} import src_dir_init".format(script_name))
+except ImportError:
+    src_dir_init = None
 # Parse arguments that were supplied to script
 args = parser.parse_args(sys.argv[2:])
 # Create work dir on 
@@ -26,7 +34,8 @@ work_dir, output_dir = submitter.create_work_dir(script_name)
 cmdline = submitter.create_cmdline(script_name, script_args, work_dir, args)
 # Initialise work directory
 submitter.work_dir_init(work_dir)
-if compile_model is not None:
-    compile_model(args)
+# Copy and 
+if src_dir_init is not None:
+    src_dir_init(os.path.join(work_dir, 'src'), args)
 # Submit script to scheduler
-submitter.submit(script_name, cmdline, work_dir, output_dir, args)
+submitter.submit(script_name, cmdline, work_dir, output_dir, args, dry_run=True)
