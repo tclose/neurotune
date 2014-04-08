@@ -89,10 +89,12 @@ def main(args):
                                 .format(len(parameters)))
             plt.show()
 
-def src_dir_init(src_dir, args):
-    copied_9ml = os.path.join(src_dir, os.path.basename(args.cell_9ml))
+def prepare_work_dir(work_dir, args):
+    os.mkdir(os.path.join(work_dir, '9ml'))
+    copied_9ml = os.path.join(work_dir, '9ml', os.path.basename(args.cell_9ml))
     shutil.copy(args.cell_9ml, copied_9ml)
     NineCellMetaClass(copied_9ml, build_mode='build_only')
+    args.cell_9ml = copied_9ml
 
 if __name__ == '__main__':
     args = parser.parse_args()
