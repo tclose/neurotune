@@ -107,6 +107,7 @@ class MPITuner(Tuner):
                     try:
                         processID, jobID, result = received
                     except ValueError:
+                        print received
                         raise EvaluationException(*received)
                     evaluations[jobID] = result
                     free_processes.append(processID)
