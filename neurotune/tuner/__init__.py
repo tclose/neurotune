@@ -7,6 +7,12 @@ class Tuner(object):
     simulation objects) and runs the algorithm
     """    
     
+    class EvaluationException(Exception):
+        
+        def __init__(self, exception, candidate):
+            self.exception = exception
+            self.candidate = candidate
+    
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
     
@@ -40,7 +46,11 @@ class Tuner(object):
         """
         if self.verbose:
             print "Evaluating candidate {}".format(candidate)
-        return self.objective.fitness(self.simulation.run(candidate))
+        try:
+            fitness = self.objective.fitness(self.simulation.run(candidate))
+        except Exception as e:
+            raise self.EvaluationException(e, candidate)
+        return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
         """

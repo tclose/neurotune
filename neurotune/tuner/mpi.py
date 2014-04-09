@@ -1,11 +1,4 @@
 from __future__ import absolute_import
-import sys
-import os
-import time
-from copy import deepcopy
-import shutil
-import subprocess
-from copy import copy
 from collections import deque
 from mpi4py import MPI
 from .__init__ import Tuner
@@ -88,7 +81,10 @@ class MPITuner(Tuner):
             while candidate_jobs:
                 if self.num_processes == 1:   
                     jobID, candidate = candidate_jobs.pop()
-                    evaluations[jobID] = self._evaluate_candidate(candidate)
+                    try:    
+                        evaluations[jobID] = self._evaluate_candidate(candidate)
+                    except Exception as e:
+                        raise self.EvaluationException(e, candidate)
                     remaining_evaluations -= 1
                 elif free_processes:
                     self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
@@ -100,19 +96,24 @@ class MPITuner(Tuner):
                             if self.mpi_verbose:
                                 print ("Evaluating jobID: {}, candidate: {} on process {}"
                                        .format(jobID, candidate, self.rank))
-                            evaluations[jobID] = self._evaluate_candidate(candidate)
+                            try:    
+                                evaluations[jobID] = self._evaluate_candidate(candidate)
+                            except Exception as e:
+                                raise self.EvaluationException(e, candidate)
                             remaining_evaluations -= 1
                             since_master_evaluation = 0
                 else:
-                    _, jobID, result = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+                    received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+                    try:
+                        processID, jobID, result = received
+                    except ValueError:
+                        raise self.EvaluationException(*received)
                     evaluations[jobID] = result
+                    free_processes.append(processID)
                     remaining_evaluations -= 1
         except Exception as e:
             self._release_slaves()
-            if e.message == "need more than 0 values to unpack":
-                raise Exception("Quitting master after error on slave node")
-            else:
-                raise e
+            raise e
         return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
@@ -130,9 +131,9 @@ class MPITuner(Tuner):
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except Exception as e:
-                # This should cause an error on the master node causing all evaluations to stop
-                self.comm.send([], dest=self.MASTER, tag=self.DATA_MSG)
-                raise e
+                # This will tell the master node to raise an Exception and release all slaves
+                self.comm.send((e, candidate), dest=self.MASTER, tag=self.DATA_MSG)
+                break
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
