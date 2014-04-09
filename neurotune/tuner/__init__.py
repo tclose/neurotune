@@ -1,11 +1,15 @@
 from __future__ import absolute_import
+import traceback
 
 
 class EvaluationException(Exception):
     
-    def __init__(self, candidate, exception=None):
+    def __init__(self, candidate, traceback=None):
         self.candidate = candidate
-        self.exception = exception
+        if traceback is None:
+            traceback = traceback.format_exc()
+        self.message = ("Error while evaluating candidate '{}' with the following error:\n\n{}"
+                        .format(candidate, traceback))
         
     
 class Tuner(object):
