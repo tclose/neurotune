@@ -84,7 +84,6 @@ class MPITuner(Tuner):
                 try:    
                     evaluations[jobID] = self._evaluate_candidate(candidate)
                 except Exception as e:
-                    print "87"
                     raise EvaluationException(candidate, e)
                 remaining_evaluations -= 1
             elif free_processes:
@@ -100,7 +99,6 @@ class MPITuner(Tuner):
                         try:    
                             evaluations[jobID] = self._evaluate_candidate(candidate)
                         except Exception as e:
-                            print "103"
                             raise EvaluationException(candidate, e)
                         remaining_evaluations -= 1
                         since_master_evaluation = 0
@@ -109,8 +107,9 @@ class MPITuner(Tuner):
                 try:
                     processID, jobID, result = received
                 except ValueError:
-                    print "RECEIVED!!!!!!" + str(received)
-                    raise received # If the slave node returned an evaluation error
+                    # If the slave node returned an evaluation error
+                    candidate, exception = received
+                    raise EvaluationException(candidate, exception)
                 evaluations[jobID] = result
                 free_processes.append(processID)
                 remaining_evaluations -= 1
@@ -135,8 +134,8 @@ class MPITuner(Tuner):
                 evaluation = self._evaluate_candidate(candidate)
             except Exception as e:
                 # This will tell the master node to raise an Exception and release all slaves
-                self.comm.send((candidate,), dest=self.MASTER, tag=self.DATA_MSG)
-                raise e
+                self.comm.send((candidate, e), dest=self.MASTER, tag=self.DATA_MSG)
+                break
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
