@@ -75,10 +75,7 @@ def main(args):
             pkl.dump(grid, e.candidate)
         print ("Tuning did not complete due to error evaluating candidate (saved to file at {}): {}"
                .format(failed_candidate_path, e.candidate))
-        if e.exception:
-            raise e.exception
-        else:
-            raise e
+        raise e
     
     if tuner.is_master():
         print "Fittest candidate {}".format(pop)
