@@ -117,7 +117,7 @@ class MPITuner(Tuner):
         #except Exception as e:
         #    self._release_slaves()
         #    raise e
-       return evaluations
+        return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
         """
