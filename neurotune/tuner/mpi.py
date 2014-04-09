@@ -85,7 +85,7 @@ class MPITuner(Tuner):
                     evaluations[jobID] = self._evaluate_candidate(candidate)
                 except Exception as e:
                     print "87"
-                    raise EvaluationException(e, candidate)
+                    raise EvaluationException(candidate, e)
                 remaining_evaluations -= 1
             elif free_processes:
                 self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
@@ -101,7 +101,7 @@ class MPITuner(Tuner):
                             evaluations[jobID] = self._evaluate_candidate(candidate)
                         except Exception as e:
                             print "103"
-                            raise EvaluationException(e, candidate)
+                            raise EvaluationException(candidate, e)
                         remaining_evaluations -= 1
                         since_master_evaluation = 0
             else:
@@ -117,8 +117,7 @@ class MPITuner(Tuner):
         #except Exception as e:
         #    self._release_slaves()
         #    raise e
-
-        return evaluations
+       return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
         """
@@ -135,9 +134,9 @@ class MPITuner(Tuner):
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except Exception as e:
-                # Send the exception to the master node o it can release all slaves before exiting
-                self.comm.send(EvaluationException(e, candidate), dest=self.MASTER, tag=self.DATA_MSG)
-                break
+                # This will tell the master node to raise an Exception and release all slaves
+                self.comm.send((candidate,), dest=self.MASTER, tag=self.DATA_MSG)
+                raise e
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
