@@ -132,8 +132,6 @@ class MPITuner(Tuner):
                                                                                  self.rank)
             try:
                 evaluation = self._evaluate_candidate(candidate)
-                if self.rank == 1:
-                    raise Exception("Test Exception")
             except Exception as e:
                 # This will tell the master node to raise an Exception and release all slaves
                 self.comm.send((candidate,e), dest=self.MASTER, tag=self.DATA_MSG)
