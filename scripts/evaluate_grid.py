@@ -70,18 +70,18 @@ def main(args):
         pop, grid = tuner.tune()
     except EvaluationException as e:
         # Save the grid to file
-        failed_candidate_path = os.path.join(args.output, 'failed_candidate.pkl')
+        failed_candidate_path = os.path.join(os.path.dirname(args.output), 'failed_candidate.pkl')
         with open(failed_candidate_path, 'w') as f:
-            pkl.dump(grid, e.candidate)
+            pkl.dump(e.candidate, f)
         print ("Tuning did not complete due to error evaluating candidate (saved to file at {}): {}"
                .format(failed_candidate_path, e.candidate))
-        raise e
+        raise e.exception
     
     if tuner.is_master():
         print "Fittest candidate {}".format(pop)
         
         # Save the grid to file
-        with open(os.path.join(args.output, 'fitness_grid.pkl'), 'w') as f:
+        with open(args.output, 'w') as f:
             pkl.dump(grid, f)
             
         # Plot the grid if asked

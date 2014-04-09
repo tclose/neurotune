@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from collections import deque
 from mpi4py import MPI
-from .__init__ import Tuner, EvaluationException
+from . import Tuner, EvaluationException
 
 
 class MPITuner(Tuner):
@@ -108,8 +108,8 @@ class MPITuner(Tuner):
                         processID, jobID, result = received
                     except ValueError:
                         # If the slave node returned an evaluation error
-                        candidate = received[0]
-                        raise EvaluationException(candidate)
+                        candidate,e = received
+                        raise EvaluationException(candidate,e)
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
@@ -132,11 +132,12 @@ class MPITuner(Tuner):
                                                                                  self.rank)
             try:
                 evaluation = self._evaluate_candidate(candidate)
-                raise Exception("Test Exception")
+                if self.rank == 1:
+                    raise Exception("Test Exception")
             except Exception as e:
                 # This will tell the master node to raise an Exception and release all slaves
-                self.comm.send((candidate,), dest=self.MASTER, tag=self.DATA_MSG)
-                raise e
+                self.comm.send((candidate,e), dest=self.MASTER, tag=self.DATA_MSG)
+                break
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
