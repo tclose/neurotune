@@ -3,16 +3,10 @@ from __future__ import absolute_import
 
 class EvaluationException(Exception):
     
-    def __init__(self, exception, candidate):
-        self.exception = exception
+    def __init__(self, candidate, exception=None):
         self.candidate = candidate
+        self.exception = exception
         
-    def __getinitargs__(self):
-        return self.exception, self.candidate
-    
-    def __getnewargs__(self):
-        return self.exception, self.candidate
-    
     
 class Tuner(object):
     """
