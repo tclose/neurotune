@@ -6,6 +6,9 @@ class EvaluationException(Exception):
     def __init__(self, exception, candidate):
         self.exception = exception
         self.candidate = candidate
+        
+    def __getinitargs__(self):
+        return self.exception, self.candidate
     
     
 class Tuner(object):
