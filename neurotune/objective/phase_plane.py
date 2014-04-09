@@ -539,4 +539,3 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                     numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) / 
                    (fit_mat.shape[0] + fit_mat.shape[1]))
         return fitness
-
