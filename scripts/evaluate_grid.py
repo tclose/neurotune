@@ -9,6 +9,7 @@ import shutil
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
+from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
                                              ConvPhasePlaneHistObjective, 
@@ -67,7 +68,7 @@ def main(args):
     # Run the tuner
     try:
         pop, grid = tuner.tune()
-    except Tuner.EvaluationException as e:
+    except EvaluationException as e:
         # Save the grid to file
         failed_candidate_path = os.path.join(args.output, 'failed_candidate.pkl')
         with open(failed_candidate_path, 'w') as f:
