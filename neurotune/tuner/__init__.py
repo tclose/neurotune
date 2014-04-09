@@ -10,6 +10,9 @@ class EvaluationException(Exception):
     def __getinitargs__(self):
         return self.exception, self.candidate
     
+    def __getnewargs__(self):
+        return self.exception, self.candidate
+    
     
 class Tuner(object):
     """
