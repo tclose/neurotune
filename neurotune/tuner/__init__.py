@@ -1,17 +1,18 @@
 from __future__ import absolute_import
 
 
+class EvaluationException(Exception):
+    
+    def __init__(self, exception, candidate):
+        self.exception = exception
+        self.candidate = candidate
+    
+    
 class Tuner(object):
     """
     Base Tuner object that contains the three components (objective function, algorithm and 
     simulation objects) and runs the algorithm
     """    
-    
-    class EvaluationException(Exception):
-        
-        def __init__(self, exception, candidate):
-            self.exception = exception
-            self.candidate = candidate
     
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
@@ -49,7 +50,7 @@ class Tuner(object):
         try:
             fitness = self.objective.fitness(self.simulation.run(candidate))
         except Exception as e:
-            raise self.EvaluationException(e, candidate)
+            raise EvaluationException(e, candidate)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args

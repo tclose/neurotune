@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 from collections import deque
 from mpi4py import MPI
-from .__init__ import Tuner
+from .__init__ import Tuner, EvaluationException
 
 
 class MPITuner(Tuner):
@@ -84,7 +84,7 @@ class MPITuner(Tuner):
                     try:    
                         evaluations[jobID] = self._evaluate_candidate(candidate)
                     except Exception as e:
-                        raise self.EvaluationException(e, candidate)
+                        raise EvaluationException(e, candidate)
                     remaining_evaluations -= 1
                 elif free_processes:
                     self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
@@ -99,7 +99,7 @@ class MPITuner(Tuner):
                             try:    
                                 evaluations[jobID] = self._evaluate_candidate(candidate)
                             except Exception as e:
-                                raise self.EvaluationException(e, candidate)
+                                raise EvaluationException(e, candidate)
                             remaining_evaluations -= 1
                             since_master_evaluation = 0
                 else:
@@ -107,7 +107,7 @@ class MPITuner(Tuner):
                     try:
                         processID, jobID, result = received
                     except ValueError:
-                        raise self.EvaluationException(*received)
+                        raise EvaluationException(*received)
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
