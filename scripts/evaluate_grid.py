@@ -69,7 +69,7 @@ def main(args):
     try:
         pop, grid = tuner.tune()
     except EvaluationException as e:
-        e.save_candidate(os.path.join(os.path.dirname(args.output), 'exception_candidate.txt'))
+        e.save(os.path.join(os.path.dirname(args.output), 'evaluation_exception.pkl'))
         raise
     
     if tuner.is_master():

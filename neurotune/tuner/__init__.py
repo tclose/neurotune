@@ -1,25 +1,23 @@
 from __future__ import absolute_import
 import traceback
+import cPickle as pkl
 
 
 class EvaluationException(Exception):
     
-    def __init__(self, candidate, tback=None):
+    def __init__(self, candidate, recordings, tback=None):
         self.candidate = candidate
-        if tback is None:
-            self.traceback = traceback.format_exc()
-        else:
-            self.traceback = tback
-        self.message = ("Error while evaluating candidate {} with the following error:\n\n{}"
-                        .format(candidate, tback))
+        self.recordings = recordings
+        self.traceback = tback if tback is not None else traceback.format_exc()
 
     def __str__(self):
-        return self.message
+        return ("Evaluating candidate {} caused the following error:\n\n{}"
+                .format(self.candidate, self.traceback))
 
-    def save_candidate(self, filename):
+    def save(self, filename):
         with open(filename, 'w') as f:
-            f.write(', '.join([str(c) for c in self.candidate]))
-        print "Saving candidate that caused exception to file at '{}'".format(filename)
+            pkl.dump((self.candidate, self.recordings), f)
+        print "Saving failed candidate and recordings to file at '{}'".format(filename)
             
     
 class Tuner(object):
@@ -62,9 +60,15 @@ class Tuner(object):
         if self.verbose:
             print "Evaluating candidate {}".format(candidate)
         try:
-            fitness = self.objective.fitness(self.simulation.run(candidate))
+            recordings = self.simulation.run(candidate)
+            fitness = self.objective.fitness(recordings)
         except Exception:
-            raise EvaluationException(candidate)
+            # Check to see whether the candidate was recorded properly
+            try:
+                recordings
+            except NameError:
+                recordings = None
+            raise EvaluationException(candidate, recordings)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args

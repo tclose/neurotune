@@ -1,6 +1,6 @@
 from __future__ import absolute_import
+import sys
 from collections import deque
-import traceback
 from mpi4py import MPI
 from . import Tuner, EvaluationException
 
@@ -101,10 +101,12 @@ class MPITuner(Tuner):
                     received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                     try:
                         processID, jobID, result = received
-                    except ValueError:
-                        candidate, exception_traceback = received
+                    # If the slave node threw an error then it will return a 4-tuple instead of a 
+                    # 3-tuple
+                    except ValueError: 
+                        _, candidate, recording, tback = received
                         # If the slave node returned an evaluation error
-                        raise EvaluationException(candidate, exception_traceback)
+                        raise EvaluationException(candidate, recording, tback)
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
@@ -128,9 +130,14 @@ class MPITuner(Tuner):
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except EvaluationException as e:
-                # This will tell the master node to raise an Exception and release all slaves
-                self.comm.send((e.candidate, e.traceback), dest=self.MASTER, 
-                               tag=self.DATA_MSG)
+                # Check to see that the size of the recordings isn't very large before attempting
+                # to pass it back over MPI
+                if sys.getsizeof(e.recordings) > 100000:
+                    e.recordings = 'Too large to pass over MPI'
+                # This will tell the master node to raise an EvaluationException and release all 
+                # slaves
+                self.comm.send(('EvaluationException', e.candidate, e.recordings, e.traceback), 
+                               dest=self.MASTER, tag=self.DATA_MSG)
                 break
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
