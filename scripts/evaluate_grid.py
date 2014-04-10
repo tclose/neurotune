@@ -72,10 +72,11 @@ def main(args):
         # Save the grid to file
         failed_candidate_path = os.path.join(os.path.dirname(args.output), 'failed_candidate.txt')
         with open(failed_candidate_path, 'w') as f:
-            f.write(', '.join(e.candidate))
+            f.write(', '.join([str(c) for c in e.candidate]))
         print ("Tuning did not complete due to error evaluating candidate (saved to file at {}): {}"
                .format(failed_candidate_path, e.candidate))
-        raise e
+        print e.message
+        raise
     
     if tuner.is_master():
         print "Fittest candidate {}".format(pop)

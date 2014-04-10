@@ -108,15 +108,15 @@ class MPITuner(Tuner):
                     try:
                         processID, jobID, result = received
                     except ValueError:
-                        candidate, traceback = received
+                        candidate, trback = received
                         # If the slave node returned an evaluation error
-                        raise EvaluationException(candidate, traceback)
+                        raise EvaluationException(candidate, trback)
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
-        except Exception as e:
+        except Exception:
             self._release_slaves()
-            raise e
+            raise
         return evaluations
 
     def _listen_for_candidates_to_evaluate(self):
