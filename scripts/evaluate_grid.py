@@ -69,13 +69,7 @@ def main(args):
     try:
         pop, grid = tuner.tune()
     except EvaluationException as e:
-        # Save the grid to file
-        failed_candidate_path = os.path.join(os.path.dirname(args.output), 'failed_candidate.txt')
-        with open(failed_candidate_path, 'w') as f:
-            f.write(', '.join([str(c) for c in e.candidate]))
-        print ("Tuning did not complete due to error evaluating candidate (saved to file at {}): {}"
-               .format(failed_candidate_path, e.candidate))
-        print e.message
+        e.save_candidate(os.path.join(os.path.dirname(args.output), 'exception_candidate.txt'))
         raise
     
     if tuner.is_master():

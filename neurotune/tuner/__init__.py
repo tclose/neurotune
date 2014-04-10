@@ -7,10 +7,20 @@ class EvaluationException(Exception):
     def __init__(self, candidate, tback=None):
         self.candidate = candidate
         if tback is None:
-            tback = traceback.format_exc()
-        self.message = ("Error while evaluating candidate '{}' with the following error:\n\n{}"
+            self.traceback = traceback.format_exc()
+        else:
+            self.traceback = tback
+        self.message = ("Error while evaluating candidate {} with the following error:\n\n{}"
                         .format(candidate, tback))
-        
+
+    def __str__(self):
+        return self.message
+
+    def save_candidate(self, filename):
+        with open(filename, 'w') as f:
+            f.write(', '.join([str(c) for c in self.candidate]))
+        print "Saving candidate that caused exception to file at '{}'".format(filename)
+            
     
 class Tuner(object):
     """
@@ -53,8 +63,8 @@ class Tuner(object):
             print "Evaluating candidate {}".format(candidate)
         try:
             fitness = self.objective.fitness(self.simulation.run(candidate))
-        except Exception as e:
-            raise EvaluationException(e, candidate)
+        except Exception:
+            raise EvaluationException(candidate)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
