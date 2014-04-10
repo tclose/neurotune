@@ -4,12 +4,12 @@ import traceback
 
 class EvaluationException(Exception):
     
-    def __init__(self, candidate, traceback=None):
+    def __init__(self, candidate, tback=None):
         self.candidate = candidate
-        if traceback is None:
-            traceback = traceback.format_exc()
+        if tback is None:
+            tback = traceback.format_exc()
         self.message = ("Error while evaluating candidate '{}' with the following error:\n\n{}"
-                        .format(candidate, traceback))
+                        .format(candidate, tback))
         
     
 class Tuner(object):
