@@ -82,9 +82,10 @@ def run(args):
         if args.plot:
             plot(grid)
         else:
-            print ("Saved file '{out}' can be plotted using the command: \n"
+            print ("Saved grid file '{out}' can be plotted using the command: \n"
                    "{script_name} {cell9ml} --plot_saved {out}"
-                   .format(cell9ml=args.cell_9ml, out=args.output))
+                   .format(cell9ml=args.cell_9ml, script_name=os.path.basename(__file__), 
+                           out=args.output))
             
 def plot(grids):
     # Import the plotting modules here so they are not imported unless plotting is required
