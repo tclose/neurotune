@@ -5,6 +5,7 @@ Evaluates objective functions on a grid of positions in parameter space
 import os.path
 import argparse
 import numpy
+import numpy.ma
 import shutil
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
@@ -91,7 +92,9 @@ def plot(grids):
     # Import the plotting modules here so they are not imported unless plotting is required
     from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
     from matplotlib import cm
+    from matplotlib.ticker import LinearLocator
     import matplotlib.pyplot as plt
+    import matplotlib
     # If using a non-multi-objective reshape the grid into a 1-?-? so it fits the looping structure
     if grids.ndim == 2:
         grids.reshape(1, grids.shape[0], grids.shape[1])
@@ -101,14 +104,30 @@ def plot(grids):
         ax = fig.gca(projection='3d')
         X = numpy.linspace(parameters[0].lbound, parameters[0].ubound, grid.shape[0])
         Y = numpy.linspace(parameters[1].lbound, parameters[1].ubound, grid.shape[1])
+        kwargs = {}
+        trim_value = (2.0 * numpy.percentile(grid, 95)) 
+        if numpy.max(grid) > trim_value:
+            over_trim = grid > trim_value 
+            max_under_trim = numpy.ma.masked_array(grid, mask=over_trim).max()
+            grid[numpy.where(over_trim)] = float('nan')
+            lev = numpy.linspace(0,max_under_trim,1000);
+            kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
+            trim = True
+        else:
+            trim = False
         X, Y = numpy.meshgrid(X, Y)
-        surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.coolwarm,  # @UndefinedVariable
-                linewidth=0, antialiased=False)
+        surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.jet,  # @UndefinedVariable
+                linewidth=0, antialiased=False, **kwargs)
         plt.xlabel('{}{} ({})'.format('log_10 ' if parameters[0].log_scale else '', 
                                       parameters[0].name, parameters[0].units))
         plt.ylabel('{}{} ({})'.format('log_10 ' if parameters[1].log_scale else '', 
                                       parameters[1].name, parameters[1].units))
         plt.title('{} objective'.format(title))
+        
+        if trim:
+            ax.set_zlim(0,max_under_trim)
+        ax.zaxis.set_major_locator(LinearLocator(10))
+#         ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
         fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.show()           
 
