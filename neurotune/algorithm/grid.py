@@ -42,9 +42,6 @@ class GridAlgorithm(Algorithm):
         # Evaluate fitnesses
         fitnesses = numpy.array(evaluator(candidates))
         # Check to see if multi-objective
-        print fitnesses
-        print fitnesses.shape
-        print fitnesses.ndim
         if fitnesses.ndim == 2:
             # Get fittest candidates for each objective
             fittest_candidate = [candidates[f.argmin(), :] for f in fitnesses.T]
