@@ -1,10 +1,10 @@
 import cPickle as pkl
 
-candidate, recordings = pkl.load(open('/home/tclose/Desktop/evaluation_exception.pkl'))
-recording = next(recordings.itervalues())
-obj = next(recordings.iterkeys())[0]
-
-print obj.fitness(recording)
+candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/evaluate_grid.'
+                                      '2014-04-11-Friday_12-43-59.1/evaluation_exception.pkl'))
+print candidate
+for (obj, _), rec in recordings.iteritems():
+    print obj.fitness(rec)
 
 # from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 # from neurotune.objective.phase_plane import PhasePlaneHistObjective, ConvPhasePlaneHistObjective, PhasePlanePointwiseObjective

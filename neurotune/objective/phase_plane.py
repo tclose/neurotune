@@ -199,8 +199,16 @@ class PhasePlaneObjective(Objective):
             s = numpy.concatenate(sparse_s_list)
         # Get the Interpolators
         # FIXME: Switch to use more recent scipy.interpolate.UnivariateSpline class
-        v_interp = scipy.interpolate.interp1d(s, v, kind=interp_type)
-        dvdt_interp = scipy.interpolate.interp1d(s, dvdt, kind=interp_type)
+        try:
+            v_interp = scipy.interpolate.interp1d(s, v, kind=interp_type)
+            dvdt_interp = scipy.interpolate.interp1d(s, dvdt, kind=interp_type)
+        except:
+            print "s: {}\n\n".format(s)
+            print "v: {}\n\n".format(v)
+            print "dV/dt: {}\n".format(dvdt)
+            import cPickle as pkl
+            pkl.dump((s, v, dvdt), open('/home/t/tclose/output/interp_dump.pkl', 'w'))
+            raise
         return v_interp, dvdt_interp, original_s
 
     def plot_d_dvdt(self, trace, show=True):
