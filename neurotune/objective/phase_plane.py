@@ -150,8 +150,9 @@ class PhasePlaneObjective(Objective):
         s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
         # Save the original (non-sparsified) value to be returned
         original_s = s
-        # If using a more computationally intensive interpolation technique, the v-dV/dt paths are
-        # pre-processed to decimate the densely sampled sections of the path
+        # If using a more computationally intensive interpolation technique (e.g. 'cubic), the
+        # v-dV/dt paths are pre-processed to reduce the number of samples in densely sampled
+        # sections of the path using linear interpolation
         if interp_type in ('quadratic', 'cubic'):
             # Get a list of landmark samples that should be retained in the sparse sampling
             # i.e. samples with large intervals between them that occur during fast sections of
@@ -160,7 +161,6 @@ class PhasePlaneObjective(Objective):
             # Make the samples on both sides of large intervals "landmark" samples
             landmarks[:-2] = interval_lengths > sparse_period  # low edge of the large intervals
             landmarks[landmarks[:-2].nonzero()[0] + 1] = True  # high edge of the large intervals
-            landmarks[0] = landmarks[-2:] = True  # Ensure the first and last samples are also included
             # TODO: Add points of inflexion to the landmark mask
             # Break the path up into chains of densely and sparsely sampled sections (i.e. fast and
             # slow parts of the voltage trace)
@@ -180,14 +180,14 @@ class PhasePlaneObjective(Objective):
                 # Check whether in landmark chain or not
                 if is_landmark_chain:
                     # if landmark (typically already sparse) chain, append to sparse chain as is
-                    sparse_v_list.append(v_chain)
-                    sparse_dvdt_list.append(dvdt_chain)
-                    sparse_s_list.append(s_chain)
+                    sparse_v_list.append(numpy.asarray(v_chain))
+                    sparse_dvdt_list.append(numpy.asarray(dvdt_chain))
+                    sparse_s_list.append(numpy.asarray(s_chain))
                 else:
                     # if non landmark chain, interpolate to a sparse 's' resolution and append to
                     # sparse chain
-                    new_s_chain = numpy.arange(s_chain[0], s_chain[-1] + sparse_period / 2.0,
-                                               sparse_period)
+                    num_new_s_samples = numpy.round((s_chain[-1] - s_chain[0]) / sparse_period)
+                    new_s_chain = numpy.linspace(s_chain[0], s_chain[-1], num_new_s_samples)
                     sparse_v_list.append(numpy.interp(new_s_chain, s_chain, v_chain))
                     sparse_dvdt_list.append(numpy.interp(new_s_chain, s_chain, dvdt_chain))
                     sparse_s_list.append(new_s_chain)
@@ -388,9 +388,9 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         self.kernel_width = numpy.asarray(kernel_width)
         self.num_stdevs = numpy.asarray(num_stdevs)
         self.kernel_extent = self.kernel_width * self.num_stdevs
-        # The creation of the kernel is delayed until it is required
-        # (in the _generate_phase_plane_hist method) because it relies on the range of the histogram
-        # which is set in the super().__init__ method
+        # The creation of the kernel is delayed until it is required (in the
+        # _generate_phase_plane_hist method) because it relies on the range of the histogram which
+        # is set in the super().__init__ method
         self.kernel = None
         # Call the parent class __init__ method
         super(ConvPhasePlaneHistObjective, self).__init__(reference_traces, num_bins=num_bins,
