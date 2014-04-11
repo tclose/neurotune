@@ -101,15 +101,19 @@ class MPITuner(Tuner):
                     received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                     try:
                         processID, jobID, result = received
-                    # If the slave node threw an error then it will return a 4-tuple instead of a 
-                    # 3-tuple
-                    except ValueError: 
-                        _, candidate, recording, tback = received
-                        # If the slave node returned an evaluation error
-                        raise EvaluationException(candidate, recording, tback)
+                    except ValueError: # If the slave raised an evaluation error it sends 4-tuple 
+                        raise EvaluationException(*received[1:])
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
+            while remaining_evaluations:
+                received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
+                try:
+                    processID, jobID, result = received
+                except ValueError: # If the slave raised an evaluation error it sends 4-tuple
+                    raise EvaluationException(*received[1:])
+                evaluations[jobID] = result
+                remaining_evaluations -= 1
         except Exception:
             self._release_slaves()
             raise
