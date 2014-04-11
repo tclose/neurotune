@@ -187,6 +187,8 @@ class PhasePlaneObjective(Objective):
                     # if non landmark chain, interpolate to a sparse 's' resolution and append to
                     # sparse chain
                     num_new_s_samples = numpy.round((s_chain[-1] - s_chain[0]) / sparse_period)
+                    if num_new_s_samples < 100:
+                        num_new_s_samples = 100
                     new_s_chain = numpy.linspace(s_chain[0], s_chain[-1], num_new_s_samples)
                     sparse_v_list.append(numpy.interp(new_s_chain, s_chain, v_chain))
                     sparse_dvdt_list.append(numpy.interp(new_s_chain, s_chain, dvdt_chain))
@@ -203,11 +205,11 @@ class PhasePlaneObjective(Objective):
             v_interp = scipy.interpolate.interp1d(s, v, kind=interp_type)
             dvdt_interp = scipy.interpolate.interp1d(s, dvdt, kind=interp_type)
         except:
-            print "s: {}\n\n".format(s)
-            print "v: {}\n\n".format(v)
-            print "dV/dt: {}\n".format(dvdt)
-            import cPickle as pkl
-            pkl.dump((s, v, dvdt), open('/home/t/tclose/output/interp_dump.pkl', 'w'))
+#             print "s: {}\n\n".format(s)
+#             print "v: {}\n\n".format(v)
+#             print "dV/dt: {}\n".format(dvdt)
+#             import cPickle as pkl
+#             pkl.dump((s, v, dvdt), open('/home/t/tclose/output/interp_dump.pkl', 'w'))
             raise
         return v_interp, dvdt_interp, original_s
 

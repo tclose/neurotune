@@ -105,19 +105,18 @@ class InspyredAlgorithm(Algorithm):
             self.indiv_file.close()
 
 
-
 class EDAAlgorithm(InspyredAlgorithm):
 
     _InspyredClass = ec.EDA
     
+
+class NSGA2Algorithm(InspyredAlgorithm):
+
+    _InspyredClass = ec.emo.NSGA2
+
     def optimize(self, evaluator, **kwargs):
         # Wrap the list returned from the multi-objective objective in the required class
         # after it is evaluated (this saves having to import the inspyred module into 
         # objective.combined, an allows it to be more general)
         super(EDAAlgorithm, self).optimize(lambda c: ec.emo.Pareto(evaluator(c)), **kwargs)
         
-
-class NSGA2Algorithm(InspyredAlgorithm):
-
-    _InspyredClass = ec.emo.NSGA2
-
