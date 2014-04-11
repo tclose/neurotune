@@ -121,7 +121,7 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.plot_saved:
+    if args.plot_saved is not None:
         with open(args.plot_saved) as f:
             plot(pkl.load(f))
     else:        
