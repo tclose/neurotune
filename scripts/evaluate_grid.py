@@ -27,8 +27,6 @@ parser.add_argument('--num_steps', type=int, default=2,
                          "(default: %(default)s)")
 parser.add_argument('--disable_mpi', action='store_true', 
                     help="Disable MPI tuner and replace with basic tuner")
-parser.add_argument('--simulator', type=str, default='neuron', 
-                    help="simulator for NINEML+ (either 'neuron' or 'nest')")
 parser.add_argument('--build', type=str, default='lazy', 
                     help="Option to build the NMODL files before running (can be one of {})"
                          .format(BUILD_MODE_OPTIONS))
