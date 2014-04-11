@@ -38,8 +38,14 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
                        help="The path to the output file where the grid will be written "
                             "(default: %(default)s)")
 parser.add_argument('--plot', action='store_true', help="Plot the grid on a 1-2d mesh")
+parser.add_argument('--plot_saved', type=str, default=None, 
+                    help="Plot a file that has been saved to file already")
 
-def main(args):
+# The parameters to be tuned by the tuner
+parameters = [Parameter('diam', 'um', 10.0, 40.0),
+              Parameter('soma.Lkg.gbar', 'S/cm^2', 1e-5, 3e-5)]
+
+def run(args):
     if args.disable_mpi:
         from neurotune import Tuner  # @UnusedImport 
     else:
@@ -49,48 +55,60 @@ def main(args):
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
-    
-    parameters = [Parameter('diam', 'um', 10.0, 40.0),
-                  Parameter('soma.Lkg.gbar', 'S/cm^2', 1e-5, 3e-5)]
-    
+    # Instantiate the multi-objective objective from 3 phase-plane objectives 
     objective = MultiObjective(PhasePlaneHistObjective(reference_trace), 
                                ConvPhasePlaneHistObjective(reference_trace),
                                PhasePlanePointwiseObjective(reference_trace, (20, -20), 100))
-    
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=args.num_steps),
                   NineLineSimulation(args.cell_9ml))
-
     # Run the tuner
     try:
         pop, grid = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output), 'evaluation_exception.pkl'))
         raise
-    
+    # Save the file if the tuner is the master
     if tuner.is_master():
         print "Fittest candidate {}".format(pop)
-        
         # Save the grid to file
         with open(args.output, 'w') as f:
             pkl.dump(grid, f)
-            
         # Plot the grid if asked
         if args.plot:
-            from matplotlib import pyplot as plt
-            if len(parameters) == 1:
-                plt.plot(numpy.linspace(parameters[0].lbound, parameters[0].ubound, args.num_steps),
-                         grid)
-            elif len(parameters) == 2:
-                plt.imshow(grid, interpolation='nearest', origin='lower', aspect='auto',
-                           extent=(parameters[0].lbound, parameters[0].ubound, 
-                                   parameters[1].lbound, parameters[1].ubound))
-            else:
-                raise Exception("Plot is only supported number of parameters <= 2 (found {})"
-                                .format(len(parameters)))
-            plt.show()
+            plot(grid)
+        else:
+            print ("Saved file '{out}' can be plotted using the command: \n"
+                   "{script_name} --plot_saved {out}".format(out=args.output))
+            
+def plot(grids):
+    # Import the plotting modules here so they are not imported unless plotting is required
+    from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
+    from matplotlib import cm
+    import matplotlib.pyplot as plt
+    # If a filename is provided (assumed if grid is a string) load the grid from file first
+    if isinstance(grids, str):
+        with open(grids) as f:
+            grids = pkl.load(f)
+    # If using a non-multi-objective reshape the grid into a 1-?-? so it fits the looping structure
+    if grids.ndim == 2:
+        grids.reshape(1, grids.shape[0], grids.shape[1])
+    # Loop through all grids and plot a surface mesh
+    for i, grid in enumerate(grids):
+        fig = plt.figure()
+        ax = fig.gca(projection='3d')
+        X = numpy.linspace(parameters[0].lbound, parameters[0].ubound, grid.shape[0])
+        Y = numpy.linspace(parameters[1].lbound, parameters[1].ubound, grid.shape[1])
+        X, Y = numpy.meshgrid(X, Y)
+        surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.coolwarm,  # @UndefinedVariable
+                linewidth=0, antialiased=False)
+        plt.xlabel('{} ({})'.format(parameters[0].name, parameters[0].units))
+        plt.ylabel('{} ({})'.format(parameters[1].name, parameters[1].units))
+        plt.title('Objective {}'.format(i))
+        fig.colorbar(surf, shrink=0.5, aspect=5)
+    plt.show()           
 
 def prepare_work_dir(work_dir, args):
     os.mkdir(os.path.join(work_dir, '9ml'))
@@ -100,4 +118,8 @@ def prepare_work_dir(work_dir, args):
     args.cell_9ml = copied_9ml
 
 if __name__ == '__main__':
-    main(parser.parse_args())
+    args = parser.parse_args()
+    if args.plot_saved:
+        plot(args.plot_saved)
+    else:        
+        run(args)
