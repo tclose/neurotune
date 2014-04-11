@@ -38,7 +38,7 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
                        help="The path to the output file where the grid will be written "
                             "(default: %(default)s)")
 parser.add_argument('--plot', action='store_true', help="Plot the grid on a 1-2d mesh")
-parser.add_argument('--plot_saved', type=str, default=None, 
+parser.add_argument('--plot_saved', type=str, default='-', 
                     help="Plot a file that has been saved to file already")
 
 # The parameters to be tuned by the tuner
@@ -121,7 +121,7 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.plot_saved is not None:
+    if args.plot_saved != '-':
         with open(args.plot_saved) as f:
             plot(pkl.load(f))
     else:        
