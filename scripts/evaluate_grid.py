@@ -42,8 +42,10 @@ parser.add_argument('--plot_saved', type=str, default=None,
                     help="Plot a file that has been saved to file already")
 
 # The parameters to be tuned by the tuner
-parameters = [Parameter('diam', 'um', 10.0, 40.0),
-              Parameter('soma.Lkg.gbar', 'S/cm^2', 1e-5, 3e-5)]
+parameters = [Parameter('diam', 'um', 20.0, 40.0),
+              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)] #1e-5, 3e-5)]
+
+objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
 def run(args):
     if args.disable_mpi:
@@ -81,22 +83,19 @@ def run(args):
             plot(grid)
         else:
             print ("Saved file '{out}' can be plotted using the command: \n"
-                   "{script_name} --plot_saved {out}".format(out=args.output))
+                   "{script_name} {cell9ml} --plot_saved {out}"
+                   .format(cell9ml=args.cell_9ml, out=args.output))
             
 def plot(grids):
     # Import the plotting modules here so they are not imported unless plotting is required
     from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
     from matplotlib import cm
     import matplotlib.pyplot as plt
-    # If a filename is provided (assumed if grid is a string) load the grid from file first
-    if isinstance(grids, str):
-        with open(grids) as f:
-            grids = pkl.load(f)
     # If using a non-multi-objective reshape the grid into a 1-?-? so it fits the looping structure
     if grids.ndim == 2:
         grids.reshape(1, grids.shape[0], grids.shape[1])
     # Loop through all grids and plot a surface mesh
-    for i, grid in enumerate(grids):
+    for grid, title in zip(grids, objective_names):
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         X = numpy.linspace(parameters[0].lbound, parameters[0].ubound, grid.shape[0])
@@ -104,9 +103,11 @@ def plot(grids):
         X, Y = numpy.meshgrid(X, Y)
         surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.coolwarm,  # @UndefinedVariable
                 linewidth=0, antialiased=False)
-        plt.xlabel('{} ({})'.format(parameters[0].name, parameters[0].units))
-        plt.ylabel('{} ({})'.format(parameters[1].name, parameters[1].units))
-        plt.title('Objective {}'.format(i))
+        plt.xlabel('{}{} ({})'.format('log_10 ' if parameters[0].log_scale else '', 
+                                      parameters[0].name, parameters[0].units))
+        plt.ylabel('{}{} ({})'.format('log_10 ' if parameters[1].log_scale else '', 
+                                      parameters[1].name, parameters[1].units))
+        plt.title('{} objective'.format(title))
         fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.show()           
 
@@ -120,6 +121,7 @@ def prepare_work_dir(work_dir, args):
 if __name__ == '__main__':
     args = parser.parse_args()
     if args.plot_saved:
-        plot(args.plot_saved)
+        with open(args.plot_saved) as f:
+            plot(pkl.load(f))
     else:        
         run(args)

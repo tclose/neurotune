@@ -25,7 +25,6 @@ class GridAlgorithm(Algorithm):
                             " have a dimension")
     
     def optimize(self, evaluator, **kwargs): #@UnusedVariable
-        
         # Convert number of steps into a list with a step number for each dimension if it is not
         # already
         if isinstance(self.num_steps, int):
