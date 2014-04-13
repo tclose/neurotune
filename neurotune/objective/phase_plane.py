@@ -177,22 +177,24 @@ class PhasePlaneObjective(Objective):
             sparse_s_list = []
             is_landmark_chain = landmarks[0]
             for v_chain, dvdt_chain, s_chain in zip(v_chains, dvdt_chains, s_chains):
-                # Check whether in landmark chain or not
-                if is_landmark_chain:
-                    # if landmark (typically already sparse) chain, append to sparse chain as is
-                    sparse_v_list.append(numpy.asarray(v_chain))
-                    sparse_dvdt_list.append(numpy.asarray(dvdt_chain))
-                    sparse_s_list.append(numpy.asarray(s_chain))
-                else:
-                    # if non landmark chain, interpolate to a sparse 's' resolution and append to
-                    # sparse chain
+                # If not landmark chain and length greater than 1 reduce the number of samples by
+                # linear interpolation
+                if not is_landmark_chain and len(s_chain) > 1:
                     num_new_s_samples = numpy.round((s_chain[-1] - s_chain[0]) / sparse_period)
+                    # Set the minimum number of samples to be 100
                     if num_new_s_samples < 100:
                         num_new_s_samples = 100
+                    # Get the new sample locations
                     new_s_chain = numpy.linspace(s_chain[0], s_chain[-1], num_new_s_samples)
-                    sparse_v_list.append(numpy.interp(new_s_chain, s_chain, v_chain))
-                    sparse_dvdt_list.append(numpy.interp(new_s_chain, s_chain, dvdt_chain))
-                    sparse_s_list.append(new_s_chain)
+                    # Interpolate v and dvdt to the new positions
+                    v_chain = numpy.interp(new_s_chain, s_chain, v_chain)
+                    dvdt_chain = numpy.interp(new_s_chain, s_chain, dvdt_chain)
+                    # Set s_chain to be the new s_chain
+                    s_chain = new_s_chain
+                # Append the chains to the respective vectors
+                sparse_v_list.append(numpy.asarray(v_chain))
+                sparse_dvdt_list.append(numpy.asarray(dvdt_chain))
+                sparse_s_list.append(numpy.asarray(s_chain))
                 # Alternate to and from dense and sparse chains
                 is_landmark_chain = not is_landmark_chain
             # Concatenate sparse chains into numpy arrays
