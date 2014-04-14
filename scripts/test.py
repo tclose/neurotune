@@ -1,7 +1,6 @@
 import cPickle as pkl
 
-candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/evaluate_grid.'
-                                      '2014-04-11-Friday_12-43-59.1/evaluation_exception.pkl'))
+candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))
 print candidate
 for (obj, _), rec in recordings.iteritems():
     print obj.fitness(rec)

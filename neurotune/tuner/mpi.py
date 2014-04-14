@@ -72,32 +72,37 @@ class MPITuner(Tuner):
         """
         assert self.is_master(), "Distribution of candidate jobs should only be performed by master node"
         candidate_jobs = deque(enumerate(candidates))
-        free_processes = deque(xrange(1, self.num_processes))
-        # Create a list of empty lists the same length as the candidate list
-        evaluations = [[]] * len(candidates)
+        free_processes = deque(xrange(1, self.num_processes)) if self.num_processes > 1 else [0]
+        # Create a list of None values the same length as the candidate list
+        evaluations = [None] * len(candidates)
         remaining_evaluations = len(candidates)
-        if self.evaluate_on_master:
-            since_master_evaluation = 0
+        # If evaluate on master is true, the number of evaluations since an evaluation occurred on 
+        # the master is counted and when it reaches the number of processes another evaluation is 
+        # performed on the master
+        since_master_eval = 0
         try:
-            while candidate_jobs:
-                if self.num_processes == 1:   
-                    jobID, candidate = candidate_jobs.pop()
-                    evaluations[jobID] = self._evaluate_candidate(candidate)
-                    remaining_evaluations -= 1
-                elif free_processes:
-                    self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
-                                   tag=self.COMMAND_MSG)
-                    if self.evaluate_on_master:
-                        since_master_evaluation += 1
-                        if since_master_evaluation == self.num_processes - 1:
-                            jobID, candidate = candidate_jobs.pop()
-                            if self.mpi_verbose:
-                                print ("Evaluating jobID: {}, candidate: {} on process {}"
-                                       .format(jobID, candidate, self.rank))
-                            evaluations[jobID] = self._evaluate_candidate(candidate)
-                            remaining_evaluations -= 1
-                            since_master_evaluation = 0
+            while remaining_evaluations:
+                # If there are remaining candidates and free processes then distribute the candidates
+                # to the processes
+                if free_processes and candidate_jobs:
+                    if self.num_processes > 1:
+                        self.comm.send(candidate_jobs.pop(), dest=free_processes.pop(), 
+                                       tag=self.COMMAND_MSG)
+                        since_master_eval += 1
+                    # If evaluate_on_master is set, check to see how many evaluations have been sent
+                    # since the last evaluation on the master node and if it equals the number of 
+                    # processes evaluate another candidate on the master node
+                    if self.evaluate_on_master and (since_master_eval == self.num_processes - 1):    
+                        jobID, candidate = candidate_jobs.pop()
+                        if self.mpi_verbose:
+                            print ("Evaluating jobID: {}, candidate: {} on process {}"
+                                   .format(jobID, candidate, self.rank))
+                        evaluations[jobID] = self._evaluate_candidate(candidate)
+                        remaining_evaluations -= 1
+                        since_master_eval = 0
+                # Once all slave processes are busy wait for them to finish and record their result
                 else:
+                    # Receive evaluation from slave node
                     received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
                     try:
                         processID, jobID, result = received
@@ -106,14 +111,6 @@ class MPITuner(Tuner):
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
-            while remaining_evaluations:
-                received = self.comm.recv(source=MPI.ANY_SOURCE, tag=self.DATA_MSG)
-                try:
-                    processID, jobID, result = received
-                except ValueError: # If the slave raised an evaluation error it sends 4-tuple
-                    raise EvaluationException(*received[1:])
-                evaluations[jobID] = result
-                remaining_evaluations -= 1
         except Exception:
             self._release_slaves()
             raise
@@ -129,8 +126,8 @@ class MPITuner(Tuner):
         while command != 'stop':
             jobID, candidate = command
             if self.mpi_verbose:
-                print "Evaluating jobID: {}, candidate: {} on process {}".format(jobID, candidate, 
-                                                                                 self.rank)
+                print ("Evaluating jobID: {}, candidate: {} on process {}"
+                       .format(jobID, candidate, self.rank))
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except EvaluationException as e:
