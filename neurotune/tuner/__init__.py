@@ -70,7 +70,7 @@ class Tuner(object):
                 recordings
             except NameError:
                 recordings = None
-            raise EvaluationException(self.objective, self.simulation, candidate, recordings)
+            raise EvaluationException(self.objective, candidate, recordings)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args

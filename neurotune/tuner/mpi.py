@@ -107,7 +107,7 @@ class MPITuner(Tuner):
                     try:
                         processID, jobID, result = received
                     except ValueError:  # If the slave raised an evaluation error it sends 4-tuple
-                        raise EvaluationException(self.objective, self.simulation, *received[1:])
+                        raise EvaluationException(self.objective, *received[1:])
                     evaluations[jobID] = result
                     free_processes.append(processID)
                     remaining_evaluations -= 1
