@@ -5,7 +5,9 @@ import cPickle as pkl
 
 class EvaluationException(Exception):
     
-    def __init__(self, candidate, recordings, tback=None):
+    def __init__(self, objective, simulation, candidate, recordings, tback=None):
+        self.objective = objective
+        self.simulation = simulation
         self.candidate = candidate
         self.recordings = recordings
         self.traceback = tback if tback is not None else traceback.format_exc()
@@ -16,7 +18,7 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.candidate, self.recordings), f)
+            pkl.dump((self.objective, self.simulation, self.candidate, self.recordings), f)
         print "Saving failed candidate and recordings to file at '{}'".format(filename)
             
     
@@ -68,7 +70,7 @@ class Tuner(object):
                 recordings
             except NameError:
                 recordings = None
-            raise EvaluationException(candidate, recordings)
+            raise EvaluationException(self.objective, self.simulation, candidate, recordings)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
