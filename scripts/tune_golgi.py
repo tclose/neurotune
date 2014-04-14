@@ -4,7 +4,6 @@ Evaluates objective functions on a grid of positions in parameter space
 """
 import os.path
 import argparse
-import numpy.ma
 import shutil
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
