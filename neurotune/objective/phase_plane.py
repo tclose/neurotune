@@ -429,6 +429,9 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
             self.kernel = (numpy.exp(-mesh[0] ** 2) * numpy.exp(-mesh[1] ** 2) /
                            (2 * numpy.pi * self.kernel_width[0] * self.kernel_width[1]))
         # Convolve the histogram with the precalculated Gaussian kernel
+        #import cPickle as pkl
+        #kernel = self.kernel
+        #pkl.dump((unconv_hist, kernel), open('/home/t/tclose/convolved.pkl', 'w'))
         return scipy.signal.convolve2d(unconv_hist, self.kernel, mode='same')
 
     def plot_kernel(self, show=True):

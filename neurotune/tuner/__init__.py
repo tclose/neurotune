@@ -5,9 +5,8 @@ import cPickle as pkl
 
 class EvaluationException(Exception):
     
-    def __init__(self, objective, simulation, candidate, recordings, tback=None):
+    def __init__(self, objective, candidate, recordings, tback=None):
         self.objective = objective
-        self.simulation = simulation
         self.candidate = candidate
         self.recordings = recordings
         self.traceback = tback if tback is not None else traceback.format_exc()
@@ -18,7 +17,7 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.objective, self.simulation, self.candidate, self.recordings), f)
+            pkl.dump((self.objective, simulation, self.candidate, self.recordings), f)
         print "Saving failed candidate and recordings to file at '{}'".format(filename)
             
     
