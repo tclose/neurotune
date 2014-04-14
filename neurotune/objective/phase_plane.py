@@ -112,7 +112,7 @@ class PhasePlaneObjective(Objective):
         return v_interp(new_s), dvdt_interp(new_s)
 
     def _get_interpolators(self, v, dvdt, relative_scale=None, interp_type=None,
-                           sparse_period=10.0):
+                           sparse_period=10.0, min_sparse_ratio=0.0025):
         """
         Gets interpolators as returned from scipy.interpolate.interp1d for v and dV/dt as well as 
         the length of the trace in the phase plane
@@ -130,6 +130,9 @@ class PhasePlaneObjective(Objective):
                               argument determines the sampling period that the dense sections 
                               (defined as any section with sampling denser than this period) are
                               resampled to.
+        `min_sparse_ratio` -- The minimal ratio of the sparsified samples to the origainal. To stop
+                              recordings which do not have high-speed sections from being collapsed
+                              onto very small number of samples 
         return             -- a tuple containing scipy interpolators for v and dV/dt and the 
                               positions of the original samples along the interpolated path
         """
@@ -181,9 +184,9 @@ class PhasePlaneObjective(Objective):
                 # linear interpolation
                 if not is_landmark_chain and len(s_chain) > 1:
                     num_new_s_samples = numpy.round((s_chain[-1] - s_chain[0]) / sparse_period)
-                    # Set the minimum number of samples to be 100
-                    if num_new_s_samples < 100:
-                        num_new_s_samples = 100
+                    # Ensure that the number of new samples doesn't fall below the min_sparse_ratio
+                    if (float(num_new_s_samples) / len(s_chain)) < min_sparse_ratio:
+                        num_new_s_samples = int(numpy.ceil(len(s_chain) * min_sparse_ratio))
                     # Get the new sample locations
                     new_s_chain = numpy.linspace(s_chain[0], s_chain[-1], num_new_s_samples)
                     # Interpolate v and dvdt to the new positions
