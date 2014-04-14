@@ -52,26 +52,31 @@ def run(args):
         from neurotune import Tuner  # @UnusedImport 
     else:
         from neurotune.tuner.mpi import MPITuner as Tuner # @Reimport  
+    print "55"
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.cell_9ml)()
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
+    print "61"
     # Instantiate the multi-objective objective from 3 phase-plane objectives 
     objective = MultiObjective(PhasePlaneHistObjective(reference_trace), 
                                ConvPhasePlaneHistObjective(reference_trace),
                                PhasePlanePointwiseObjective(reference_trace, (20, -20), 100))
+    print "66"
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=args.num_steps),
                   NineLineSimulation(args.cell_9ml))
+    print "72"
     # Run the tuner
     try:
         pop, grid = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output), 'evaluation_exception.pkl'))
         raise
+    print "79"
     # Save the file if the tuner is the master
     if tuner.is_master():
         print "Fittest candidate {}".format(pop)
