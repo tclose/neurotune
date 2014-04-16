@@ -9,6 +9,15 @@ import scipy.stats
 import numpy as np
 import math
 
+class Analysis(object):
+    
+    def __init__(self, recordings):
+        self._recordings = recordings
+
+    def get_spikes(self):
+        raise NotImplementedError
+    
+
 def smooth(x,window_len=11,window='hanning'):
     """Smooth the data using a window with requested size.
     
