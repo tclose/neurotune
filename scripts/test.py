@@ -22,8 +22,8 @@ parameters = [Parameter('diam', 'um', 20.0, 40.0),
               Parameter('soma.Lkg.e_rev', 'mV', -70, 45)]
 t = Tuner(parameters, objective, GridAlgorithm(num_steps=1), simulation)
 recordings = simulation.run([20.0, -4, 0.6155119857968767])
-plt.plot(recordings)
-plt.show()
+# plt.plot(recordings)
+# plt.show()
 print objective.fitness(recordings)
 print "done"
 #candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))

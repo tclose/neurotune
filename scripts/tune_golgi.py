@@ -15,6 +15,7 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
 from neurotune.algorithm.evolutionary import EDAAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.tuner.mpi import MPITuner as Tuner
 import cPickle as pkl
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -24,6 +25,8 @@ parser.add_argument('cell_9ml', type=str,
 parser.add_argument('--build', type=str, default='lazy', 
                     help="Option to build the NMODL files before running (can be one of {})"
                          .format(BUILD_MODE_OPTIONS))
+parser.add_argument('--disable_resampling', action='store_true', 
+                    help="Disables the resampling of the traces before the histograms are calcualted")
 parser.add_argument('--timestep', type=float, default=0.025, 
                     help="The timestep used for the simulation (default: %(default)s)")
 parser.add_argument('--time', type=float, default=2000.0,
@@ -43,19 +46,21 @@ parameters = [Parameter('diam', 'um', 20.0, 40.0),
 objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
 def run(args):
-    from neurotune.tuner.mpi import MPITuner as Tuner # @Reimport  
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.cell_9ml)()
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
     # Select which objective function to use
+    obj_kwargs =  {}
+    if args.disable_resampling:
+        obj_kwargs['resample'] = False
     if args.objective == 'vanilla':
-        objective = PhasePlaneHistObjective(reference_trace)
+        objective = PhasePlaneHistObjective(reference_trace, **obj_kwargs)
     elif args.objective == 'convolved':
-        objective = ConvPhasePlaneHistObjective(reference_trace)
+        objective = ConvPhasePlaneHistObjective(reference_trace, **obj_kwargs)
     elif args.objective == 'pointwise':
-        objective = PhasePlanePointwiseObjective(reference_trace, (20, -20), 100)
+        objective = PhasePlanePointwiseObjective(reference_trace, (20, -20), 100, **obj_kwargs)
     else:
         raise Exception("Unrecognised objective '{}' passed to '--objective' option"
                         .format(args.objective))
