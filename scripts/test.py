@@ -2,8 +2,12 @@ import cPickle as pkl
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective
 from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.algorithm.grid import GridAlgorithm
+from neurotune.tuner import Tuner
+from neurotune import Parameter
+from matplotlib import pyplot as plt
   
-cell9ml = '/home/t/tclose/git/kbrain/9ml/neurons/Golgi_Solinas08.9ml'
+cell9ml = '/home/tclose/git/kbrain/9ml/neurons/Golgi_Solinas08.9ml'
 # Generate the reference trace from the original class
 cell = NineCellMetaClass(cell9ml)()
 cell.record('v')
@@ -12,6 +16,15 @@ reference_trace = cell.get_recording('v')
 # Select which objective function to use
 objective = ConvPhasePlaneHistObjective(reference_trace)
 simulation = NineLineSimulation(cell9ml)
+
+parameters = [Parameter('diam', 'um', 20.0, 40.0),
+              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True),
+              Parameter('soma.Lkg.e_rev', 'mV', -70, 45)]
+t = Tuner(parameters, objective, GridAlgorithm(num_steps=1), simulation)
+recordings = simulation.run([20.0, -4, 0.6155119857968767])
+plt.plot(recordings)
+plt.show()
+print objective.fitness(recordings)
 print "done"
 #candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))
 #print objective.fitness(recordings)

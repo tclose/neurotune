@@ -17,7 +17,7 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.objective, simulation, self.candidate, self.recordings), f)
+            pkl.dump((self.objective, self.candidate, self.recordings), f)
         print "Saving failed candidate and recordings to file at '{}'".format(filename)
             
     
