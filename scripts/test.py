@@ -1,6 +1,6 @@
 import cPickle as pkl
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
-from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective
+from neurotune.objective.phase_plane import ConvPhasePlaneHistObjective, PhasePlanePointwiseObjective
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.tuner import Tuner
@@ -14,20 +14,23 @@ cell.record('v')
 simulation_controller.run(simulation_time=2000.0, timestep=0.025)
 reference_trace = cell.get_recording('v')
 # Select which objective function to use
-objective = ConvPhasePlaneHistObjective(reference_trace)
+# objective = ConvPhasePlaneHistObjective(reference_trace)
+objective = PhasePlanePointwiseObjective(reference_trace, (20, -20), 100)
 simulation = NineLineSimulation(cell9ml)
 
 parameters = [Parameter('diam', 'um', 20.0, 40.0),
-              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True),
-              Parameter('soma.Lkg.e_rev', 'mV', -70, 45)]
+              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)]
+#parameters.append(Parameter('soma.Lkg.e_rev', 'mV', -70, 45)])
 t = Tuner(parameters, objective, GridAlgorithm(num_steps=1), simulation)
 #candidate = [20.0, -4, 0.6155119857968767]
-candidate = []
-recordings = simulation.run()
-# plt.plot(recordings)
-# plt.show()
-print objective.fitness(recordings)
-print "done"
+candidates = [(31, -4.5), (32, -4.5), (31, -4.6), (32, -4.6)]
+for candidate in candidates:
+    recordings = simulation.run(candidate)
+    plt.figure()
+    plt.plot(recordings)
+    plt.title(str(candidate))
+    print objective.fitness(recordings)
+plt.show()
 #candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))
 #print objective.fitness(recordings)
 # print candidate
