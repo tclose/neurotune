@@ -53,7 +53,7 @@ class InspyredAlgorithm(Algorithm):
         ea = self._InspyredClass(self._rng)
         ea.observer, ea.variator, ea.terminator = self.observer, self.variator, self.terminator
         self._open_readout_files(self.stats_filename, self.indiv_filename, kwargs)
-        pop = ea.evolve(generator=self.generate_description,
+        pop = ea.evolve(generator=self.uniform_random_chromosome,
                         evaluator=evaluator,
                         pop_size=self.population_size,
                         bounder=ec.Bounder(*zip(*self.constraints)),

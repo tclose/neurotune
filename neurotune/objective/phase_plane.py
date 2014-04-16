@@ -297,7 +297,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         # Get the root-mean-square difference between the reference and simulated histograms
         diff = self.ref_phase_plane_hist - phase_plane_hist
         diff **= 2
-        return -diff.sum()
+        return diff.sum()
 
     def _set_bounds(self, v_bounds, dvdt_bounds, reference_traces):
         """
@@ -560,7 +560,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                 fit_mat[row_i, col_i] = numpy.sum((rec_loop - ref_loop) ** 2)
         # Get the minimum along every row and every colum and sum them together for the nearest
         # loop difference for every recorded loop to every reference loop and vice-versa
-        fitness = -((numpy.sum(numpy.amin(fit_mat, axis=0) ** 2) +
-                     numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) / 
-                    (fit_mat.shape[0] + fit_mat.shape[1]))
+        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0) ** 2) +
+                    numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) / 
+                   (fit_mat.shape[0] + fit_mat.shape[1]))
         return fitness

@@ -18,7 +18,7 @@ class SpikeFrequencyObjective(Objective):
 
     def fitness(self, recordings):
         recording_frequency = len(recordings[recordings < self.time_stop]) / self.time_stop
-        return -(self.frequency - recording_frequency) ** 2
+        return (self.frequency - recording_frequency) ** 2
 
     def get_recording_requests(self):
         """

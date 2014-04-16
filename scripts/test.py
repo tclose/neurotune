@@ -14,8 +14,8 @@ cell.record('v')
 simulation_controller.run(simulation_time=2000.0, timestep=0.025)
 reference_trace = cell.get_recording('v')
 # Select which objective function to use
-# objective = ConvPhasePlaneHistObjective(reference_trace)
-objective = PhasePlanePointwiseObjective(reference_trace, (20, -20), 100)
+objective = ConvPhasePlaneHistObjective(reference_trace)
+#objective = PhasePlanePointwiseObjective(reference_trace, (20, -20), 100)
 simulation = NineLineSimulation(cell9ml)
 
 parameters = [Parameter('diam', 'um', 20.0, 40.0),
