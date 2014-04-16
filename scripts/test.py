@@ -21,7 +21,9 @@ parameters = [Parameter('diam', 'um', 20.0, 40.0),
               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True),
               Parameter('soma.Lkg.e_rev', 'mV', -70, 45)]
 t = Tuner(parameters, objective, GridAlgorithm(num_steps=1), simulation)
-recordings = simulation.run([20.0, -4, 0.6155119857968767])
+#candidate = [20.0, -4, 0.6155119857968767]
+candidate = []
+recordings = simulation.run()
 # plt.plot(recordings)
 # plt.show()
 print objective.fitness(recordings)

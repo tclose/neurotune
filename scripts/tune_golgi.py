@@ -41,7 +41,7 @@ parser.add_argument('--objective', type=str, default='convolved',
 # The parameters to be tuned by the tuner
 parameters = [Parameter('diam', 'um', 20.0, 40.0),
               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True),
-              Parameter('soma.Lkg.e_rev', 'mV', -70, 45)] #1e-5, 3e-5)]
+              Parameter('soma.Lkg.e_rev', 'mV', -70, -45)] #1e-5, 3e-5)]
 
 objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
