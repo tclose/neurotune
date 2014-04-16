@@ -343,17 +343,24 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         v, dv_dt = self._calculate_v_and_dvdt(trace)
         return numpy.histogram2d(v, dv_dt, bins=self.num_bins, range=self.bounds, normed=False)[0]
 
-    def plot_hist(self, trace, min_max=None, show=True):
+    def plot_hist(self, trace_or_hist=None, min_max=None, show=True):
         """
         Used in debugging to plot a histogram from a given trace
         
-        `trace`   -- the trace to generate the histogram from [neo.AnalogSignal]
-        `min_max` -- the minimum and maximum values the histogram bins will be capped at
-        `show`    -- whether to call the matplotlib 'show' function (depends on whether 
-                     there are subsequent plots to compare or not) [bool]
+        `hist_or_trace`   -- a histogram to plot or a trace to generate the histogram from. If None
+                             the reference trace is plotted
+                             [numpy.array((n,n)) or neo.AnalogSignal]
+        `min_max`         -- the minimum and maximum values the histogram bins will be capped at
+        `show`            -- whether to call the matplotlib 'show' function (depends on whether 
+                             there are subsequent plots to compare or not) [bool]
         """
         from matplotlib import pyplot as plt
-        hist = self._generate_phase_plane_hist(trace)
+        if trace_or_hist is None:
+            hist = self.ref_phase_plane_hist
+        elif trace_or_hist.ndim == 2:
+            hist = trace_or_hist
+        else:
+            hist = self._generate_phase_plane_hist(trace_or_hist)
         kwargs = {}
         if min_max is not None:
             kwargs['vmin'], kwargs['vmax'] = min_max
