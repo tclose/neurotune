@@ -38,7 +38,7 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
                        help="The path to the output file where the grid will be written "
                             "(default: %(default)s)")
 parser.add_argument('--plot', action='store_true', help="Plot the grid on a 1-2d mesh")
-parser.add_argument('--plot_saved', type=str, default='-', 
+parser.add_argument('--plot_saved', nargs='*', default=None, 
                     help="Plot a file that has been saved to file already")
 
 # The parameters to be tuned by the tuner
@@ -87,7 +87,7 @@ def run(args):
                    .format(cell9ml=args.cell_9ml, script_name=os.path.basename(__file__), 
                            out=args.output))
             
-def plot(grids):
+def plot(grids, plot_type='surf', trim_factor=None):
     # Import the plotting modules here so they are not imported unless plotting is required
     from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
     from matplotlib import cm
@@ -100,34 +100,42 @@ def plot(grids):
     # Loop through all grids and plot a surface mesh
     for grid, title in zip(grids, objective_names):
         fig = plt.figure()
-        ax = fig.gca(projection='3d')
-        X = numpy.linspace(parameters[0].lbound, parameters[0].ubound, grid.shape[0])
-        Y = numpy.linspace(parameters[1].lbound, parameters[1].ubound, grid.shape[1])
+        x_range = numpy.linspace(parameters[0].lbound, parameters[0].ubound, grid.shape[0])
+        y_range = numpy.linspace(parameters[1].lbound, parameters[1].ubound, grid.shape[1])
         kwargs = {}
-        trim_value = (2.0 * numpy.percentile(grid, 95)) 
-        if numpy.max(grid) > trim_value:
-            over_trim = grid > trim_value 
-            max_under_trim = numpy.ma.masked_array(grid, mask=over_trim).max()
-            grid[numpy.where(over_trim)] = float('nan')
-            lev = numpy.linspace(0,max_under_trim,1000);
-            kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
-            trim = True
+        max_under_trim = None
+        if trim_factor is not None:
+            trim_value = (trim_factor * numpy.percentile(grid, 95)) 
+            if numpy.max(grid) > trim_value:
+                over_trim = grid > trim_value 
+                max_under_trim = numpy.ma.masked_array(grid, mask=over_trim).max()
+                grid[numpy.where(over_trim)] = float('nan')
+                lev = numpy.linspace(0,max_under_trim,1000);
+                kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
+        if plot_type == 'surf':
+            ax = fig.gca(projection='3d')
+            X, Y = numpy.meshgrid(x_range, y_range)
+            surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.jet,  # @UndefinedVariable
+                    linewidth=0, antialiased=False, **kwargs)
+            if max_under_trim is not None:
+                ax.set_zlim(0,max_under_trim)
+            ax.zaxis.set_major_locator(LinearLocator(10))
+            fig.colorbar(surf, shrink=0.5, aspect=5)
+        elif plot_type == 'image':
+            plt.imshow(grid, interpolation='nearest', vmax=max_under_trim, origin='lower', 
+                       extent=(parameters[0].lbound, parameters[0].ubound, 
+                               parameters[1].lbound, parameters[1].ubound),
+                       aspect='auto')
+            plt.grid()
+            plt.colorbar()
         else:
-            trim = False
-        X, Y = numpy.meshgrid(X, Y)
-        surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1, cmap=cm.jet,  # @UndefinedVariable
-                linewidth=0, antialiased=False, **kwargs)
+            raise Exception("Unrecognised plot_type '{}'".format(plot_type))
         plt.xlabel('{}{} ({})'.format('log_10 ' if parameters[0].log_scale else '', 
                                       parameters[0].name, parameters[0].units))
         plt.ylabel('{}{} ({})'.format('log_10 ' if parameters[1].log_scale else '', 
                                       parameters[1].name, parameters[1].units))
         plt.title('{} objective'.format(title))
         
-        if trim:
-            ax.set_zlim(0,max_under_trim)
-        ax.zaxis.set_major_locator(LinearLocator(10))
-#         ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-        fig.colorbar(surf, shrink=0.5, aspect=5)
     plt.show()           
 
 def prepare_work_dir(work_dir, args):
@@ -139,8 +147,8 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if args.plot_saved != '-':
-        with open(args.plot_saved) as f:
-            plot(pkl.load(f))
+    if args.plot_saved is not None:
+        with open(args.cell_9ml) as f:
+            plot(pkl.load(f), *args.plot_saved)
     else:        
         run(args)
