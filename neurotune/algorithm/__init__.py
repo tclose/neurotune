@@ -28,6 +28,6 @@ class Algorithm(object):
         self.genome_size = len(tuneable_parameters)
         self.constraints = [(p.lbound, p.ubound) for p in tuneable_parameters]
         
-    def uniform_random_chromosome(self, random, _):
+    def uniform_random_chromosome(self, random, args):
         return [random.uniform(lo, hi) for lo, hi in self.constraints]
 
