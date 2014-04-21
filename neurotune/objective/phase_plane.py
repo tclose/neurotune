@@ -112,12 +112,11 @@ class PhasePlaneObjective(Objective):
                    subsequent plots to compare or not) [bool]
         """
         from matplotlib import pyplot as plt
-
         # Temporarily switch of resampling to get original positions of v dvdt plot
-        orig_resample = self.resample
-        self.resample = False
+        orig_resample_length = self.resample_length
+        self.resample_length = False
         orig_v, orig_dvdt = self._calculate_v_and_dvdt(trace)
-        self.resample = orig_resample
+        self.resample_length = orig_resample_length
         v, dvdt = self._calculate_v_and_dvdt(trace)
         if isinstance(show, str):
             import cPickle as pickle
@@ -129,7 +128,8 @@ class PhasePlaneObjective(Objective):
             plt.plot(orig_v, orig_dvdt, 'x')
             plt.plot(v, dvdt)
             plt.xlabel('v')
-            plt.ylabel('dV/dt')
+            plt.ylabel('dv/dt')
+            plt.title('v-dv/dt plot of trace')
             if show:
                 plt.show()
 
@@ -253,7 +253,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         new_s = numpy.arange(s[0], s[-1], resample_length)
         return v_interp(new_s), dvdt_interp(new_s)
 
-    def plot_hist(self, trace_or_hist=None, min_max=None, show=True):
+    def plot_hist(self, trace_or_hist=None, min_max=None, diff=False, show=True):
         """
         Used in debugging to plot a histogram from a given trace
         
@@ -261,6 +261,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                              the reference trace is plotted
                              [numpy.array((n,n)) or neo.AnalogSignal]
         `min_max`         -- the minimum and maximum values the histogram bins will be capped at
+        `diff`            -- plots the difference of the given histogram with the provided 
+                             trace/histogram ('trace_or_hist' cannot be None in this case)
         `show`            -- whether to call the matplotlib 'show' function (depends on whether 
                              there are subsequent plots to compare or not) [bool]
         """
@@ -271,6 +273,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             hist = trace_or_hist
         else:
             hist = self._generate_phase_plane_hist(trace_or_hist)
+        if diff:
+            hist -= self.ref_phase_plane_hist
         kwargs = {}
         if min_max is not None:
             kwargs['vmin'], kwargs['vmax'] = min_max
@@ -283,9 +287,16 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         else:
             plt.imshow(hist.T, interpolation='nearest', origin='lower', **kwargs)
             plt.xlabel('v')
-            plt.ylabel('dV/dt')
+            plt.ylabel('dv/dt')
             plt.xticks(numpy.linspace(0, self.num_bins[0] - 1, 11.0))
             plt.yticks(numpy.linspace(0, self.num_bins[1] - 1, 11.0))
+            if diff:
+                plt.title('v-dv/dt and reference histogram difference')
+            elif trace_or_hist is None:    
+                plt.title('Reference v-dv/dt histogram')
+            else:
+                plt.title('v-dv/dt histogram')
+            plt.colorbar()
             ax.set_xticklabels([str(l) for l in numpy.arange(self.bounds[0][0],
                                                              self.bounds[0][1] + self.range[0] / 20.0,
                                                              self.range[0] / 10.0)])
@@ -346,9 +357,6 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
             self.kernel = (numpy.exp(-mesh[0] ** 2) * numpy.exp(-mesh[1] ** 2) /
                            (2 * numpy.pi * self.kernel_width[0] * self.kernel_width[1]))
         # Convolve the histogram with the precalculated Gaussian kernel
-        # import cPickle as pkl
-        # kernel = self.kernel
-        # pkl.dump((unconv_hist, kernel), open('/home/t/tclose/convolved.pkl', 'w'))
         return scipy.signal.convolve2d(unconv_hist, self.kernel, mode='same')
 
     def plot_kernel(self, show=True):
@@ -379,7 +387,6 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
 
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
-
 
     def __init__(self, reference_traces, dvdt_thresholds, num_points, **kwargs):
         """
