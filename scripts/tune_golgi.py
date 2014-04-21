@@ -80,7 +80,7 @@ def run(args):
         print "Fittest candidate {}".format(pop)
         # Save the grid to file
         with open(args.output, 'w') as f:
-            pkl.dump((pop,ea), f)
+            pkl.dump(pop, f)
          
 
 def prepare_work_dir(work_dir, args):
