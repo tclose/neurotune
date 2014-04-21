@@ -17,10 +17,6 @@ class PhasePlaneObjective(Objective):
 
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
-    InterpPair = namedtuple('InterpPair', "v dvdt original_s")
-    
-    _INTERP_OVERLAP = 5
-
     def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0, record_variable=None,
                  exp_conditions=None, dvdt_scale=0.25, interp_order=3):
         """
@@ -83,38 +79,19 @@ class PhasePlaneObjective(Objective):
         dvdt = dv / dt
         return v, dvdt
 
-    def _get_interpolators(self, v, dvdt, interp_order=None, sparse_period=10.0,
-                           min_sparse_ratio=0.0025, break_every=False):
+    def _get_interpolators(self, v, dvdt, interp_order=None):
         """
         Gets interpolators as returned from scipy.interpolate.interp1d for v and dV/dt as well as 
         the length of the trace in the phase plane
         
         `v`                -- voltage trace [numpy.array(float)]
         `dvdt`             -- dV/dt trace [numpy.array(float)]
-        `interp_order`      -- the interpolation type used (see scipy.interpolate.interp1d) [str]
-        `sparse_period`    -- as performing computationally intensive interpolation on many samples
-                              is a drag on performance, dense sections of the curve are first
-                              decimated before the interpolation is performed. The 'sparse_period'
-                              argument determines the sampling period that the dense sections 
-                              (defined as any section with sampling denser than this period) are
-                              resampled to.
-        `min_sparse_ratio` -- The minimal ratio of the sparsified samples to the origainal. To stop
-                              recordings which do not have high-speed sections from being collapsed
-                              onto very small number of samples
-        `break_every`      -- split the interpolation into new chains after the given number of 
-                              samples to avoid running into memory issues interpolating long chains
-                              of samples. Will always break in dense part of chain so may extend over
-                              sparse sections.
-        return             -- if `break_every` is None return a tuple containing scipy interpolators
-                              for v and dV/dt and the positions of the original samples along the 
-                              interpolated path. If `break_every` is not None return a list of 
-                              tuples containing the v interpolator, dV/dt interpolator and bounds
-                              in s
+        `interp_order`     -- the interpolation type used (see scipy.interpolate.interp1d) [str]
+        return             -- a tuple containing scipy interpolators for v and dV/dt and the 
+                              positions of the original samples along the interpolated path.
         """
         if interp_order is None:
             interp_order = self.interp_order
-        if break_every and break_every < 3:
-            raise Exception("'break_every' option needs to be greater than 3")
         dv = numpy.diff(v)
         d_dvdt = numpy.diff(dvdt)
         interval_lengths = numpy.sqrt(numpy.asarray(dv) ** 2 +
@@ -123,98 +100,8 @@ class PhasePlaneObjective(Objective):
         # of the v-dv/dt path
         s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
         # Save the original (non-sparsified) value to be returned
-        original_s = s
-        # If using a more computationally intensive interpolation technique (e.g. 'cubic), the
-        # v-dV/dt paths are pre-processed to reduce the number of samples in densely sampled
-        # sections of the path using linear interpolation
-#         if interp_order >= 2:
-#             # Get a list of landmark samples that should be retained in the sparse sampling
-#             # i.e. samples with large intervals between them that occur during fast sections of
-#             # the phase plane (i.e. spikes)
-#             landmarks = numpy.empty(len(v) + 1)
-#             # Make the samples on both sides of large intervals "landmark" samples
-#             landmarks[:-2] = interval_lengths > sparse_period  # low edge of the large intervals
-#             landmarks[landmarks[:-2].nonzero()[0] + 1] = True  # high edge of the large intervals
-#             # TODO: Add points of inflexion to the landmark mask
-#             # Break the path up into chains of densely and sparsely sampled sections (i.e. fast and
-#             # slow parts of the voltage trace)
-#             end_landmark_samples = numpy.logical_and(landmarks[:-1] == 1, landmarks[1:] == 0)
-#             end_nonlandmark_samples = numpy.logical_and(landmarks[:-1] == 0, landmarks[1:] == 1)
-#             split_indices = numpy.logical_or(end_landmark_samples,
-#                                              end_nonlandmark_samples).nonzero()[0] + 1
-#             v_chains = numpy.split(v, split_indices)
-#             dvdt_chains = numpy.split(dvdt, split_indices)
-#             s_chains = numpy.split(s, split_indices)
-#             # Resample dense parts of the path and keep sparse parts
-#             # Create lists to hold the (potentially) split interpolators
-#             interpolators = []
-#             # initialise bookkeeping variables used to slice up the original s array
-#             break_start = 0 
-#             num_s_samples = 0
-#             sparse_v = numpy.array([])
-#             sparse_dvdt = numpy.array([])
-#             sparse_s = numpy.array([])
-#             is_landmark_chain = landmarks[0]
-#             for v_chain, dvdt_chain, s_chain, i in zip(v_chains, dvdt_chains, s_chains, 
-#                                                        xrange(len(v_chains))):
-#                 # If not landmark chain and length greater than 1 reduce the number of samples by
-#                 # linear interpolation
-#                 is_last_chain = i == (len(v_chains) - 1)
-#                 num_s_samples += len(s_chain)
-#                 if not is_landmark_chain and len(s_chain) > 1:
-#                     num_new_s_samples = numpy.round((s_chain[-1] - s_chain[0]) / sparse_period)
-#                     # Ensure that the number of new samples doesn't fall below the min_sparse_ratio
-#                     if (float(num_new_s_samples) / len(s_chain)) < min_sparse_ratio:
-#                         num_new_s_samples = int(numpy.ceil(len(s_chain) * min_sparse_ratio))
-#                     # Get the new sample locations
-#                     new_s_chain = numpy.linspace(s_chain[0], s_chain[-1], num_new_s_samples)
-#                     # Interpolate v and dvdt to the new positions
-#                     v_chain = numpy.interp(new_s_chain, s_chain, v_chain)
-#                     dvdt_chain = numpy.interp(new_s_chain, s_chain, dvdt_chain)
-#                     # Set s_chain to be the new s_chain
-#                     s_chain = new_s_chain
-#                 # Append the chains to the respective vectors
-#                 sparse_v = numpy.append(sparse_v, v_chain)
-#                 sparse_dvdt = numpy.append(sparse_dvdt, dvdt_chain)
-#                 sparse_s = numpy.append(sparse_s, s_chain)
-#                 # Check to see if length of the chain exceeds the break_every value or whether it is
-#                 # the last chain and if so append the interpolator to the list of interpolators.
-#                 if (break_every and len(sparse_v) > break_every) or is_last_chain:
-#                     # Get the slice of the original s array that corresponds to this section
-#                     orig_s_ = original_s[break_start:num_s_samples]
-#                     break_start = num_s_samples
-#                     if break_every is None or is_last_chain:
-#                         s_ = sparse_s
-#                         v_ = sparse_v
-#                         dvdt_ = sparse_dvdt
-#                     else:
-#                         s_ = sparse_s[:(break_every + self._INTERP_OVERLAP)]
-#                         v_ = sparse_v[:(break_every + self._INTERP_OVERLAP)]
-#                         dvdt_ = sparse_dvdt[:(break_every + self._INTERP_OVERLAP)]
-#                         sparse_s = sparse_s[(break_every - self._INTERP_OVERLAP):]
-#                         sparse_v = sparse_v[(break_every - self._INTERP_OVERLAP):]
-#                         sparse_dvdt = sparse_dvdt[(break_every - self._INTERP_OVERLAP):]
-#                         # Work out where to cut the original s vector to return and update the 
-#                         # break_start variable accordingly
-#                         over_s_indices = numpy.where(orig_s_ > s_[-1])[0]
-#                         if len(over_s_indices):
-#                             break_start = break_start - (len(orig_s_) - over_s_indices[0])
-#                             orig_s_ = orig_s_[:over_s_indices[0]]
-#                     # Create the interpolators for v and dV/dt
-#                     v_intrp = InterpolatedUnivariateSpline(s_, v_, k=interp_order)
-#                     dvdt_intrp = InterpolatedUnivariateSpline(s_, dvdt_, k=interp_order)
-#                     interpolators.append(self.InterpPair(v_intrp, dvdt_intrp, orig_s_))
-#                 # Alternate to and from dense and sparse chains
-#                 is_landmark_chain = not is_landmark_chain
-#             # If break after was not specified return the single interpolator pair instead of a list
-#             # of interpolator pairs
-#             if break_every is False:
-#                 interpolators = interpolators[0]
-#         else:
-        interpolators = self.InterpPair(InterpolatedUnivariateSpline(s, v, k=interp_order),
-                                        InterpolatedUnivariateSpline(s, dvdt, k=interp_order),
-                                        original_s)
-        return interpolators
+        return (InterpolatedUnivariateSpline(s, v, k=interp_order),
+                InterpolatedUnivariateSpline(s, dvdt, k=interp_order), s)
 
     def plot_d_dvdt(self, trace, show=True):
         """
@@ -253,7 +140,6 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     """
 
     _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.5
-    _BREAK_RESAMPLE = 0
 
     def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=None, dvdt_bounds=None,
                  sample_to_bin_ratio=3.0, **kwargs):
@@ -361,21 +247,11 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         `dvdt`            -- dV/dt trace [numpy.array(float)]
         `resample_length` -- the new length between the samples 
         """
-        from matplotlib import pyplot as plt
-        # Get interpolators for v and dV/dt
-        new_v = numpy.array([])
-        new_dvdt = numpy.array([])
-        for v_interp, dvdt_interp, s in [self._get_interpolators(v, dvdt, 
-                                                                break_every=self._BREAK_RESAMPLE)]:
-            # Get a regularly spaced array of new positions along the phase-plane path to 
-            # interpolate to
-            new_s = numpy.arange(s[0], s[-1], resample_length)
-            new_v = numpy.append(new_v, v_interp(new_s))
-            new_dvdt = numpy.append(new_dvdt, dvdt_interp(new_s))
-            plt.figure()
-            plt.plot(v, dvdt, 'x')
-            plt.plot(new_v, new_dvdt, 'o')
-        return new_v, new_dvdt
+        v_interp, dvdt_interp, s = self._get_interpolators(v, dvdt)
+        # Get a regularly spaced array of new positions along the phase-plane path to 
+        # interpolate to
+        new_s = numpy.arange(s[0], s[-1], resample_length)
+        return v_interp(new_s), dvdt_interp(new_s)
 
     def plot_hist(self, trace_or_hist=None, min_max=None, show=True):
         """
