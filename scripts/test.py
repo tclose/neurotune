@@ -26,11 +26,11 @@ t = Tuner(parameters, objective, GridAlgorithm(num_steps=1), simulation)
 candidates = [(31, -4.5), (32, -4.5), (31, -4.6), (32, -4.6)]
 for candidate in candidates:
     recordings = simulation.run(candidate)
-    plt.figure()
-    plt.plot(recordings)
-    plt.title(str(candidate))
+#     plt.figure()
+#     plt.plot(recordings)
+#     plt.title(str(candidate))
     print objective.fitness(recordings)
-plt.show()
+    plt.show()
 #candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))
 #print objective.fitness(recordings)
 # print candidate
