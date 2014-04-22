@@ -6,7 +6,7 @@ from .__init__ import Simulation
 class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
     
-    def __init__(self, cell_9ml):
+    def __init__(self, cell_9ml, build_mode='lazy'):
         """
         `cell_9ml`    -- A 9ml file [str]
         """

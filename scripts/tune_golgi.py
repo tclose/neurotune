@@ -48,7 +48,7 @@ objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise p
 
 def run(args):
     # Generate the reference trace from the original class
-    cell = NineCellMetaClass(args.reference_9ml)()
+    cell = NineCellMetaClass(args.reference_9ml, build_mode=args.build)()
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
@@ -90,7 +90,7 @@ def run(args):
     tuner = Tuner(parameters,
                   objective,
                   EDAAlgorithm(),
-                  NineLineSimulation(args.to_tune_9ml))
+                  NineLineSimulation(args.to_tune_9ml, build_mode=args.build))
     # Run the tuner
     try:
         pop, _ = tuner.tune()
