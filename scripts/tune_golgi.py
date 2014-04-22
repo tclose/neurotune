@@ -14,8 +14,12 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              ConvPhasePlaneHistObjective, 
                                              PhasePlanePointwiseObjective)
 from neurotune.algorithm.evolutionary import EDAAlgorithm
+
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.tuner.mpi import MPITuner as Tuner
+try:
+    from neurotune.tuner.mpi import MPITuner as Tuner
+except ImportError:
+    from neurotune.tuner import Tuner
 import cPickle as pkl
 
 parser = argparse.ArgumentParser(description=__doc__)
