@@ -65,9 +65,7 @@ class Tuner(object):
             fitness = self.objective.fitness(recordings)
         except Exception:
             # Check to see whether the candidate was recorded properly
-            try:
-                recordings
-            except NameError:
+            if 'recordings' not in locals().keys():
                 recordings = None
             raise EvaluationException(self.objective, candidate, recordings)
         return fitness

@@ -111,7 +111,8 @@ def prepare_work_dir(work_dir, args):
     shutil.copy(args.reference_9ml, copied_reference)
     copied_to_tune = os.path.join(work_dir, '9ml', os.path.basename(args.to_tune_9ml))
     shutil.copy(args.to_tune_9ml, copied_to_tune)
-    NineCellMetaClass(copied_9ml, build_mode='build_only')
+    NineCellMetaClass(copied_reference, build_mode='build_only')
+    NineCellMetaClass(copied_to_tune, build_mode='build_only')
     args.reference_9ml = copied_reference
     args.to_tune_9ml = copied_to_tune
 
