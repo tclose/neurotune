@@ -38,6 +38,8 @@ def main():
 if __name__ == '__main__':
 #     import cProfile
 #     cProfile.run('main()')
+    import nineml.extensions.biophysics as bph
+    nml = bph.parse('/home/tclose/kbrain/9ml/neurons/Golgi_Solinas08.9ml')
     main()
 #candidate, recordings = pkl.load(open('/home/tclose/Data/NeuroTune/failed_tune/evaluation_exception.pkl'))
 #print objective.fitness(recordings)

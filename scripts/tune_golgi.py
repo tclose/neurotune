@@ -19,9 +19,10 @@ from neurotune.tuner.mpi import MPITuner as Tuner
 import cPickle as pkl
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('cell_9ml', type=str,
-                       help="The path of the 9ml cell to test the objective function on"
-                            "(default: %(default)s)") 
+parser.add_argument('reference_9ml', type=str,
+                       help="The path of the 9ml cell model to be used as a reference")
+parser.add_argument('to_tune_9ml', type=str,
+                       help="The path of the 9ml cell to tune") 
 parser.add_argument('--build', type=str, default='lazy', 
                     help="Option to build the NMODL files before running (can be one of {})"
                          .format(BUILD_MODE_OPTIONS))
@@ -37,17 +38,13 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
 parser.add_argument('--objective', type=str, default='convolved',
                     help="Selects which objective function to use "
                          "('vanilla', 'convolved', 'pointwise')")
-
-# The parameters to be tuned by the tuner
-parameters = [Parameter('diam', 'um', 20.0, 40.0),
-              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True),
-              Parameter('soma.Lkg.e_rev', 'mV', -70, -45)] #1e-5, 3e-5)]
-
+parser.add_argument('--parameter_set', type=str, default='all-gmaxes',
+                    help="Select which parameter set to tune from a few descriptions")
 objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
 def run(args):
     # Generate the reference trace from the original class
-    cell = NineCellMetaClass(args.cell_9ml)()
+    cell = NineCellMetaClass(args.reference_9ml)()
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
@@ -64,14 +61,35 @@ def run(args):
     else:
         raise Exception("Unrecognised objective '{}' passed to '--objective' option"
                         .format(args.objective))
+    # The parameters to be tuned by the tuner
+    if args.parameter_set == 'original':
+        parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
+                      ] #1e-5, 3e-5)]
+    elif args.parameter_set == 'all-gmaxes':
+        parameters = [Parameter('soma.KA.g', 'S/cm^2', 0.0008, 0.08),
+                      Parameter('soma.HCN2.g', 'S/cm^2', 8e-06, 0.0008),
+                      Parameter('soma.KCa.g', 'S/cm^2', 0.0003, 0.03),
+                      Parameter('soma.Lkg.g', 'S/cm^2', 2.1e-06, 0.00021),
+                      Parameter('soma.SK2.g', 'S/cm^2', 0.0038, 0.38),
+                      Parameter('soma.HCN1.g', 'S/cm^2', 5e-06, 0.0005),
+                      Parameter('soma.NaBase.g', 'S/cm^2', 0.0048, 0.48),
+                      Parameter('soma.KM.g', 'S/cm^2', 0.0001, 0.01),
+                      Parameter('soma.NaR.g', 'S/cm^2', 0.00017, 0.017),
+                      Parameter('soma.NaP.g', 'S/cm^2', 1.9e-05, 0.0019),
+                      Parameter('soma.KV.g', 'S/cm^2', 0.0032, 0.32),
+                      Parameter('soma.CaHVA.g', 'S/cm^2', 4.6e-05, 0.0046),
+                      Parameter('soma.CaLVA.g', 'S/cm^2', 2.5e-05, 0.0025)]
+    else:
+        raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
+                        "('original', 'all-gmaxes').".format(args.parameter_set))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   EDAAlgorithm(),
-                  NineLineSimulation(args.cell_9ml))
+                  NineLineSimulation(args.to_tune_9ml))
     # Run the tuner
     try:
-        pop, ea = tuner.tune()
+        pop, _ = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output), 'evaluation_exception.pkl'))
         raise
