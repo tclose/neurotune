@@ -44,6 +44,10 @@ parser.add_argument('--objective', type=str, default='convolved',
                          "('vanilla', 'convolved', 'pointwise')")
 parser.add_argument('--parameter_set', type=str, default='all-gmaxes',
                     help="Select which parameter set to tune from a few descriptions")
+parser.add_argument('--max_generations', type=int, default=100,
+                    help="The number of generations (iterations) to run the algorithm for")
+parser.add_argument('--population_size', type=int, default=100,
+                    help="The number of genomes in a generation")
 objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
 def run(args):
@@ -89,7 +93,8 @@ def run(args):
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
-                  EDAAlgorithm(),
+                  EDAAlgorithm(max_generations=args.max_generations, 
+                               population_size=args.population_size),
                   NineLineSimulation(args.to_tune_9ml, build_mode=args.build))
     # Run the tuner
     try:

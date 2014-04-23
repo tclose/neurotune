@@ -98,7 +98,7 @@ class MPITuner(Tuner):
                     jobID, candidate = candidate_jobs.pop()
                     if self.mpi_verbose:
                         print ("Evaluating jobID: {}, candidate: {} on process {}"
-                               .format(jobID, candidate, self.MASTER))
+                               .format(jobID, candidate, self.rank))
                     evaluations[jobID] = self._evaluate_candidate(candidate)
                     remaining_evaluations -= 1
                     until_master_eval = self.num_processes - 1
