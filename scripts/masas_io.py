@@ -77,6 +77,6 @@ tuner = nt.Tuner([nt.Parameter('g_l', 'uS', 0.1, 0.5),
                   nt.Parameter('g_ca', 'uS', 0.2, 1.5),
                   nt.Parameter('e_l', 'mV', -70, -50)], 
                  objective, 
-                 nt.algorithm.EDAAlgorithm(), 
+                 nt.algorithm.inspyred.EDAAlgorithm(), 
                  simulation)
 pop, ea = tuner.tune(num_candidates=10, max_iterations=100)

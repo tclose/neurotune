@@ -420,7 +420,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         `trace`  -- the voltage trace [numpy.array(float)]                           
         """
         # Get the v and dvdt and their spline interpolators
-        v, dvdt = self._calculate_v_and_dvdt(trace, resample=False)
+        v, dvdt = self._calculate_v_and_dvdt(trace)
         v_spline, dvdt_spline, s_positions = self._get_interpolators(v, dvdt)
         # Find the indices where the v-dV/dt trace crosses the start and end thresholds respectively
         loop_starts = numpy.where((dvdt[1:] >= self.thresh[0]) & (dvdt[:-1] < self.thresh[0]))[0] + 1
