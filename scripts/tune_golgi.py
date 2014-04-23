@@ -70,19 +70,19 @@ def run(args):
         parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
                       ] #1e-5, 3e-5)]
     elif args.parameter_set == 'all-gmaxes':
-        parameters = [Parameter('soma.KA.g', 'S/cm^2', 0.0008, 0.08),
-                      Parameter('soma.HCN2.g', 'S/cm^2', 8e-06, 0.0008),
-                      Parameter('soma.KCa.g', 'S/cm^2', 0.0003, 0.03),
-                      Parameter('soma.Lkg.g', 'S/cm^2', 2.1e-06, 0.00021),
-                      Parameter('soma.SK2.g', 'S/cm^2', 0.0038, 0.38),
-                      Parameter('soma.HCN1.g', 'S/cm^2', 5e-06, 0.0005),
-                      Parameter('soma.NaBase.g', 'S/cm^2', 0.0048, 0.48),
-                      Parameter('soma.KM.g', 'S/cm^2', 0.0001, 0.01),
-                      Parameter('soma.NaR.g', 'S/cm^2', 0.00017, 0.017),
-                      Parameter('soma.NaP.g', 'S/cm^2', 1.9e-05, 0.0019),
-                      Parameter('soma.KV.g', 'S/cm^2', 0.0032, 0.32),
-                      Parameter('soma.CaHVA.g', 'S/cm^2', 4.6e-05, 0.0046),
-                      Parameter('soma.CaLVA.g', 'S/cm^2', 2.5e-05, 0.0025)]
+        parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
+                      Parameter('soma.HCN2.gbar', 'S/cm^2', 8e-06, 0.0008),
+                      Parameter('soma.KCa.gbar', 'S/cm^2', 0.0003, 0.03),
+                      Parameter('soma.Lkg.gbar', 'S/cm^2', 2.1e-06, 0.00021),
+                      Parameter('soma.SK2.gbar', 'S/cm^2', 0.0038, 0.38),
+                      Parameter('soma.HCN1.gbar', 'S/cm^2', 5e-06, 0.0005),
+                      Parameter('soma.NaBase.gbar', 'S/cm^2', 0.0048, 0.48),
+                      Parameter('soma.KM.gbar', 'S/cm^2', 0.0001, 0.01),
+                      Parameter('soma.NaR.gbar', 'S/cm^2', 0.00017, 0.017),
+                      Parameter('soma.NaP.gbar', 'S/cm^2', 1.9e-05, 0.0019),
+                      Parameter('soma.KV.gbar', 'S/cm^2', 0.0032, 0.32),
+                      Parameter('soma.CaHVA.gbar', 'S/cm^2', 4.6e-05, 0.0046),
+                      Parameter('soma.CaLVA.gbar', 'S/cm^2', 2.5e-05, 0.0025)]
     else:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
                         "('original', 'all-gmaxes').".format(args.parameter_set))
