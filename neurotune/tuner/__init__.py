@@ -64,10 +64,13 @@ class Tuner(object):
             recordings = self.simulation.run(candidate)
             fitness = self.objective.fitness(recordings)
         except Exception:
-            # Check to see whether the candidate was recorded properly
-            if 'recordings' not in locals().keys():
-                recordings = None
-            raise EvaluationException(self.objective, candidate, recordings)
+            if __debug__:
+                raise
+            else:
+                # Check to see whether the candidate was recorded properly
+                if 'recordings' not in locals().keys():
+                    recordings = None
+                raise EvaluationException(self.objective, candidate, recordings)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
