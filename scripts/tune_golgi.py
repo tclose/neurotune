@@ -48,15 +48,16 @@ parser.add_argument('--max_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the algorithm for")
 parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
-objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
+parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
+ 
+#objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
-def run(args):
+def _get_objective(args):
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.reference_9ml, build_mode=args.build)()
     cell.record('v')
     simulation_controller.run(simulation_time=args.time, timestep=args.timestep)
     reference_trace = cell.get_recording('v')
-    # Select which objective function to use
     obj_kwargs =  {}
     if args.disable_resampling:
         obj_kwargs['resample'] = False
@@ -69,6 +70,9 @@ def run(args):
     else:
         raise Exception("Unrecognised objective '{}' passed to '--objective' option"
                         .format(args.objective))
+    return objective
+        
+def _get_parameters(args):
     # The parameters to be tuned by the tuner
     if args.parameter_set == 'original':
         parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
@@ -90,12 +94,23 @@ def run(args):
     else:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
                         "('original', 'all-gmaxes').".format(args.parameter_set))
-    # Instantiate the tuner
-    tuner = Tuner(parameters,
-                  objective,
+    return parameters
+        
+def _get_simulation(args, parameters=None, objective=None):
+    simulation = NineLineSimulation(args.to_tune_9ml, build_mode=args.build)
+    if parameters is not None:
+        simulation._set_tuneable_parameters(parameters)
+    if objective is not None:
+        simulation.process_requests(objective.get_recording_requests())
+    return simulation
+
+def run(args):
+        # Instantiate the tuner
+    tuner = Tuner(_get_parameters(args),
+                  _get_objective(args),
                   EDAAlgorithm(max_generations=args.max_generations, 
                                population_size=args.population_size),
-                  NineLineSimulation(args.to_tune_9ml, build_mode=args.build))
+                  _get_simulation(args))
     # Run the tuner
     try:
         pop, _ = tuner.tune()
@@ -109,7 +124,19 @@ def run(args):
         with open(args.output, 'w') as f:
             pkl.dump(pop, f)
          
-
+def plot(args):
+    from matplotlib import pyplot as plt
+    with open(args.plot) as f:
+        candidates = pkl.load(f) 
+    parameters = _get_parameters(args)
+    objective = _get_objective(args)
+    simulation = _get_simulation(args, parameters=parameters, objective=objective)
+    fittest_recording = simulation.run(candidates[-1].candidate)
+    plt.plot(fittest_recording)
+    plt.plot(objective.reference_traces[0])
+    objective.plot_hist(fittest_recording, diff=True, show=False)
+    plt.show()
+    
 def prepare_work_dir(work_dir, args):
     os.mkdir(os.path.join(work_dir, '9ml'))
     copied_reference = os.path.join(work_dir, '9ml', os.path.basename(args.reference_9ml))
@@ -123,4 +150,7 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    run(args)
+    if args.plot:
+        plot(args)
+    else:
+        run(args)
