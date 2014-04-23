@@ -14,7 +14,7 @@ from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
                                              ConvPhasePlaneHistObjective, 
                                              PhasePlanePointwiseObjective)
-from neurotune.algorithm.grid import GridAlgorithm
+from neurotune.algorithm import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 import cPickle as pkl
 

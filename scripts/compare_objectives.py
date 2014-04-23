@@ -1,6 +1,7 @@
 import os.path
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
-import neurotune as nt
+import neurotune.objective
+import neurotune.simulation
 from matplotlib import pyplot as plt
 import numpy
 import cPickle as pickle
@@ -18,9 +19,10 @@ with open('/home/tclose/Documents/reference_trace.pkl', 'w') as f:
     pickle.dump(reference_trace, f)
 
 #Instantiate the tuner
-plain_objective = nt.objective.PhasePlaneHistObjective(reference_trace, resample=False)
-resamp_objective = nt.objective.PhasePlaneHistObjective(reference_trace)
-conv_objective = nt.objective.ConvPhasePlaneHistObjective(reference_trace)
+plain_objective = neurotune.objective.phase_plane.PhasePlaneHistObjective(reference_trace, 
+                                                                          resample=False)
+resamp_objective = neurotune.objective.phase_plane.PhasePlaneHistObjective(reference_trace)
+conv_objective = neurotune.objective.phase_plane.ConvPhasePlaneHistObjective(reference_trace)
 
 objectives = [resamp_objective, conv_objective, plain_objective]
 
@@ -30,14 +32,14 @@ for obj, title in zip(objectives, ('resampled', 'convolved', 'plain')):
     obj.plot_hist(reference_trace, show=os.path.join('/home', 'tclose', 'Documents', title + '.pkl')) # show=False
     plt.title(title)
 
-parameters = [nt.Parameter('diam', 'um', 10.0, 40.0)]
+parameters = [neurotune.Parameter('diam', 'um', 10.0, 40.0)]
 
 grid_length = 11
 param_range = numpy.linspace(-15.0, 15.0, grid_length) + 27.0
 
 to_pickle = []
 for j, obj in enumerate(objectives):
-    simulation = nt.simulation.NineLineSimulation(cell_9ml)
+    simulation = neurotune.simulation.nineline.NineLineSimulation(cell_9ml)
     simulation._set_tuneable_parameters(parameters)
     simulation.process_requests(obj.get_recording_requests())
     fitnesses = numpy.empty(grid_length)    

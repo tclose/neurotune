@@ -13,7 +13,7 @@ from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
                                              ConvPhasePlaneHistObjective, 
                                              PhasePlanePointwiseObjective)
-from neurotune.algorithm.evolutionary import EDAAlgorithm
+from neurotune.algorithm.inspyred import EDAAlgorithm
 
 from neurotune.simulation.nineline import NineLineSimulation
 try:
