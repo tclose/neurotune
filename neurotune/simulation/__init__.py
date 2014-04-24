@@ -62,7 +62,7 @@ class Simulation():
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
             
-    def _set_tuneable_parameters(self, tuneable_parameters):
+    def set_tuneable_parameters(self, tuneable_parameters):
         """
         Sets the parameters in which the candidate arrays passed to the 'run' method will map to in 
         respective order
@@ -70,7 +70,7 @@ class Simulation():
         `tuneable_parameters` -- list of parameter names which correspond to the candidate order
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
-                                  "'_set_tuneable_parameters' method"
+                                  "'set_tuneable_parameters' method"
                                   .format(self.__class__.__name__))
     
     def process_requests(self, recording_requests):
@@ -135,7 +135,7 @@ class Simulation():
         return requests_dict
 
 
-class SimpleCustomSimulation(Simulation):
+class CustomSimulation(Simulation):
     """
     A convenient base class for custom simulation objects. Provides record time from requested 
     recordings
@@ -143,12 +143,11 @@ class SimpleCustomSimulation(Simulation):
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
         
-    def _set_tuneable_parameters(self, tuneable_parameters):
+    def set_tuneable_parameters(self, tuneable_parameters):
         """
-        This method is assumed not to be required for simple custom simulations (can be overridden 
-        of course)
+        The body of this method is just here for convenience can be overridden if required.
         """
-        pass
+        self.tuneable_parameters = tuneable_parameters
             
     def _prepare_simulations(self):
         """
@@ -159,8 +158,9 @@ class SimpleCustomSimulation(Simulation):
         if (len(self.simulation_setups) != 1 or 
             self.simulation_setups[0].record_variables != [None] or
             self.simulation_setups[0].conditions is not None):
-            raise Exception("Custom simulation '{}' can only handle default recordings (typically "
-                            "voltage traces from the soma)".format(self.__class__.__name__))
+            raise Exception("This custom simulation '{}' can only handle default recordings "
+                            "(typically voltage traces from the soma)"
+                            .format(self.__class__.__name__))
         self.record_time = self.simulation_setups[0].time
         
     def _run_all(self, candidate):
@@ -169,17 +169,23 @@ class SimpleCustomSimulation(Simulation):
         
         `candidate` -- a list of parameters [list(float)]
         """
-        v, t = self.simulate(candidate)
-        try:
-            sampling_period = (t[1] - t[0]) * pq.ms # Assume time is sampled evenly
-            t_start = t[0] * pq.ms
-            t_stop = t[-1] * pq.ms
-        except TypeError: # If t is a timestep rather than a time vector
-            sampling_period = t * pq.ms
-            t_start = 0.0 * pq.ms
-            t_stop = t * len(v) * pq.ms
-        return [[neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, t_stop=t_stop, 
-                                 name='custom_simulation', units='mV')]]
+        volt_traces, times = self.simulate(candidate)
+        if not isinstance(volt_traces, list):
+            volt_traces = [volt_traces]
+            times = [times]
+        recordings = []
+        for v, t in volt_traces, times:
+            # If t is a timestep rather than a time vector
+            if isinstance(t, float):
+                sampling_period = t * pq.ms
+                t_start = 0.0 * pq.ms
+                t_stop = t * len(v) * pq.ms
+                rec = neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, 
+                                       t_stop=t_stop, name='custom_simulation', units='mV')
+            else:
+                rec = neo.IrregularlySampledSignal(t, v, units='mV', time_units='ms')
+            recordings.append(rec) 
+        return recordings
             
     def simulate(self, candidate):
         """

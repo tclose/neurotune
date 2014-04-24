@@ -42,7 +42,7 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
 parser.add_argument('--objective', type=str, default='convolved',
                     help="Selects which objective function to use "
                          "('vanilla', 'convolved', 'pointwise')")
-parser.add_argument('--parameter_set', type=str, default='all-gmaxes',
+parser.add_argument('--parameter_set', type=str, default='all-gmaxes', nargs='+',
                     help="Select which parameter set to tune from a few descriptions")
 parser.add_argument('--max_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the algorithm for")
@@ -74,23 +74,33 @@ def _get_objective(args):
         
 def _get_parameters(args):
     # The parameters to be tuned by the tuner
-    if args.parameter_set == 'original':
+    if args.parameter_set[0] == 'original':
         parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
                       ] #1e-5, 3e-5)]
-    elif args.parameter_set == 'all-gmaxes':
-        parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
-                      Parameter('soma.HCN2.gbar', 'S/cm^2', 8e-06, 0.0008),
-                      Parameter('soma.KCa.gbar', 'S/cm^2', 0.0003, 0.03),
-                      Parameter('soma.Lkg.gbar', 'S/cm^2', 2.1e-06, 0.00021),
-                      Parameter('soma.SK2.gbar', 'S/cm^2', 0.0038, 0.38),
-                      Parameter('soma.HCN1.gbar', 'S/cm^2', 5e-06, 0.0005),
-                      Parameter('soma.NaBase.gbar', 'S/cm^2', 0.0048, 0.48),
-                      Parameter('soma.KM.gbar', 'S/cm^2', 0.0001, 0.01),
-                      Parameter('soma.NaR.gbar', 'S/cm^2', 0.00017, 0.017),
-                      Parameter('soma.NaP.gbar', 'S/cm^2', 1.9e-05, 0.0019),
-                      Parameter('soma.KV.gbar', 'S/cm^2', 0.0032, 0.32),
-                      Parameter('soma.CaHVA.gbar', 'S/cm^2', 4.6e-05, 0.0046),
-                      Parameter('soma.CaLVA.gbar', 'S/cm^2', 2.5e-05, 0.0025)]
+    elif args.parameter_set[0] == 'all-gmaxes':
+        bound_range = float(args.parameter_set[1])
+        from nineml.extensions.biophysics import parse
+        bio_model = parse(args.reference_9ml)
+        parameters = []
+        for comp in bio_model:
+            if comp.type == 'ionic-current':
+                lbound = comp.value * (1 - bound_range)
+                ubound = comp.value * (1 + bound_range)
+                parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, ubound))
+#                  
+#         parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
+#                       Parameter('soma.HCN2.gbar', 'S/cm^2', 8e-06, 0.0008),
+#                       Parameter('soma.KCa.gbar', 'S/cm^2', 0.0003, 0.03),
+#                       Parameter('soma.Lkg.gbar', 'S/cm^2', 2.1e-06, 0.00021),
+#                       Parameter('soma.SK2.gbar', 'S/cm^2', 0.0038, 0.38),
+#                       Parameter('soma.HCN1.gbar', 'S/cm^2', 5e-06, 0.0005),
+#                       Parameter('soma.NaBase.gbar', 'S/cm^2', 0.0048, 0.48),
+#                       Parameter('soma.KM.gbar', 'S/cm^2', 0.0001, 0.01),
+#                       Parameter('soma.NaR.gbar', 'S/cm^2', 0.00017, 0.017),
+#                       Parameter('soma.NaP.gbar', 'S/cm^2', 1.9e-05, 0.0019),
+#                       Parameter('soma.KV.gbar', 'S/cm^2', 0.0032, 0.32),
+#                       Parameter('soma.CaHVA.gbar', 'S/cm^2', 4.6e-05, 0.0046),
+#                       Parameter('soma.CaLVA.gbar', 'S/cm^2', 2.5e-05, 0.0025)]
     else:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
                         "('original', 'all-gmaxes').".format(args.parameter_set))

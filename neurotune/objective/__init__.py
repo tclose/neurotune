@@ -35,3 +35,9 @@ class Objective(object):
         representing the recordings that are required from the simulation controller
         """
         return RecordingRequest(time_stop=self.time_stop)
+
+
+class DummyObjective(Objective):
+    
+    def fitness(self, recordings):  # @UnusedVariable
+        return 1

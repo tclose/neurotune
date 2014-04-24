@@ -43,8 +43,8 @@ class Tuner(object):
         self.simulation = simulation
         self.verbose = verbose
         # Register tuneable parameters and recording requests
-        self.algorithm._set_tuneable_parameters(tuneable_parameters)
-        self.simulation._set_tuneable_parameters(tuneable_parameters)
+        self.algorithm.set_tuneable_parameters(tuneable_parameters)
+        self.simulation.set_tuneable_parameters(tuneable_parameters)
         self.simulation.process_requests(objective.get_recording_requests())
         
     def tune(self, **kwargs):
