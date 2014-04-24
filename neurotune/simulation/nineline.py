@@ -15,10 +15,10 @@ class NineLineSimulation(Simulation):
         self.celltype = NineCellMetaClass(cell_9ml)
         self.default_seg = self.celltype().source_section.name     
         
-    def set_tuneable_parameters(self, tuneable_parameters):
+    def set_tune_parameters(self, tune_parameters):
         self.genome_keys = []
         self.log_scales = []
-        for param in tuneable_parameters:
+        for param in tune_parameters:
             if '.' in param.name:
                 key = param.name
             else:

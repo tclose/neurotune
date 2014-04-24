@@ -25,9 +25,9 @@ class Algorithm(object):
         raise NotImplementedError("'optimize' is not implemented by derived class of 'Algorithm'"
                                   ",'{}'".format(self.__class__.__name__))
         
-    def set_tuneable_parameters(self, tuneable_parameters):
-        self.genome_size = len(tuneable_parameters)
-        self.constraints = [(p.lbound, p.ubound) for p in tuneable_parameters]
+    def set_tune_parameters(self, tune_parameters):
+        self.genome_size = len(tune_parameters)
+        self.constraints = [(p.lbound, p.ubound) for p in tune_parameters]
         
     def uniform_random_chromosome(self, random, args):  # @UnusedVariable
         return [random.uniform(lo, hi) for lo, hi in self.constraints]
@@ -38,8 +38,8 @@ class GridAlgorithm(Algorithm):
     def __init__(self, num_steps):
         self.num_steps = num_steps
         
-    def set_tuneable_parameters(self, tuneable_parameters):
-        super(GridAlgorithm, self).set_tuneable_parameters(tuneable_parameters)
+    def set_tune_parameters(self, tune_parameters):
+        super(GridAlgorithm, self).set_tune_parameters(tune_parameters)
         if not isinstance(self.num_steps, int):
             if len(self.num_steps) != self.num_dims:
                 raise Exception("Number of tuneable parameters ({}) does not match number num_steps"

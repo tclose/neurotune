@@ -38,6 +38,10 @@ class Objective(object):
 
 
 class DummyObjective(Objective):
+    """
+    A dummy objective that returns a constant value of 1 (useful for initial grid searches, which only
+    need to see the recorded traces
+    """
     
     def fitness(self, recordings):  # @UnusedVariable
         return 1

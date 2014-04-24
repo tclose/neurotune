@@ -62,15 +62,15 @@ class Simulation():
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
                                   "'_setup_a_simulation' method" .format(self.__class__.__name__))
             
-    def set_tuneable_parameters(self, tuneable_parameters):
+    def set_tune_parameters(self, tune_parameters):
         """
         Sets the parameters in which the candidate arrays passed to the 'run' method will map to in 
         respective order
         
-        `tuneable_parameters` -- list of parameter names which correspond to the candidate order
+        `tune_parameters` -- list of parameter names which correspond to the candidate order
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement "
-                                  "'set_tuneable_parameters' method"
+                                  "'set_tune_parameters' method"
                                   .format(self.__class__.__name__))
     
     def process_requests(self, recording_requests):
@@ -143,11 +143,11 @@ class CustomSimulation(Simulation):
     
     __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
         
-    def set_tuneable_parameters(self, tuneable_parameters):
+    def set_tune_parameters(self, tune_parameters):
         """
         The body of this method is just here for convenience can be overridden if required.
         """
-        self.tuneable_parameters = tuneable_parameters
+        self.tune_parameters = tune_parameters
             
     def _prepare_simulations(self):
         """

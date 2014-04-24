@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import os
 import traceback
 import cPickle as pkl
 
@@ -30,28 +31,36 @@ class Tuner(object):
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
     
-    def set(self, tuneable_parameters, objective, algorithm, simulation, verbose=False):
+    def set(self, tune_parameters, objective, algorithm, simulation, verbose=False,
+            save_recordings=None):
         """
         `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
         `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
-        `simulation` -- The interface to the neuronal simulator used [neurotune.simulations.*Controller] 
+        `simulation` -- The interface to the neuronal simulator used [neurotune.simulations.*Controller]
+        `verbose`    -- flags whether to print out which candidate is being evaluated
+        `save_recordings` -- the location of the directory where the recordings will be saved. If None (the default) recordings are not saved
         """
         # Set members
-        self.tuneable_parameters = tuneable_parameters
+        self.tune_parameters = tune_parameters
         self.objective = objective
         self.algorithm = algorithm
         self.simulation = simulation
         self.verbose = verbose
+        self.save_recordings = save_recordings
+        if self.save_recordings:
+            print "Recordings will be saved to '{}' directory".format(save_recordings)
         # Register tuneable parameters and recording requests
-        self.algorithm.set_tuneable_parameters(tuneable_parameters)
-        self.simulation.set_tuneable_parameters(tuneable_parameters)
+        self.algorithm.set_tune_parameters(tune_parameters)
+        self.simulation.set_tune_parameters(tune_parameters)
         self.simulation.process_requests(objective.get_recording_requests())
         
     def tune(self, **kwargs):
         """
         Runs the optimisation algorithm and returns the final population and algorithm state
         """
-        
+        if self.save_recordings:
+            if not os.path.exists(self.save_recordings):
+                os.mkdir(self.save_recordings)
         return self.algorithm.optimize(self._evaluate_all_candidates, **kwargs)
     
     def _evaluate_candidate(self, candidate):
@@ -62,6 +71,11 @@ class Tuner(object):
             print "Evaluating candidate {}".format(candidate)
         try:
             recordings = self.simulation.run(candidate)
+            if self.save_recordings:
+                record_filename = '_'.join([p.name + '=' + c 
+                                            for p, c in zip(self.tune_parameters, candidate)]) + '.pkl'
+                with open(os.path.join(self.save_recordings, record_filename), 'w') as f:
+                    pkl.dump((candidate, recordings), f)
             fitness = self.objective.fitness(recordings)
         except Exception:
             if __debug__:
