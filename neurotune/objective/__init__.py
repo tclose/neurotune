@@ -34,7 +34,7 @@ class Objective(object):
         Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
         representing the recordings that are required from the simulation controller
         """
-        return RecordingRequest(time_stop=self.time_stop)
+        return RecordingRequest(record_time=self.time_stop)
 
 
 class DummyObjective(Objective):

@@ -64,10 +64,13 @@ class GridAlgorithm(Algorithm):
             num_steps = self.num_steps
         # Get the ranges of the parameters using the number of steps
         param_ranges = [numpy.linspace(l, u, n) for (l, u), n in zip(self.constraints, num_steps)]
-        # Get all permutations of candidates given parameter ranges
-        meshes = numpy.meshgrid(*param_ranges)
-        cand_mesh = numpy.concatenate([mesh.reshape([1] + list(mesh.shape)) for mesh in meshes])
-        candidates = cand_mesh.reshape((self.num_dims, -1)).T
+        if self.num_dims == 1:
+            candidates = zip(param_ranges)
+        else:
+            # Get all permutations of candidates given parameter ranges
+            meshes = numpy.meshgrid(*param_ranges)
+            cand_mesh = numpy.concatenate([mesh.reshape([1] + list(mesh.shape)) for mesh in meshes])
+            candidates = cand_mesh.reshape((self.num_dims, -1)).T
         # Evaluate fitnesses
         fitnesses = numpy.array(evaluator(candidates))
         # Check to see if multi-objective
