@@ -35,3 +35,15 @@ class Objective(object):
         representing the recordings that are required from the simulation controller
         """
         return RecordingRequest(time_stop=self.time_stop)
+
+
+class DummyObjective(Objective):
+    """
+    A dummy objective that returns a constant value of 1 (useful for initial grid searches, which only
+    need to see the recorded traces
+    """
+    
+    def fitness(self, recordings):
+        return 1
+
+    
