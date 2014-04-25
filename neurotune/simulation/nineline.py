@@ -26,7 +26,7 @@ class NineLineSimulation(Simulation):
             self.genome_keys.append(key)
             self.log_scales.append(param.log_scale)
 
-    def _prepare_simulations(self):
+    def prepare_simulations(self):
         """
         Prepare all simulations (eg. create cells and set recorders if possible)
         """
@@ -56,7 +56,7 @@ class NineLineSimulation(Simulation):
         if len(self.simulation_setups) == 1:
             self._prepare(self.simulation_setups[0])            
 
-    def _run_all(self, candidate):
+    def run(self, candidate):
         """
         Run all simulations required to assess the candidate
         

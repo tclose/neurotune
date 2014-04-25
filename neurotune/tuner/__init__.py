@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import os
 import traceback
 import cPickle as pkl
+import neo.io
 
 
 class EvaluationException(Exception):
@@ -48,19 +49,20 @@ class Tuner(object):
         self.verbose = verbose
         self.save_recordings = save_recordings
         if self.save_recordings:
+            if not os.path.exists(self.save_recordings):
+                os.makedirs(self.save_recordings)
             print "Recordings will be saved to '{}' directory".format(save_recordings)
-        # Register tuneable parameters and recording requests
+        # Register tuneable parameters
         self.algorithm.set_tune_parameters(tune_parameters)
         self.simulation.set_tune_parameters(tune_parameters)
-        self.simulation.process_requests(objective.get_recording_requests())
+        # Pass recording requests from objective to simulation
+        recording_requests = objective.get_recording_requests()
+        self.simulation.process_requests(recording_requests)
         
     def tune(self, **kwargs):
         """
         Runs the optimisation algorithm and returns the final population and algorithm state
         """
-        if self.save_recordings:
-            if not os.path.exists(self.save_recordings):
-                os.mkdir(self.save_recordings)
         return self.algorithm.optimize(self._evaluate_all_candidates, **kwargs)
     
     def _evaluate_candidate(self, candidate):
@@ -70,21 +72,24 @@ class Tuner(object):
         if self.verbose:
             print "Evaluating candidate {}".format(candidate)
         try:
-            recordings = self.simulation.run(candidate)
+            recordings, requests_dict = self.simulation._get_requested_recordings(candidate)
             if self.save_recordings:
-                record_filename = '_'.join([p.name + '=' + c 
-                                            for p, c in zip(self.tune_parameters, candidate)]) + '.pkl'
-                with open(os.path.join(self.save_recordings, record_filename), 'w') as f:
-                    pkl.dump((candidate, recordings), f)
-            fitness = self.objective.fitness(recordings)
+                fname = '_'.join(['{}={}'.format(p.name, c)
+                                  for p, c in zip(self.tune_parameters, candidate)]) + '.neo.pkl'
+                fpath = os.path.join(self.save_recordings, fname)
+                if os.path.exists(fpath):
+                    os.remove(fpath)
+                io = neo.io.pickleio.PickleIO(fpath)
+                io.write(recordings)
+            fitness = self.objective.fitness(requests_dict)
         except Exception:
             if __debug__:
                 raise
             else:
-                # Check to see whether the candidate was recorded properly
-                if 'recordings' not in locals().keys():
-                    recordings = None
-                raise EvaluationException(self.objective, candidate, recordings)
+                # Check to see whether the candidate was recorded properly before the error
+                if 'requests_dict' not in locals().keys():
+                    requests_dict = None
+                raise EvaluationException(self.objective, candidate, requests_dict)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args

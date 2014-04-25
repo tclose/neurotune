@@ -15,7 +15,16 @@ class MultiObjective(Objective):
         
         `objectives` -- a list of Objective objects [list(Objective)]
         """
-        self.objectives = objectives
+        self.objectives = list(objectives)
+        
+    def append(self, objective):
+        self.objectives.append(objective)
+        
+    def __getitem__(self, i):
+        return self.objectives[i]
+
+    def __setitem__(self, i, val):
+        self.objectives[i] = val
 
     def fitness(self, recordings):
         """
@@ -49,9 +58,6 @@ class MultiObjective(Objective):
         for objective in self.objectives:
             # Get the recording requests from the sub-objective function
             objective_rec_requests = objective.get_recording_requests()
-            # Wrap single recording requests in a dictionary
-            if isinstance(objective_rec_requests, RecordingRequest):
-                objective_rec_requests = {None:objective_rec_requests}
             # Add the recording request to the collated dictionary
             recordings_request.update([((objective, key), val)
                                       for key, val in objective_rec_requests.iteritems()])

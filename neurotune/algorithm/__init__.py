@@ -65,7 +65,7 @@ class GridAlgorithm(Algorithm):
         # Get the ranges of the parameters using the number of steps
         param_ranges = [numpy.linspace(l, u, n) for (l, u), n in zip(self.constraints, num_steps)]
         if self.num_dims == 1:
-            candidates = zip(param_ranges)
+            candidates = numpy.asarray(zip(*param_ranges))
         else:
             # Get all permutations of candidates given parameter ranges
             meshes = numpy.meshgrid(*param_ranges)

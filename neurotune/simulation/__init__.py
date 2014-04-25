@@ -7,31 +7,13 @@ from itertools import groupby
 from abc import ABCMeta # Metaclass for abstract base classes
 import neo
 import quantities as pq
+from neurotune.conditions import ExperimentalConditions
 
-
-class ExperimentalConditions(object):
-    """
-    Defines the experimental conditions an objective function requires to make its evaluation. Can
-    be extended for specific conditions required by novel objective functions but may not be 
-    supported by all simulations, especially custom ones
-    """
-    
-    class NotSupportedException(Exception): pass
-    
-    def __init__(self, initial_v=None):
-        """
-        `initial_v` -- the initial voltage of the membrane
-        """
-        self.initial_v = initial_v
-        
-    def __eq__(self, other):
-        return self.initial_v == other.initial_v
-    
 
 class RecordingRequest(object):
     """"
     RecordingRequests are raised by objective functions and are passed to Simulation objects so they
-    can set up the required simulation conditions (eg IClamp, VClamp, spike inumpyut) and recorders
+    can set up the required simulation conditions (eg IClamp, VClamp, spike input) and recorders
     """
     
     def __init__(self, record_time=2000.0, record_variable=None, conditions=None):
@@ -53,7 +35,7 @@ class Simulation():
     ## Groups together all the information to interface to and from a requested simulation
     Setup = namedtuple('Setup', "time conditions record_variables request_keys")
         
-    def _prepare_simulations(self):
+    def prepare_simulations(self):
         """
         Prepares the simulations that are required by the chosen objective functions
         
@@ -106,9 +88,9 @@ class Simulation():
                                                      list(record_variables), request_keys))
         # Do initial preparation for simulation (how much preparation can be done depends on whether
         # the same experimental conditions are used throughout the evaluation process.
-        self._prepare_simulations()
+        self.prepare_simulations()
         
-    def _run_all(self, candidate):
+    def run(self, candidate):
         """
         At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         
@@ -117,22 +99,20 @@ class Simulation():
         raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"
                                   " method".format(self.__class__.__name__))
                   
-    def run(self, candidate):
+    def _get_requested_recordings(self, candidate):
         """
         Return the recordings in a dictionary to be returned to the objective functions, so each
         objective function can access the recording it requested
         
         `candidate` -- a list of parameters [list(float)]
         """
-        all_recordings = self._run_all(candidate)
+        recordings = self.run(candidate)
         requests_dict = {}
-        for recordings, setup in zip(all_recordings, self.simulation_setups):
-            assert len(recordings) == len(setup.request_keys)
-            for recording, request_keys in zip(recordings, setup.request_keys):
-                requests_dict.update([(key, recording) for key in request_keys])
-        if len(requests_dict) == 1 and requests_dict.keys()[0] is None:
-            requests_dict = requests_dict.values()[0]
-        return requests_dict
+        for seg, setup in zip(recordings.segments, self.simulation_setups):
+            assert len(seg.analogsignals) == len(setup.request_keys)
+            for signal, request_keys in zip(seg.analogsignals, setup.request_keys):
+                requests_dict.update([(key, signal) for key in request_keys])
+        return recordings, requests_dict
 
 
 class CustomSimulation(Simulation):
@@ -147,49 +127,23 @@ class CustomSimulation(Simulation):
         """
         The body of this method is just here for convenience can be overridden if required.
         """
-        self.tune_parameters = tune_parameters
+        raise NotImplementedError("Derived SimpleCustomSimulation class '{}' does not implement "
+                                  "the 'set_tune_parameters' method".format(self.__class__.__name__))         
             
-    def _prepare_simulations(self):
+    def prepare_simulations(self):
         """
         Prepares the simulations that are required by the chosen objective functions
         
         `simulation_setups` -- a of simulation setups [list(Simulation.Setup)]
         """
-        if (len(self.simulation_setups) != 1 or 
-            self.simulation_setups[0].record_variables != [None] or
-            self.simulation_setups[0].conditions is not None):
-            raise Exception("This custom simulation '{}' can only handle default recordings "
-                            "(typically voltage traces from the soma)"
-                            .format(self.__class__.__name__))
-        self.record_time = self.simulation_setups[0].time
+        raise NotImplementedError("Derived SimpleCustomSimulation class '{}' does not implement "
+                                  "the 'prepare_simulations' method".format(self.__class__.__name__)) 
         
-    def _run_all(self, candidate):
+    def run(self, candidate):
         """
-        Wraps the 'simulate' method in a list to be returned to the Simulation.run method
-        
-        `candidate` -- a list of parameters [list(float)]
-        """
-        volt_traces, times = self.simulate(candidate)
-        if not isinstance(volt_traces, list):
-            volt_traces = [volt_traces]
-            times = [times]
-        recordings = []
-        for v, t in volt_traces, times:
-            # If t is a timestep rather than a time vector
-            if isinstance(t, float):
-                sampling_period = t * pq.ms
-                t_start = 0.0 * pq.ms
-                t_stop = t * len(v) * pq.ms
-                rec = neo.AnalogSignal(v, sampling_period=sampling_period, t_start=t_start, 
-                                       t_stop=t_stop, name='custom_simulation', units='mV')
-            else:
-                rec = neo.IrregularlySampledSignal(t, v, units='mV', time_units='ms')
-            recordings.append(rec) 
-        return recordings
-            
-    def simulate(self, candidate):
-        """
-        At a high level - accepts a candidate (a list of cell parameters that are being tuned)
+        Accepts a candidate (a list of cell parameters that are being tuned) and runs the
+        simulations returning a list of a list of recorded variables for each requested variable for
+        each simulation
         
         `candidate` -- a list of parameters [list(float)]
         returns     -- a tuple consisting of a voltage vector and a time vector or timestep

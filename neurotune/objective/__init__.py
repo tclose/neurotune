@@ -11,12 +11,15 @@ class Objective(object):
 
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, time_start=0, time_stop=2000.0):
+    def __init__(self, time_start=0, time_stop=2000.0, exp_conditions=None, 
+                 record_sites=['default']):
         """
         `time_stop` -- the required length of the recording required to evaluate the objective
         """
         self.time_start = time_start
         self.time_stop = time_stop
+        self.exp_conditions = exp_conditions
+        self.record_sites = record_sites
 
     def fitness(self, recordings):
         """
@@ -31,17 +34,26 @@ class Objective(object):
 
     def get_recording_requests(self):
         """
-        Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique keys
-        representing the recordings that are required from the simulation controller
+        Returns a RecordingRequest object or a dictionary of RecordingRequest objects with unique
+        keys representing the recordings that are required from the simulation controller
         """
-        return RecordingRequest(record_time=self.time_stop)
+        requests = {}
+        for site in self.record_sites:
+            requests[site] = RecordingRequest(record_time=self.time_stop, 
+                                              conditions=self.exp_conditions,
+                                              record_variable=site)
+        return requests
 
 
 class DummyObjective(Objective):
     """
-    A dummy objective that returns a constant value of 1 (useful for initial grid searches, which only
-    need to see the recorded traces
+    A dummy objective that returns a constant value of 1 (useful for initial grid searches, which
+    only need to see the recorded traces
     """
-    
+
+    def __init__(self, *args, **kwargs):
+        self.name = kwargs.pop('name', None)
+        super(DummyObjective, self).__init__(*args, **kwargs)
+
     def fitness(self, recordings):  # @UnusedVariable
         return 1

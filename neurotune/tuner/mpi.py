@@ -132,11 +132,11 @@ class MPITuner(Tuner):
             except EvaluationException as e:
                 # Check to see that the size of the recordings isn't very large before attempting
                 # to pass it back over MPI
-                if sys.getsizeof(e.recordings) > 100000:
-                    e.recordings = 'Too large to pass over MPI'
+                if sys.getsizeof(e.requests_dict) > 100000:
+                    e.requests_dict = 'Too large to pass over MPI'
                 # This will tell the master node to raise an EvaluationException and release all
                 # slaves
-                self.comm.send((e.objective, e.candidate, e.recordings, e.traceback), 
+                self.comm.send((e.objective, e.candidate, e.requests_dict, e.traceback), 
                                dest=self.MASTER, tag=self.DATA_MSG)
                 break
             self.comm.send((self.rank, jobID, evaluation), dest=self.MASTER, tag=self.DATA_MSG)
