@@ -11,10 +11,19 @@ import math
 
 class Analysis(object):
     
-    def __init__(self, recordings):
-        self._recordings = recordings
+    def __init__(self, recordings, simulation_setups):
+        self.recordings = recordings
+        self.setups = simulation_setups
+        self._requests = {}
+        for seg, setup in zip(recordings.segments, self.simulation_setups):
+            assert len(seg.analogsignals) == len(setup.request_keys)
+            for signal, request_keys in zip(seg.analogsignals, setup.request_keys):
+                self._requests.update([(key, signal) for key in request_keys])
+                
+    def trace(self, key='default'):
+        return self._requests[key]
 
-    def get_spikes(self):
+    def spikes(self, key='default'):
         raise NotImplementedError
     
 

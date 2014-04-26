@@ -95,6 +95,10 @@ class Simulation():
         At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         
         `candidate` -- a list of parameters [list(float)]
+        
+        Returns:
+            A Neo block object with a segment for each Setup in self.simulation_setups containing
+            an analogsignal for each requested recording 
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"
                                   " method".format(self.__class__.__name__))
