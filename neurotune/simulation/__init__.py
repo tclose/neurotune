@@ -34,6 +34,8 @@ class Simulation():
     
     ## Groups together all the information to interface to and from a requested simulation
     Setup = namedtuple('Setup', "time conditions record_variables request_keys")
+    
+    supported_clamp_types = []
         
     def prepare_simulations(self):
         """
@@ -72,6 +74,10 @@ class Simulation():
         # Merge the common requests into simulation setups
         self.simulation_setups = []
         for conditions, requests_iter in common_conditions:
+            for c in conditions.clamps:
+                if type(c) not in self.supported_clamp_types:
+                    raise Exception("Condition of type {} is not supported by this Simulation "
+                                    "class ({})".format(type(c), self.__class__))
             requests = [r for r in requests_iter]
             # Get the maxium record time in the group
             record_time = max([r[1].record_time for r in requests])

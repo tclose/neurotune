@@ -6,8 +6,6 @@ class ExperimentalConditions(object):
     supported by all simulations, especially custom ones
     """
     
-    class NotSupportedException(Exception): pass
-    
     def __init__(self, initial_v=None, clamps=[]):
         """
         `initial_v` -- the initial voltage of the membrane
