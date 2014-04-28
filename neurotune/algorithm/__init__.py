@@ -61,7 +61,11 @@ class GridAlgorithm(Algorithm):
             num_steps = numpy.empty(self.num_dims, dtype=int)
             num_steps.fill(self.num_steps)
         else:
-            num_steps = self.num_steps
+            if len(self.num_steps) > self.num_dims:
+                raise Exception("Length of the number of steps ({}) list does not match the number "
+                                "of dimensions ({}) provided "
+                                .format(len(self.num_steps), self.num_dims))
+            num_steps = numpy.asarray(self.num_steps, dtype=int)
         # Get the ranges of the parameters using the number of steps
         param_ranges = [numpy.linspace(l, u, n) for (l, u), n in zip(self.constraints, num_steps)]
         if self.num_dims == 1:
