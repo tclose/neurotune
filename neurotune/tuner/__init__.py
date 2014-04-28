@@ -57,7 +57,7 @@ class Tuner(object):
         self.simulation.set_tune_parameters(tune_parameters)
         # Pass recording requests from objective to simulation
         recording_requests = objective.get_recording_requests()
-        self.simulation.process_requests(recording_requests)
+        self.simulation._process_requests(recording_requests)
         
     def tune(self, **kwargs):
         """

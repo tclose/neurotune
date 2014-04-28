@@ -37,27 +37,7 @@ class Simulation():
     
     supported_clamp_types = []
         
-    def prepare_simulations(self):
-        """
-        Prepares the simulations that are required by the chosen objective functions
-        
-        `simulation_setups` -- a of simulation setups [list(Simulation.Setup)]
-        """
-        raise NotImplementedError("Derived Simulation class '{}' does not implement "
-                                  "'_setup_a_simulation' method" .format(self.__class__.__name__))
-            
-    def set_tune_parameters(self, tune_parameters):
-        """
-        Sets the parameters in which the candidate arrays passed to the 'run' method will map to in 
-        respective order
-        
-        `tune_parameters` -- list of parameter names which correspond to the candidate order
-        """
-        raise NotImplementedError("Derived Simulation class '{}' does not implement "
-                                  "'set_tune_parameters' method"
-                                  .format(self.__class__.__name__))
-    
-    def process_requests(self, recording_requests):
+    def _process_requests(self, recording_requests):
         """
         Merge recording requests so that the same recording/simulation doesn't get performed 
         multiple times
@@ -96,19 +76,6 @@ class Simulation():
         # the same experimental conditions are used throughout the evaluation process.
         self.prepare_simulations()
         
-    def run(self, candidate):
-        """
-        At a high level - accepts a candidate (a list of cell parameters that are being tuned)
-        
-        `candidate` -- a list of parameters [list(float)]
-        
-        Returns:
-            A Neo block object with a segment for each Setup in self.simulation_setups containing
-            an analogsignal for each requested recording 
-        """
-        raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"
-                                  " method".format(self.__class__.__name__))
-                  
     def _get_requested_recordings(self, candidate):
         """
         Return the recordings in a dictionary to be returned to the objective functions, so each
@@ -122,41 +89,35 @@ class Simulation():
             assert len(seg.analogsignals) == len(setup.request_keys)
             for signal, request_keys in zip(seg.analogsignals, setup.request_keys):
                 requests_dict.update([(key, signal) for key in request_keys])
-        return recordings, requests_dict
-
-
-class CustomSimulation(Simulation):
-    """
-    A convenient base class for custom simulation objects. Provides record time from requested 
-    recordings
-    """
-    
-    __metaclass__ = ABCMeta # Declare this class abstract to avoid accidental construction
+        return recordings, requests_dict   
         
-    def set_tune_parameters(self, tune_parameters):
-        """
-        The body of this method is just here for convenience can be overridden if required.
-        """
-        raise NotImplementedError("Derived SimpleCustomSimulation class '{}' does not implement "
-                                  "the 'set_tune_parameters' method".format(self.__class__.__name__))         
-            
     def prepare_simulations(self):
         """
-        Prepares the simulations that are required by the chosen objective functions
-        
-        `simulation_setups` -- a of simulation setups [list(Simulation.Setup)]
+        Allows subclasses to prepares the simulations that are required by the chosen objective
+        functions after they have been initially processed
         """
-        raise NotImplementedError("Derived SimpleCustomSimulation class '{}' does not implement "
-                                  "the 'prepare_simulations' method".format(self.__class__.__name__)) 
+        pass
+            
+    def set_tune_parameters(self, tune_parameters):
+        """
+        Sets the parameters in which the candidate arrays passed to the 'run' method will map to in 
+        respective order
         
+        `tune_parameters` -- list of parameter names which correspond to the candidate order
+        """
+        raise NotImplementedError("Derived Simulation class '{}' does not implement "
+                                  "'set_tune_parameters' method"
+                                  .format(self.__class__.__name__))
+
     def run(self, candidate):
         """
-        Accepts a candidate (a list of cell parameters that are being tuned) and runs the
-        simulations returning a list of a list of recorded variables for each requested variable for
-        each simulation
+        At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         
         `candidate` -- a list of parameters [list(float)]
-        returns     -- a tuple consisting of a voltage vector and a time vector or timestep
+        
+        Returns:
+            A Neo block object with a segment for each Setup in self.simulation_setups containing
+            an analogsignal for each requested recording 
         """
-        raise NotImplementedError("Derived SimpleCustomSimulation class '{}' does not implement "
-                                  "the 'simulate' method".format(self.__class__.__name__))                    
+        raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"
+                                  " method".format(self.__class__.__name__))
