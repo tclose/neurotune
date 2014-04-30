@@ -84,8 +84,8 @@ def _get_parameters(args):
         parameters = []
         for comp in bio_model:
             if comp.type == 'ionic-current':
-                lbound = comp.value * (1 - bound_range)
-                ubound = comp.value * (1 + bound_range)
+                lbound = comp.value / bound_range
+                ubound = comp.value * bound_range
                 parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, ubound))
 #                  
 #         parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
