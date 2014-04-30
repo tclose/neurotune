@@ -60,7 +60,7 @@ def _get_objective(args):
     reference_trace = cell.get_recording('v')
     obj_kwargs =  {}
     if args.disable_resampling:
-        obj_kwargs['resample'] = False
+        obj_kwargs['sample_to_bin_ratio'] = False
     if args.objective == 'vanilla':
         objective = PhasePlaneHistObjective(reference_trace, **obj_kwargs)
     elif args.objective == 'convolved':
