@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import neo.core
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller as nineline_controller
 from .__init__ import Simulation
 
@@ -62,7 +63,7 @@ class NineLineSimulation(Simulation):
         
         `candidate` -- a list of parameters [list(float)]
         """
-        recordings = []
+        recordings = neo.core.Block()
         for setup in self.simulation_setups:
             # If there aren't multiple simulation setups the same setup can be reused with just the
             # recorders being reset
@@ -72,7 +73,9 @@ class NineLineSimulation(Simulation):
                 nineline_controller.reset()
             self._set_candidate_params(candidate)
             nineline_controller.run(setup.time)
-            recordings.append(self.cell.get_recording(*zip(*setup.record_variables)))
+            seg = neo.core.Segment()
+            seg.analogsignals.extend(self.cell.get_recording(*zip(*setup.record_variables)))
+            recordings.segments.append(seg)
         return recordings
         
     def _prepare(self, simulation_setup):

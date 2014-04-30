@@ -184,7 +184,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     def bin_size(self):
         return self.range / self.num_bins
 
-    def fitness(self, recordings):
+    def fitness(self, requests_dict):
+        recordings = next(requests_dict.itervalues())
         phase_plane_hist = self._generate_phase_plane_hist(recordings)
         # Get the root-mean-square difference between the reference and simulated histograms
         diff = self.ref_phase_plane_hist - phase_plane_hist

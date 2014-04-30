@@ -42,7 +42,7 @@ parser.add_argument('--output', type=str, default=os.path.join(os.environ['HOME'
 parser.add_argument('--objective', type=str, default='convolved',
                     help="Selects which objective function to use "
                          "('vanilla', 'convolved', 'pointwise')")
-parser.add_argument('--parameter_set', type=str, default='all-gmaxes', nargs='+',
+parser.add_argument('--parameter_set', type=str, default=['all-gmaxes', 3.0], nargs='+',
                     help="Select which parameter set to tune from a few descriptions")
 parser.add_argument('--max_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the algorithm for")
@@ -79,13 +79,17 @@ def _get_parameters(args):
                       ] #1e-5, 3e-5)]
     elif args.parameter_set[0] == 'all-gmaxes':
         bound_range = float(args.parameter_set[1])
+        if bound_range < 1:
+            raise Exception("Bound range for 'all-gmaxes' parameter set must be greater than 1 "
+                            "(found {}) as it is multiplicative")
         from nineml.extensions.biophysics import parse
-        bio_model = parse(args.reference_9ml)
+        bio_model = next(parse(args.reference_9ml).itervalues())
         parameters = []
-        for comp in bio_model:
+        for comp in bio_model.components.itervalues():
             if comp.type == 'ionic-current':
-                lbound = comp.value * (1 - bound_range)
-                ubound = comp.value * (1 + bound_range)
+                gbar = float(comp.parameters['g'].value)
+                lbound = gbar / bound_range
+                ubound = gbar * bound_range
                 parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, ubound))
 #                  
 #         parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
