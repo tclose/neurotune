@@ -27,7 +27,8 @@ class Tuner(object):
     """
     Base Tuner object that contains the three components (objective function, algorithm and 
     simulation objects) and runs the algorithm
-    """    
+    """
+    num_processes = 1
     
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)

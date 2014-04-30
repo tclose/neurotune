@@ -91,20 +91,6 @@ def _get_parameters(args):
                 lbound = gbar / bound_range
                 ubound = gbar * bound_range
                 parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, ubound))
-#                  
-#         parameters = [Parameter('soma.KA.gbar', 'S/cm^2', 0.0008, 0.08),
-#                       Parameter('soma.HCN2.gbar', 'S/cm^2', 8e-06, 0.0008),
-#                       Parameter('soma.KCa.gbar', 'S/cm^2', 0.0003, 0.03),
-#                       Parameter('soma.Lkg.gbar', 'S/cm^2', 2.1e-06, 0.00021),
-#                       Parameter('soma.SK2.gbar', 'S/cm^2', 0.0038, 0.38),
-#                       Parameter('soma.HCN1.gbar', 'S/cm^2', 5e-06, 0.0005),
-#                       Parameter('soma.NaBase.gbar', 'S/cm^2', 0.0048, 0.48),
-#                       Parameter('soma.KM.gbar', 'S/cm^2', 0.0001, 0.01),
-#                       Parameter('soma.NaR.gbar', 'S/cm^2', 0.00017, 0.017),
-#                       Parameter('soma.NaP.gbar', 'S/cm^2', 1.9e-05, 0.0019),
-#                       Parameter('soma.KV.gbar', 'S/cm^2', 0.0032, 0.32),
-#                       Parameter('soma.CaHVA.gbar', 'S/cm^2', 4.6e-05, 0.0046),
-#                       Parameter('soma.CaLVA.gbar', 'S/cm^2', 2.5e-05, 0.0025)]
     else:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
                         "('original', 'all-gmaxes').".format(args.parameter_set))
@@ -119,7 +105,7 @@ def _get_simulation(args, parameters=None, objective=None):
     return simulation
 
 def run(args):
-        # Instantiate the tuner
+    # Instantiate the tuner
     tuner = Tuner(_get_parameters(args),
                   _get_objective(args),
                   EDAAlgorithm(max_generations=args.max_generations, 
@@ -164,6 +150,10 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    if Tuner.num_processes > args.population_size - 1:
+        args.population_size = Tuner.num_processes - 1
+        print ("Warning population size was automatically increased to {} in order to "
+               "match the number of processes".format(args.population_size))
     if args.plot:
         plot(args)
     else:
