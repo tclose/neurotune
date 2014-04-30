@@ -150,7 +150,7 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if Tuner.num_processes > args.population_size - 1:
+    if (Tuner.num_processes - 1) > args.population_size:
         args.population_size = Tuner.num_processes - 1
         print ("Warning population size was automatically increased to {} in order to "
                "match the number of processes".format(args.population_size))
