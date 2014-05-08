@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 import os
+import collections
 import traceback
 import cPickle as pkl
 import neo.io
@@ -30,6 +31,8 @@ class Tuner(object):
     """
     num_processes = 1
     
+    SaveRecordingsTuple = collections.namedtuple('SaveRecordingsTuple', 'dir ext prefix neo_io')
+    
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
     
@@ -48,11 +51,30 @@ class Tuner(object):
         self.algorithm = algorithm
         self.simulation = simulation
         self.verbose = verbose
-        self.save_recordings = save_recordings
-        if self.save_recordings:
-            if not os.path.exists(self.save_recordings):
-                os.makedirs(self.save_recordings)
-            print "Recordings will be saved to '{}' directory".format(save_recordings)
+        if save_recordings:
+            rec_dir = os.path.dirname(save_recordings)
+            rec_prefix = os.path.basename(save_recordings)
+            if rec_prefix.startswith('.'):
+                rec_ext = rec_prefix
+                rec_prefix = ''
+            else:
+                rec_prefix, rec_ext = os.path.splitext(rec_prefix)
+                if not rec_ext:
+                    rec_ext = '.pkl'
+            if rec_ext == '.pkl':
+                rec_io = neo.io.pickleio.PickleIO
+            elif rec_ext == '.h5':
+                rec_io = neo.io.hdf5io.NeoHdf5IO
+            else:
+                raise Exception("Unrecognised Neo extention '{}' for saving recordings"
+                                .format(rec_ext))
+            self.save_recordings = self.SaveRecordingsTuple(rec_dir, '.neo' + rec_ext, rec_prefix, 
+                                                            rec_io)
+            if not os.path.exists(rec_dir):
+                os.makedirs(rec_dir)
+            print "Recordings will be saved to '{}' directory".format(rec_dir)
+        else:
+            self.save_recordings = None
         # Register tuneable parameters
         self.algorithm.set_tune_parameters(tune_parameters)
         self.simulation.set_tune_parameters(tune_parameters)
@@ -75,13 +97,14 @@ class Tuner(object):
         try:
             recordings, requests_dict = self.simulation._get_requested_recordings(candidate)
             if self.save_recordings:
-                fname = '_'.join(['{}={}'.format(p.name, c)
-                                  for p, c in zip(self.tune_parameters, candidate)]) + '.neo.pkl'
-                fpath = os.path.join(self.save_recordings, fname)
+                fname = (self.save_recordings.prefix + 
+                         ','.join(['{}={}'.format(p.name, c)
+                                   for p, c in zip(self.tune_parameters, candidate)]) + 
+                         self.save_recordings.ext)
+                fpath = os.path.join(self.save_recordings.dir, fname)
                 if os.path.exists(fpath):
                     os.remove(fpath)
-                io = neo.io.pickleio.PickleIO(fpath)
-                io.write(recordings)
+                self.save_recordings.neo_io(fpath).write(recordings)
             fitness = self.objective.fitness(requests_dict)
         except Exception:
             if __debug__:
