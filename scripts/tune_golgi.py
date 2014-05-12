@@ -99,9 +99,9 @@ def _get_parameters(args):
 def _get_simulation(args, parameters=None, objective=None):
     simulation = NineLineSimulation(args.to_tune_9ml, build_mode=args.build)
     if parameters is not None:
-        simulation._set_tuneable_parameters(parameters)
+        simulation.set_tune_parameters(parameters)
     if objective is not None:
-        simulation.process_requests(objective.get_recording_requests())
+        simulation._process_requests(objective.get_recording_requests())
     return simulation
 
 def run(args):
@@ -127,14 +127,19 @@ def run(args):
 def plot(args):
     from matplotlib import pyplot as plt
     with open(args.plot) as f:
-        candidates = pkl.load(f) 
+        candidates = pkl.load(f)
+#     candidate = candidates[-1].candidate
+    candidate = candidates
     parameters = _get_parameters(args)
     objective = _get_objective(args)
     simulation = _get_simulation(args, parameters=parameters, objective=objective)
-    fittest_recording = simulation.run(candidates[-1].candidate)
-    plt.plot(fittest_recording)
+    fittest_recordings = simulation.run(candidate)
+    rec = fittest_recordings.segments[0].analogsignals[0]
+    with open(os.path.join(os.path.dirname(args.plot), 'recording2.pkl'), 'w') as f:
+        pkl.dump((rec,objective.reference_traces[0]) , f)
+    plt.plot(rec)
     plt.plot(objective.reference_traces[0])
-    objective.plot_hist(fittest_recording, diff=True, show=False)
+    objective.plot_hist(rec, diff=True, show=False)
     plt.show()
     
 def prepare_work_dir(work_dir, args):
