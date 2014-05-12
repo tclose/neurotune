@@ -13,7 +13,7 @@ class NineLineSimulation(Simulation):
         """
         # Generate the NineLine class from the nineml file and initialise a single cell from it
         self.cell_9ml = cell_9ml
-        self.celltype = NineCellMetaClass(cell_9ml)
+        self.celltype = NineCellMetaClass(cell_9ml, build_mode=build_mode)
         self.default_seg = self.celltype().source_section.name     
         
     def set_tune_parameters(self, tune_parameters):
