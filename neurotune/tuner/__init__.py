@@ -70,8 +70,11 @@ class Tuner(object):
                                 .format(rec_ext))
             self.save_recordings = self.SaveRecordingsTuple(rec_dir, '.neo' + rec_ext, rec_prefix, 
                                                             rec_io)
-            if not os.path.exists(rec_dir):
+            try:
                 os.makedirs(rec_dir)
+            except OSError as e:
+                if e.errno != 17: # If directory already exists ignore the exception
+                    raise
             print "Recordings will be saved to '{}' directory".format(rec_dir)
         else:
             self.save_recordings = None
