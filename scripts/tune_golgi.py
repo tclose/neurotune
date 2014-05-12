@@ -50,7 +50,7 @@ parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
 parser.add_argument('--algorithm', type=str, default='evolution_strategy', 
                     help="The type of algorithm used for the tuning (default: %(default)s)")
-parser.add_argument('--evolve_arg', nargs=2, action='append',
+parser.add_argument('--evolve_arg', nargs=2, action='append', default=[],
                     help="Extra arguments to be passed to the algorithm")
 parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
  
