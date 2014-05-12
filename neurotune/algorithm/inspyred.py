@@ -1,72 +1,69 @@
+"""
+This module represents a thin wrapper around the evolutionary algorithms provided by the inspyred
+library (https://pypi.python.org/pypi/inspyred)
+"""
 from __future__ import absolute_import
+import os.path
 from abc import ABCMeta  # Metaclass for abstract base classes
-from random import Random
 from time import time
+from random import Random
 from inspyred import ec
-from inspyred.ec import observers
-from inspyred.ec import terminators
-from inspyred.ec import replacers
-from inspyred.ec import variators
-from .__init__ import Algorithm
+from . import Algorithm
 
 
 class InspyredAlgorithm(Algorithm):
     """
-    Base class for inspyred (https://pypi.python.org/pypi/inspyred) evolutionary algorithms based 
-    algorithm objects
+    Base class for inspyred evolutionary algorithms based algorithm objects
     """
 
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
-    def __init__(self, population_size=100, max_generations=100, mutation_rate=None,
-                 num_elites=None, stdev=None, terminator=terminators.generation_termination,
-                 variator=[variators.blend_crossover, variators.gaussian_mutation],
-                 observer=observers.file_observer, seeds=None,
-                 random_seed=None, replacer=replacers.random_replacement, allow_identical=True, 
-                 stats_filename=None, indiv_filename=None,
-                 **kwargs):
+    _ea_attribute_names = ['selector', 'variator', 'replacer', 'migrator', 'archiver', 'observer',
+                           'terminator', 'logger'] 
+
+# terminator=terminators.generation_termination,
+# variator=[variators.blend_crossover, variators.gaussian_mutation],
+# observer=observers.file_observer, 
+
+    def __init__(self, population_size=100, max_generations=100, seeds=None, random_seed=None, 
+                 output_dir=os.getcwd(), **kwargs):
         """
-        `max_iterations`  -- the maximum number of iterations to perform
+        `max_generations` -- the maximum number of iterations to perform
+        `seeds`           -- initial starting states of the algorithm
         `random_seed`     -- the seed to initialise the candidates with
         `stats_filename`  -- the name of the file to save the generation-based statistics in
         `indiv_filename`  -- the name of the file to save the candidate parameters in
         `kwargs`          -- optional arguments to be passed to the optimisation algorithm
         """
+        self.ea_attributes = {}
+        for key in self._ea_attribute_names:
+            if kwargs.has_key(key):
+                self.ea_attributes = kwargs.pop(key)
         self.population_size = population_size
-        self.max_generations = max_generations
-        self.mutation_rate = mutation_rate
-        self.num_elites = num_elites
-        self.stdev = stdev
-        self.observer = observer
-        self.variator = variator
-        self.terminator = terminator
-        self.replacer = replacer
-        self.allow_indentical = allow_identical
-        self.set_seeds(seeds)
+        self.evolve_args = kwargs
+        self.evolve_args['max_generations'] = max_generations
         self._rng = Random()
+        self.output_dir=output_dir
         self.set_random_seed(random_seed)
-        self.evolve_kwargs = kwargs
-        self.stats_filename=stats_filename
-        self.indiv_filename=indiv_filename
+        self.set_seeds(seeds)
 
     def optimize(self, evaluator, **kwargs):
         ea = self._InspyredClass(self._rng)
-        ea.observer, ea.variator, ea.terminator = self.observer, self.variator, self.terminator
-        self._open_readout_files(self.stats_filename, self.indiv_filename, kwargs)
-        pop = ea.evolve(generator=self.uniform_random_chromosome,
-                        evaluator=evaluator,
-                        pop_size=self.population_size,
-                        bounder=ec.Bounder(*zip(*self.constraints)),
-                        maximize=False,
-                        seeds=self.seeds,
-                        max_generations=self.max_generations,
-                        mutation_rate=self.mutation_rate,
-                        num_elites=self.num_elites,
-                        replacer=self.replacer,
-                        stdev=self.stdev,
-                        allow_indetical=self.allow_indentical,
-                        **self.evolve_kwargs)
-        self._close_readout_files()
+        for key, val in self.ea_attributes.iteritems():
+            setattr(ea, key, val)
+        evolve_kwargs = self.evolve_args
+        evolve_kwargs.update(kwargs)
+        with open(os.path.join(self.output_dir, 'statistics.txt'), 'w') as stats_file, \
+             open(os.path.join(self.output_dir, 'individuals.txt'), 'w') as indiv_file:
+            pop = ea.evolve(generator=self.uniform_random_chromosome,
+                            evaluator=evaluator,
+                            pop_size=self.population_size,
+                            bounder=ec.Bounder(*zip(*self.constraints)),
+                            maximize=False,
+                            seeds=self.seeds,
+                            statistics_file=stats_file,
+                            individual_file=indiv_file,
+                            **evolve_kwargs)
         return pop, ea
 
     def set_random_seed(self, seed=None):
@@ -76,33 +73,6 @@ class InspyredAlgorithm(Algorithm):
 
     def set_seeds(self, seeds):
         self.seeds = seeds
-        
-    def print_report(self, final_pop, do_plot, stat_file_name):
-        print(max(final_pop))
-        # Sort and print the fitest individual, which will be at index 0.
-        final_pop.sort(reverse=True)
-        print '\nfitest individual:'
-        print(final_pop[0])
-
-        if do_plot:
-            from inspyred.ec import analysis
-            analysis.generation_plot(stat_file_name, errorbars=False)    
-
-    def _open_readout_files(self, stats_filename, indiv_filename, kwargs):
-        if stats_filename:
-            self.stats_file = kwargs['statistics_file'] = open(stats_filename, 'w')
-        else:
-            self.stats_file = None
-        if indiv_filename:
-            self.indiv_file = kwargs['individual_file'] = open(indiv_filename, 'w')
-        else:
-            self.indiv_file = None
-            
-    def _close_readout_files(self):
-        if self.stats_file:
-            self.stats_file.close()
-        if self.indiv_file:
-            self.indiv_file.close()
 
 
 class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
@@ -119,6 +89,14 @@ class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
         
 class GAAlgorithm(InspyredAlgorithm):
     """
+    Evolutionary computation representing a canonical genetic algorithm.
+
+    This class represents a genetic algorithm which uses, by default, rank selection, n-point
+    crossover, bit-flip mutation, and generational replacement. In the case of bit-flip mutation, it
+    is expected that each candidate solution is a Sequence of binary values.
+    
+    Optional keyword arguments in evolve args parameter:
+    
     num_selected – the number of individuals to be selected (default len(population))
     crossover_rate – the rate at which crossover is performed (default 1.0)
     num_crossover_points – the n crossover points used (default 1)
@@ -156,9 +134,7 @@ class ESAlgorithm(InspyredAlgorithm):
     If tau is None, it will be set to 1 / sqrt(2 * sqrt(n)), where n is the length of a candidate. 
     If tau_prime is None, it will be set to 1 / sqrt(2 * n). The strategy parameters are updated as 
     follows:
-     
-    σ′i=σi+eτ⋅N(0,1)+τ′⋅N(0,1)
-    σ′i=max(σ′i,ϵ)
+
     """
     _InspyredClass = ec.ES
     
