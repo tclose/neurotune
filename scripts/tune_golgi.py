@@ -13,7 +13,7 @@ from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective, 
                                              ConvPhasePlaneHistObjective, 
                                              PhasePlanePointwiseObjective)
-from neurotune.algorithm.inspyred import EDAAlgorithm
+from neurotune.algorithm.inspyred import *  # @UnusedWildImport
 
 from neurotune.simulation.nineline import NineLineSimulation
 try:
@@ -48,6 +48,10 @@ parser.add_argument('--max_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the algorithm for")
 parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
+parser.add_argument('--algorithm', type=str, default='evolution_strategy', 
+                    help="The type of algorithm used for the tuning (default: %(default)s)")
+parser.add_argument('--evolve_arg', nargs=2, action='append',
+                    help="Extra arguments to be passed to the algorithm")
 parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
  
 #objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
@@ -71,6 +75,26 @@ def _get_objective(args):
         raise Exception("Unrecognised objective '{}' passed to '--objective' option"
                         .format(args.objective))
     return objective
+
+def _get_algorithm(args):
+    if args.algorithm == 'genetic':
+        Algorithm = GAAlgorithm
+    elif args.algorithm == 'estimation_distr':
+        Algorithm = EDAAlgorithm
+    elif args.algorithm == 'evolution_strategy':
+        Algorithm = ESAlgorithm
+    elif args.algorithm == 'differential':
+        Algorithm = DEAAlgorithm
+    elif args.algorithm == 'simulated_annealing':
+        Algorithm = SAAlgorithm
+    elif args.algorithm == 'nsga2':
+        Algorithm = NSGA2Algorithm
+    elif args.algorithm == 'pareto_archived':
+        Algorithm = PAESAlgorithm
+    else:
+        raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
+    return Algorithm(max_generations=args.max_generations, population_size=args.population_size, 
+                     **dict(args.evolve_arg))
         
 def _get_parameters(args):
     # The parameters to be tuned by the tuner
@@ -108,8 +132,7 @@ def run(args):
     # Instantiate the tuner
     tuner = Tuner(_get_parameters(args),
                   _get_objective(args),
-                  EDAAlgorithm(max_generations=args.max_generations, 
-                               population_size=args.population_size),
+                  _get_algorithm(args),
                   _get_simulation(args))
     # Run the tuner
     try:
@@ -128,7 +151,6 @@ def plot(args):
     from matplotlib import pyplot as plt
     with open(args.plot) as f:
         candidates = pkl.load(f)
-#     candidate = candidates[-1].candidate
     candidate = candidates
     parameters = _get_parameters(args)
     objective = _get_objective(args)

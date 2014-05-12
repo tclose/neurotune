@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 This module represents a thin wrapper around the evolutionary algorithms provided by the inspyred
 library (https://pypi.python.org/pypi/inspyred)
@@ -86,7 +87,7 @@ class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
         super(MultiObjectiveInspyredAlgorithm, self).optimize(lambda c: ec.emo.Pareto(evaluator(c)),
                                                               **kwargs)
             
-        
+    
 class GAAlgorithm(InspyredAlgorithm):
     """
     Evolutionary computation representing a canonical genetic algorithm.
@@ -98,7 +99,7 @@ class GAAlgorithm(InspyredAlgorithm):
     Optional keyword arguments in evolve args parameter:
     
     num_selected – the number of individuals to be selected (default len(population))
-    crossover_rate – the rate at which crossover is performed (default 1.0)
+    crossover_rate - the rate at which crossover is performed (default 1.0)
     num_crossover_points – the n crossover points used (default 1)
     mutation_rate – the rate at which mutation is performed (default 0.1)
     num_elites – number of elites to consider (default 0)
@@ -128,9 +129,22 @@ class EDAAlgorithm(InspyredAlgorithm):
 
 class ESAlgorithm(InspyredAlgorithm):
     """
+    Evolutionary computation representing a canonical evolution strategy.
+
+    This class represents an evolution strategy which uses, by default, the default selection (i.e.,
+    all individuals are selected), an internal adaptive mutation using strategy parameters, and 
+    ‘plus’ replacement. It is expected that each candidate solution is a Sequence of real values.
+     
+    The candidate solutions to an ES are augmented by strategy parameters of the same length (using
+    inspyred.ec.generators.strategize). These strategy parameters are evolved along with the candidates
+    and are used as the mutation rates for each element of the candidates. The evaluator is modified
+    internally to use only the actual candidate elements (rather than also the strategy parameters), so
+    normal evaluator functions may be used seamlessly.
+    
     tau – a proportionality constant (default None)
     tau_prime – a proportionality constant (default None)
     epsilon – the minimum allowed strategy parameter (default 0.00001)
+    
     If tau is None, it will be set to 1 / sqrt(2 * sqrt(n)), where n is the length of a candidate. 
     If tau_prime is None, it will be set to 1 / sqrt(2 * n). The strategy parameters are updated as 
     follows:
@@ -202,4 +216,5 @@ class PAESAlgorithm(MultiObjectiveInspyredAlgorithm):
     replacement process.
     """
     _InspyredClass = ec.emo.PAES
+  
     
