@@ -22,10 +22,6 @@ class InspyredAlgorithm(Algorithm):
     _ea_attribute_names = ['selector', 'variator', 'replacer', 'migrator', 'archiver', 'observer',
                            'terminator', 'logger'] 
 
-# ,
-# variator=[variators.blend_crossover, variators.gaussian_mutation],
-# , 
-
     def __init__(self, pop_size, max_generations=100,
                  seeds=None, random_seed=None, output_dir=os.getcwd(), **kwargs):
         """

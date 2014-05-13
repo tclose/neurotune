@@ -102,6 +102,7 @@ def _get_algorithm(args):
                      max_generations=args.num_generations,
                      terminator=ec.terminators.generation_termination,
                      observer=[ec.observers.best_observer, ec.observers.file_observer],
+                     variator=[ec.variators.blend_crossover, ec.variators.gaussian_mutation],
                      output_dir=os.path.dirname(args.output), **dict(args.optimize_argument))
         
 def _get_parameters(args):
