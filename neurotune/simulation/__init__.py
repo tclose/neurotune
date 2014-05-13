@@ -52,7 +52,7 @@ class Simulation():
         request_items.sort(key=lambda x: x[1].conditions)
         common_conditions = groupby(request_items, key=lambda x: x[1].conditions)
         # Merge the common requests into simulation setups
-        self.simulation_setups = []
+        self._simulation_setups = []
         for conditions, requests_iter in common_conditions:
             if conditions is not None:
                 for c in conditions.clamps:
@@ -71,11 +71,18 @@ class Simulation():
             # Get the list of request keys for each requested recording
             request_keys = [zip(*com_record)[0] for com_record in requests_iters]
             # Append the simulation request to the 
-            self.simulation_setups.append(self.Setup(record_time, conditions, 
+            self._simulation_setups.append(self.Setup(record_time, conditions, 
                                                      list(record_variables), request_keys))
         # Do initial preparation for simulation (how much preparation can be done depends on whether
         # the same experimental conditions are used throughout the evaluation process.
         self.prepare_simulations()
+        
+    @property
+    def setups(self):
+        try:
+            return self._simulation_setups
+        except AttributeError:
+            raise Exception("Simulations have not been requested by objective function yet")
         
     def _get_requested_recordings(self, candidate):
         """
@@ -86,7 +93,7 @@ class Simulation():
         """
         recordings = self.run(candidate)
         requests_dict = {}
-        for seg, setup in zip(recordings.segments, self.simulation_setups):
+        for seg, setup in zip(recordings.segments, self._simulation_setups):
             assert len(seg.analogsignals) == len(setup.request_keys)
             for signal, request_keys in zip(seg.analogsignals, setup.request_keys):
                 requests_dict.update([(key, signal) for key in request_keys])
@@ -117,7 +124,7 @@ class Simulation():
         `candidate` -- a list of parameters [list(float)]
         
         Returns:
-            A Neo block object with a segment for each Setup in self.simulation_setups containing
+            A Neo block object with a segment for each Setup in self._simulation_setups containing
             an analogsignal for each requested recording 
         """
         raise NotImplementedError("Derived Simulation class '{}' does not implement _run_simulation"

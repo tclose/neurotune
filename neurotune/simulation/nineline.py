@@ -33,7 +33,7 @@ class NineLineSimulation(Simulation):
         """
         # Parse all recording sites into a tuple containing the variable name, segment name and 
         # component names
-        for setup in self.simulation_setups:
+        for setup in self._simulation_setups:
             for i, rec in enumerate(setup.record_variables):
                 if rec is None:
                     var = 'v' # Records the voltage in the default segment by default
@@ -54,8 +54,8 @@ class NineLineSimulation(Simulation):
         # Check to see if there are multiple setups, because if there aren't the cell can be 
         # initialised (they can't in general if there are multiple as there is only ever one 
         # instance of NEURON running)        
-        if len(self.simulation_setups) == 1:
-            self._prepare(self.simulation_setups[0])            
+        if len(self._simulation_setups) == 1:
+            self._prepare(self._simulation_setups[0])            
 
     def run(self, candidate):
         """
@@ -64,10 +64,10 @@ class NineLineSimulation(Simulation):
         `candidate` -- a list of parameters [list(float)]
         """
         recordings = neo.core.Block()
-        for setup in self.simulation_setups:
+        for setup in self._simulation_setups:
             # If there aren't multiple simulation setups the same setup can be reused with just the
             # recorders being reset
-            if len(self.simulation_setups) != 1:
+            if len(self._simulation_setups) != 1:
                 self._prepare(setup)
             else:
                 nineline_controller.reset()

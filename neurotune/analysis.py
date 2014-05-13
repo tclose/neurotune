@@ -8,24 +8,51 @@ AUTHOR: Mike Vella vellamike@gmail.com
 import scipy.stats
 import numpy as np
 import math
+from copy import copy
 
 class Analysis(object):
     
     def __init__(self, recordings, simulation_setups):
         self.recordings = recordings
-        self.setups = simulation_setups
+        self._simulation_setups = simulation_setups
         self._requests = {}
-        for seg, setup in zip(recordings.segments, self.simulation_setups):
+        for seg, setup in zip(recordings.segments, self._simulation_setups):
             assert len(seg.analogsignals) == len(setup.request_keys)
-            for signal, request_keys in zip(seg.analogsignals, setup.request_keys):
-                self._requests.update([(key, signal) for key in request_keys])
+            for trace, request_keys in zip(seg.analogsignals, setup.request_keys):
+                self._requests.update([(key, Signal(trace)) for key in request_keys])
+        self._prepend_key = None
                 
-    def trace(self, key='default'):
+    def __getitem__(self, key='default'):
+        if self._prepend_key is not None:
+            key = self._prepend_key + (key,)
         return self._requests[key]
-
-    def spikes(self, key='default'):
-        raise NotImplementedError
     
+    def get_objective_specific_analysis(self, objective_key):
+        """
+        Returns a copy of the current analysis in which the objvective specific analysis is 
+        automatically prepended to the key requests, so it is transparent to objective components 
+        of multi-objective functions that they are part of a multi-objective object.
+        """
+        specific_analysis = copy(self)
+        specific_analysis._prepend_key = (objective_key,)
+        
+        
+class Signal(object):
+    
+    def __init__(self, trace):
+        self._trace = trace
+        self._spikes = {}
+    
+    @property
+    def trace(self):
+        return self._trace
+    
+    def spikes(self, threshold=10.0, threshold_type='dvdt'):
+        if not self._spikes.has_key((threshold, threshold_type)):
+            self._spikes[(threshold, threshold_type)] = self._detect_spikes(threshold, 
+                                                                            threshold_type)
+        return self._spikes[(threshold, threshold_type)]
+            
 
 def smooth(x,window_len=11,window='hanning'):
     """Smooth the data using a window with requested size.

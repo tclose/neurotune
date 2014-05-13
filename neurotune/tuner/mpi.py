@@ -144,7 +144,6 @@ class MPITuner(Tuner):
         if self.mpi_verbose:
             print "Stopping listening on process {}".format(self.rank)
 
-
     def _release_slaves(self):
         """
         Release slave nodes from listening to new candidates to evaluate

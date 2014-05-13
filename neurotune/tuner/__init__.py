@@ -4,7 +4,7 @@ import collections
 import traceback
 import cPickle as pkl
 import neo.io
-
+from ..analysis import Analysis
 
 class EvaluationException(Exception):
     
@@ -31,7 +31,7 @@ class Tuner(object):
     """
     num_processes = 1
     
-    SaveRecordingsTuple = collections.namedtuple('SaveRecordingsTuple', 'dir ext prefix neo_io')
+    SaveRecordingsTuple = collections.namedtuple('SaveRecordingsTuple', 'dir ext prefix io')
     
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
@@ -98,7 +98,7 @@ class Tuner(object):
         if self.verbose:
             print "Evaluating candidate {}".format(candidate)
         try:
-            recordings, requests_dict = self.simulation._get_requested_recordings(candidate)
+            recordings = self.simulation.run(candidate)
             if self.save_recordings:
                 fname = (self.save_recordings.prefix + 
                          ','.join(['{}={}'.format(p.name, c)
@@ -107,16 +107,17 @@ class Tuner(object):
                 fpath = os.path.join(self.save_recordings.dir, fname)
                 if os.path.exists(fpath):
                     os.remove(fpath)
-                self.save_recordings.neo_io(fpath).write(recordings)
-            fitness = self.objective.fitness(requests_dict)
+                self.save_recordings.io(fpath).write(recordings)
+            analysis = Analysis(recordings, self.simulation.setups)
+            fitness = self.objective.fitness(analysis)
         except Exception:
             if __debug__:
                 raise
             else:
                 # Check to see whether the candidate was recorded properly before the error
-                if 'requests_dict' not in locals().keys():
-                    requests_dict = None
-                raise EvaluationException(self.objective, candidate, requests_dict)
+                if not locals().has_key('analysis'):
+                    analysis = None
+                raise EvaluationException(self.objective, candidate, analysis)
         return fitness
             
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
