@@ -79,7 +79,7 @@ class InspyredAlgorithm(Algorithm):
                         maximize=False,
                         seeds=self.seeds,
                         **evolve_kwargs)
-        if self.output_dir:
+        if self._has_file_observer():
             evolve_kwargs['statistics_file'].close()
             evolve_kwargs['individuals_file'].close()
         return pop, ea
