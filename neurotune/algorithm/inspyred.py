@@ -22,25 +22,25 @@ class InspyredAlgorithm(Algorithm):
     _ea_attribute_names = ['selector', 'variator', 'replacer', 'migrator', 'archiver', 'observer',
                            'terminator', 'logger'] 
 
-# terminator=terminators.generation_termination,
+# ,
 # variator=[variators.blend_crossover, variators.gaussian_mutation],
-# observer=observers.file_observer, 
+# , 
 
-    def __init__(self, population_size=100, max_generations=100, seeds=None, random_seed=None, 
-                 output_dir=os.getcwd(), **kwargs):
+    def __init__(self, pop_size, max_generations=100,
+                 seeds=None, random_seed=None, output_dir=os.getcwd(), **kwargs):
         """
-        `max_generations` -- the maximum number of iterations to perform
+        `pop_size`        -- the size of the population in each generation
+        `max_generations` -- places a limit on the maximum number of generations 
         `seeds`           -- initial starting states of the algorithm
         `random_seed`     -- the seed to initialise the candidates with
-        `stats_filename`  -- the name of the file to save the generation-based statistics in
-        `indiv_filename`  -- the name of the file to save the candidate parameters in
+        `output_dir`      -- the path of the directory to save the optimisation statistics in
         `kwargs`          -- optional arguments to be passed to the optimisation algorithm
         """
         self.ea_attributes = {}
         for key in self._ea_attribute_names:
             if kwargs.has_key(key):
-                self.ea_attributes = kwargs.pop(key)
-        self.population_size = population_size
+                self.ea_attributes[key] = kwargs.pop(key)
+        self.pop_size = pop_size
         self.evolve_args = kwargs
         self.evolve_args['max_generations'] = max_generations
         self._rng = Random()
@@ -58,7 +58,7 @@ class InspyredAlgorithm(Algorithm):
              open(os.path.join(self.output_dir, 'individuals.txt'), 'w') as indiv_file:
             pop = ea.evolve(generator=self.uniform_random_chromosome,
                             evaluator=evaluator,
-                            pop_size=self.population_size,
+                            pop_size=self.pop_size,
                             bounder=ec.Bounder(*zip(*self.constraints)),
                             maximize=False,
                             seeds=self.seeds,
