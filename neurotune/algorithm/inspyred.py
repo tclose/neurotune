@@ -5,6 +5,7 @@ library (https://pypi.python.org/pypi/inspyred)
 """
 from __future__ import absolute_import
 import os.path
+from copy import copy
 from abc import ABCMeta  # Metaclass for abstract base classes
 from time import time
 from random import Random
@@ -20,10 +21,15 @@ class InspyredAlgorithm(Algorithm):
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
     _ea_attribute_names = ['selector', 'variator', 'replacer', 'migrator', 'archiver', 'observer',
-                           'terminator', 'logger'] 
+                           'terminator', 'logger']
+    
+    _default_ea_attributes = {'terminator':ec.terminators.generation_termination,
+                              'observer':[ec.observers.best_observer, ec.observers.file_observer],
+                              'variator':[ec.variators.blend_crossover,  # @UndefinedVariable
+                                          ec.variators.gaussian_mutation]}  # @UndefinedVariable
 
-    def __init__(self, pop_size, max_generations=100,
-                 seeds=None, random_seed=None, output_dir=os.getcwd(), **kwargs):
+    def __init__(self, pop_size, max_generations=100, seeds=None, random_seed=None, 
+                 output_dir=None, **kwargs):
         """
         `pop_size`        -- the size of the population in each generation
         `max_generations` -- places a limit on the maximum number of generations 
@@ -32,7 +38,7 @@ class InspyredAlgorithm(Algorithm):
         `output_dir`      -- the path of the directory to save the optimisation statistics in
         `kwargs`          -- optional arguments to be passed to the optimisation algorithm
         """
-        self.ea_attributes = {}
+        self.ea_attributes = copy(self._default_ea_attributes)
         for key in self._ea_attribute_names:
             if kwargs.has_key(key):
                 self.ea_attributes[key] = kwargs.pop(key)
@@ -40,6 +46,9 @@ class InspyredAlgorithm(Algorithm):
         self.evolve_args = kwargs
         self.evolve_args['max_generations'] = max_generations
         self._rng = Random()
+        if self._has_file_observer():
+            if output_dir is None:
+                output_dir = os.getcwd()
         self.output_dir=output_dir
         self.set_random_seed(random_seed)
         self.set_seeds(seeds)
@@ -50,17 +59,29 @@ class InspyredAlgorithm(Algorithm):
             setattr(ea, key, val)
         evolve_kwargs = self.evolve_args
         evolve_kwargs.update(kwargs)
-        with open(os.path.join(self.output_dir, 'statistics.csv'), 'w') as stats_file, \
-             open(os.path.join(self.output_dir, 'individuals.csv'), 'w') as indiv_file:
-            pop = ea.evolve(generator=self.uniform_random_chromosome,
-                            evaluator=evaluator,
-                            pop_size=self.pop_size,
-                            bounder=ec.Bounder(*zip(*self.constraints)),
-                            maximize=False,
-                            seeds=self.seeds,
-                            statistics_file=stats_file,
-                            individual_file=indiv_file,
-                            **evolve_kwargs)
+        if self._has_file_observer():
+            if kwargs.has_key('output_dir'):
+                output_dir = kwargs.pop('output_dir')
+            else:
+                output_dir = self.output_dir
+            stats_path = os.path.join(output_dir, 'statistics.csv')
+            indiv_path = os.path.join(output_dir, 'individuals.csv')
+            if os.path.exists(stats_path):
+                os.remove(stats_path)
+            if os.path.exists(indiv_path):
+                os.remove(indiv_path)
+            evolve_kwargs['statistics_file'] = open(stats_path, 'w') 
+            evolve_kwargs['individuals_file'] = open(indiv_path, 'w')
+        pop = ea.evolve(generator=self.uniform_random_chromosome,
+                        evaluator=evaluator,
+                        pop_size=self.pop_size,
+                        bounder=ec.Bounder(*zip(*self.constraints)),
+                        maximize=False,
+                        seeds=self.seeds,
+                        **evolve_kwargs)
+        if self.output_dir:
+            evolve_kwargs['statistics_file'].close()
+            evolve_kwargs['individuals_file'].close()
         return pop, ea
 
     def set_random_seed(self, seed=None):
@@ -70,6 +91,11 @@ class InspyredAlgorithm(Algorithm):
 
     def set_seeds(self, seeds):
         self.seeds = seeds
+        
+    def _has_file_observer(self):
+        observer = self.ea_attributes['observer']
+        return (observer is ec.observers.file_observer or 
+                (isinstance(observer, list) and ec.observers.file_observer in observer))
 
 
 class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
