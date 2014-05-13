@@ -24,7 +24,7 @@ class MPITuner(Tuner):
             self.evaluate_on_master = True
         else:
             self.evaluate_on_master = kwargs.pop('evaluate_on_master', self.num_processes < 10)
-        self.mpi_verbose = kwargs.pop('verbose', True)
+        self.mpi_verbose = kwargs.pop('verbose', False)
         super(MPITuner, self).set(*args, **kwargs)
 
     @classmethod

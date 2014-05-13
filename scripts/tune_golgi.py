@@ -53,6 +53,8 @@ parser.add_argument('--algorithm', type=str, default='evolution_strategy',
 parser.add_argument('-a', '--optimize_argument', nargs=2, action='append', default=[],
                     help="Extra arguments to be passed to the algorithm")
 parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
+parser.add_argument('--verbose', action='store_true', default=False,
+                    help="Whether to print out which candidates are being evaluated on which nodes")
  
 #objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
@@ -135,7 +137,8 @@ def run(args):
     tuner = Tuner(_get_parameters(args),
                   _get_objective(args),
                   _get_algorithm(args),
-                  _get_simulation(args))
+                  _get_simulation(args),
+                  verbose=args.verbose)
     # Run the tuner
     try:
         pop, _ = tuner.tune()
