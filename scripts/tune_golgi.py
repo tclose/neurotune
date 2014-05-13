@@ -50,7 +50,7 @@ parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
 parser.add_argument('--algorithm', type=str, default='evolution_strategy', 
                     help="The type of algorithm used for the tuning (default: %(default)s)")
-parser.add_argument('-a', '--evolve_argument', nargs=2, action='append',
+parser.add_argument('-a', '--optimization_argument', nargs=2, action='append', default=[],
                     help="Extra arguments to be passed to the algorithm")
 parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
  
@@ -94,7 +94,7 @@ def _get_algorithm(args):
     else:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     return Algorithm(max_generations=args.max_generations, population_size=args.population_size, 
-                     **dict(args.evolve_arg))
+                     **dict(args.optimization_argument))
         
 def _get_parameters(args):
     # The parameters to be tuned by the tuner
