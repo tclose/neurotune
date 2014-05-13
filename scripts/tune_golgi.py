@@ -114,9 +114,9 @@ def _get_parameters(args):
                       ] #1e-5, 3e-5)]
     elif args.parameter_set[0] == 'all-gmaxes':
         bound_range = float(args.parameter_set[1])
-        if bound_range < 1:
-            raise Exception("Bound range for 'all-gmaxes' parameter set must be greater than 1 "
-                            "(found {}) as it is multiplicative")
+        #if bound_range < 1:
+            #raise Exception("Bound range for 'all-gmaxes' parameter set must be greater than 1 "
+                            #"(found {}) as it is multiplicative")
         from nineml.extensions.biophysics import parse
         bio_model = next(parse(args.reference_9ml).itervalues())
         parameters = []
