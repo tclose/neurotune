@@ -2,7 +2,6 @@
 """
 Evaluates objective functions on a grid of positions in parameter space
 """
-import os.path
 import argparse
 import shutil
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
