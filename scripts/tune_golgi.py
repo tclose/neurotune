@@ -4,6 +4,7 @@ Evaluates objective functions on a grid of positions in parameter space
 """
 import argparse
 import shutil
+import math
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
@@ -55,7 +56,8 @@ parser.add_argument('--algorithm', type=str, default='evolution_strategy',
                          "(default: %(default)s)".format("', '". join(algorithm_types)))
 parser.add_argument('-a', '--optimize_argument', nargs=2, action='append', default=[],
                     help="Extra arguments to be passed to the algorithm")
-parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
+parser.add_argument('--action', type=str, nargs='+', default=['tune'],
+                    help="The action used to run the script, can be 'tune', 'plot'")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Whether to print out which candidates are being evaluated on which nodes") 
  
@@ -121,9 +123,11 @@ def _get_parameters(args):
         for comp in bio_model.components.itervalues():
             if comp.type == 'ionic-current':
                 gbar = float(comp.parameters['g'].value)
-                lbound = gbar / bound_range
-                ubound = gbar * bound_range
-                parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, ubound))
+                gbar_log = math.log(gbar)
+                lbound = gbar_log - bound_range
+                ubound = gbar_log + bound_range
+                parameters.append(Parameter('soma.{}.gbar'.format(comp.name), 'S/cm^2', lbound, 
+                                            ubound, log_scale=True))
     else:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' option. Can be one of "
                         "('original', 'all-gmaxes').".format(args.parameter_set))
@@ -159,21 +163,23 @@ def run(args):
         with open(args.output, 'w') as f:
             pkl.dump((fittest_individual.candidate, fittest_individual.fitness, pop), f)
          
-def plot(args):
-    from matplotlib import pyplot as plt
-    with open(args.plot) as f:
-        candidates = pkl.load(f)
-    candidate = candidates
+def record_candidate(candidate_path, filepath, args):
+    with open(candidate_path) as f:
+        candidate, _, _ = pkl.load(f)
     parameters = _get_parameters(args)
     objective = _get_objective(args)
     simulation = _get_simulation(args, parameters=parameters, objective=objective)
-    fittest_recordings = simulation.run(candidate)
-    rec = fittest_recordings.segments[0].analogsignals[0]
-    with open(os.path.join(os.path.dirname(args.plot), 'recording2.pkl'), 'w') as f:
-        pkl.dump((rec,objective.reference_traces[0]) , f)
-    plt.plot(rec)
+    recordings = simulation.run(candidate[:len(parameters)])
+    with open(filepath, 'w') as f:
+        pkl.dump((recordings.segments[0].analogsignals[0], objective) , f)
+    
+def plot(recordings_path):
+    from matplotlib import pyplot as plt
+    with open(recordings_path) as f:
+        recording, objective = pkl.load(f)
+    plt.plot(recording)
     plt.plot(objective.reference_traces[0])
-    objective.plot_hist(rec, diff=True, show=False)
+    objective.plot_hist(recording, diff=True, show=False)
     plt.show()
     
 def prepare_work_dir(work_dir, args):
@@ -193,7 +199,9 @@ if __name__ == '__main__':
         args.population_size = Tuner.num_processes - 1
         print ("Warning population size was automatically increased to {} in order to "
                "match the number of processes".format(args.population_size))
-    if args.plot:
-        plot(args)
+    if args.action[0] == 'plot':
+        plot(args.action[1])
+    elif args.action[0] == 'record':
+        record_candidate(args.action[1], args.action[2], args)
     else:
         run(args)
