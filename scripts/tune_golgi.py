@@ -100,6 +100,7 @@ def _get_algorithm(args):
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
+                     terminator=ec.terminators.generation_termination,
                      observer=[ec.observers.best_observer, ec.observers.file_observer],
                      output_dir=os.path.dirname(args.output), **dict(args.optimize_argument))
         
@@ -150,10 +151,11 @@ def run(args):
         raise
     # Save the file if the tuner is the master
     if tuner.is_master():
-        print "Fittest candidate {}".format(pop)
+        fittest_individual = max(pop, lambda c: c.fitness)
+        print "Fittest candidate {}".format(fittest_individual.candidate)
         # Save the grid to file
         with open(args.output, 'w') as f:
-            pkl.dump(pop, f)
+            pkl.dump((fittest_individual.candidate, fittest_individual.fitness, pop), f)
          
 def plot(args):
     from matplotlib import pyplot as plt
