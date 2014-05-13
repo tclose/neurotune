@@ -21,6 +21,9 @@ except ImportError:
     from neurotune.tuner import Tuner
 import cPickle as pkl
 
+algorithm_types = ['genetic', 'estimation_distr', 'evolution_strategy', 'differential', 
+                   'simulated_annealing', 'nsga2', 'pareto_archived']
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('reference_9ml', type=str,
                        help="The path of the 9ml cell model to be used as a reference")
@@ -48,12 +51,13 @@ parser.add_argument('--num_generations', type=int, default=100,
 parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
 parser.add_argument('--algorithm', type=str, default='evolution_strategy', 
-                    help="The type of algorithm used for the tuning (default: %(default)s)")
+                    help="The type of algorithm used for the tuning. Can be one of '{}' "
+                         "(default: %(default)s)".format("', '". join(algorithm_types)))
 parser.add_argument('-a', '--optimize_argument', nargs=2, action='append', default=[],
                     help="Extra arguments to be passed to the algorithm")
 parser.add_argument('--plot', type=str, default=None, help="Plots the saved output")
 parser.add_argument('--verbose', action='store_true', default=False,
-                    help="Whether to print out which candidates are being evaluated on which nodes")
+                    help="Whether to print out which candidates are being evaluated on which nodes") 
  
 #objective_names = ['Phase-plane original', 'Convolved phase-plane', 'Pointwise phase-plane']
 
