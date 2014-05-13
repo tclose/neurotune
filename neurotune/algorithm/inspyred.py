@@ -54,8 +54,8 @@ class InspyredAlgorithm(Algorithm):
             setattr(ea, key, val)
         evolve_kwargs = self.evolve_args
         evolve_kwargs.update(kwargs)
-        with open(os.path.join(self.output_dir, 'statistics.txt'), 'w') as stats_file, \
-             open(os.path.join(self.output_dir, 'individuals.txt'), 'w') as indiv_file:
+        with open(os.path.join(self.output_dir, 'statistics.csv'), 'w') as stats_file, \
+             open(os.path.join(self.output_dir, 'individuals.csv'), 'w') as indiv_file:
             pop = ea.evolve(generator=self.uniform_random_chromosome,
                             evaluator=evaluator,
                             pop_size=self.pop_size,
