@@ -184,9 +184,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     def bin_size(self):
         return self.range / self.num_bins
 
-    def fitness(self, requests_dict):
-        recordings = next(requests_dict.itervalues())
-        phase_plane_hist = self._generate_phase_plane_hist(recordings)
+    def fitness(self, analysis):
+        phase_plane_hist = self._generate_phase_plane_hist(analysis.get_signal())
         # Get the root-mean-square difference between the reference and simulated histograms
         diff = self.ref_phase_plane_hist - phase_plane_hist
         diff **= 2
@@ -454,7 +453,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
             loops.append(numpy.array((v_spline(s_range), dvdt_spline(s_range))))
         return loops
 
-    def fitness(self, recordings):
+    def fitness(self, analysis):
         """
         Evaluates the fitness of the recordings by comparing all reference and recorded loops 
         (spikes or sub-threshold oscillations) and taking the sum of nearest matches from both
@@ -462,11 +461,12 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
-        recorded_loops = self._cut_out_loops(recordings)
+        signal = analysis.get_signal()
+        recorded_loops = self._cut_out_loops(signal)
         # If the recording doesn't contain any loops make a dummy one which forms a straight line
         # between the min and max dvdt values on the mean voltage
         if len(recorded_loops) == 0:
-            v, dvdt = self._calculate_v_and_dvdt(recordings)
+            v, dvdt = self._calculate_v_and_dvdt(signal)
             dummy_v = numpy.empty(self.num_points)
             dummy_v.fill(v.mean())
             dummy_dvdt = numpy.linspace(dvdt.min(), dvdt.max(), self.num_points)

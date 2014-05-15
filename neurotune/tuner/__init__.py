@@ -98,7 +98,7 @@ class Tuner(object):
         if self.verbose:
             print "Evaluating candidate {}".format(candidate)
         try:
-            recordings = self.simulation.run(candidate)
+            recordings = self.simulation.run_all(candidate)
             if self.save_recordings:
                 fname = (self.save_recordings.prefix + 
                          ','.join(['{}={}'.format(p.name, c)
