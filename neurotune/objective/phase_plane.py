@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
-from collections import namedtuple
 import numpy
 import scipy.signal
 from scipy.interpolate import InterpolatedUnivariateSpline
