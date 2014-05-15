@@ -439,9 +439,9 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                     lbound_index += direction
                 return s_positions[lbound_index]
             except IndexError:
-                raise Exception("Spline interpolation is not accurate enough to detect of loop, "
-                                "consider using a smaller simulation timestep or greater loop "
-                                "threshold")
+                raise Exception("Spline interpolation is not accurate enough to detect start of "
+                                "loop, consider using a smaller simulation timestep or greater loop"
+                                " threshold")
         for start_index, end_index in zip(loop_starts, loop_ends):
             start_s = scipy.optimize.brentq(lambda s: dvdt_spline(s) - self.thresh[0],
                                             ensure_s_bound(start_index - 1, self.thresh[0], -1),

@@ -113,15 +113,25 @@ class Simulation():
         
         `tune_parameters` -- list of parameter names which correspond to the candidate order
         """
-        raise NotImplementedError("Derived Simulation class '{}' does not implement "
-                                  "'set_tune_parameters' method"
-                                  .format(self.__class__.__name__))
+        self.tune_parameters = tune_parameters
+        
+    def run_all(self, candidate):
+        """
+        Runs all simulation reuquired by requested simulation setups
+        """
+        recordings = neo.Block(name=','.join(['{}={}'.format(p.name, c)
+                                              for p, c in zip(self.tune_parameters, 
+                                                              candidate)]), candidate=candidate)
+        for setup in self.setups:
+            recordings.segments.append(self.run(candidate, setup))
+        return recordings
 
-    def run(self, candidate):
+    def run(self, candidate, setup):
         """
         At a high level - accepts a candidate (a list of cell parameters that are being tuned)
         
-        `candidate` -- a list of parameters [list(float)]
+        `candidate`         -- a list of parameters [list(float)]
+        `setup`             -- a simulation setup [Simulation.Setup]
         
         Returns:
             A Neo block object with a segment for each Setup in self._simulation_setups containing

@@ -7,8 +7,11 @@ AUTHOR: Mike Vella vellamike@gmail.com
 """
 import scipy.stats
 import numpy as np
+import numpy
 import math
 from copy import copy
+import neo.core
+
 
 class Analysis(object):
     
@@ -18,40 +21,111 @@ class Analysis(object):
         self._requests = {}
         for seg, setup in zip(recordings.segments, self._simulation_setups):
             assert len(seg.analogsignals) == len(setup.request_keys)
-            for trace, request_keys in zip(seg.analogsignals, setup.request_keys):
-                self._requests.update([(key, Signal(trace)) for key in request_keys])
-        self._prepend_key = None
+            for sig, request_keys in zip(seg.analogsignals, setup.request_keys):
+                signal = AnalysedSignal(sig)
+                self._requests.update([(key, signal) for key in request_keys])
+        self._objective_key = None
                 
-    def __getitem__(self, key='default'):
-        if self._prepend_key is not None:
-            key = self._prepend_key + (key,)
+    def signal(self, key='default'):
+        if self._objective_key is not None:
+            key = self._objective_key + (key,)
         return self._requests[key]
     
-    def get_objective_specific_analysis(self, objective_key):
+    def objective_specific_analysis(self, objective_key):
         """
-        Returns a copy of the current analysis in which the objvective specific analysis is 
+        Returns a copy of the current analysis in which the provided objective key is 
         automatically prepended to the key requests, so it is transparent to objective components 
         of multi-objective functions that they are part of a multi-objective object.
         """
         specific_analysis = copy(self)
-        specific_analysis._prepend_key = (objective_key,)
+        specific_analysis._objective_key = (objective_key,)
         
         
-class Signal(object):
+class AnalysedSignal(neo.core.AnalogSignal):
     
-    def __init__(self, trace):
-        self._trace = trace
+    def __init__(self, signal):
+        super(AnalysedSignal, self).__init__(signal)
         self._spikes = {}
     
-    @property
-    def trace(self):
-        return self._trace
+    def spike_times(self, **kwargs):
+        # Sort argument values by argument keys for a unique argument-list dictionary key"
+        args_key = tuple([val for _, val in sorted(kwargs.items(), key=lambda item: item[0])])
+        try:
+            return self._spikes[args_key]
+        except KeyError:
+            spike_times = []
+            for start_i, end_i in self._spike_periods(**kwargs):
+                spike_times.append(self[start_i:end_i].max())
+            self._spikes[args_key] = neo.core.SpikeTrain(spike_times, self.times[-1], 
+                                                         units=self.times.units) 
+            return self._spikes[args_key]          
     
-    def spikes(self, threshold=10.0, threshold_type='dvdt'):
-        if not self._spikes.has_key((threshold, threshold_type)):
-            self._spikes[(threshold, threshold_type)] = self._detect_spikes(threshold, 
-                                                                            threshold_type)
-        return self._spikes[(threshold, threshold_type)]
+    def _spike_periods(self, thresh_type='dvdt', **kwargs):
+        if thresh_type == 'dvdt':
+            return self._dvdt_threshold_crossings(**kwargs)
+        elif thresh_type == 'v':
+            return self._v_threshold_crossings(**kwargs)
+        else:
+            raise Exception("Unrecognised threshold type '{}'".format(thresh_type))
+    
+    def _dvdt_threshold_crossings(self, start_threshold=10.0, stop_threshold=-10.0):
+        if stop_threshold > start_threshold:
+            raise Exception("Stop threshold ({}) must be lower than start threshold ({}) for " 
+                            " dV/dt threshold crossing detection" .format(stop_threshold, 
+                                                                          start_threshold))
+        start_indices = numpy.where((self.dvdt[1:] >= start_threshold) & 
+                                    (self.dvdt[:-1] < start_threshold))[0] + 1
+        stop_indices = numpy.where((self.dvdt[1:] > stop_threshold) & 
+                                  (self.dvdt[:-1] <= stop_threshold))[0] + 1
+        # If the recording period begins or ends with a threshold crossing trim them from the 
+        # crossing periods so the start and stop indices are the same length
+        if self.dvdt[0] >= start_threshold:
+            stop_indices = stop_indices[1:]
+        if self.dvdt[-1] <= stop_threshold:
+            start_indices = start_indices[:-1]
+        assert len(start_indices) == len(stop_indices)
+        assert all(stop_indices > start_indices)
+        return zip(start_indices, stop_indices)    
+    
+    def _v_threshold_crossings(self, threshold=0.0, hysteresis=0.0):
+        if hysteresis < 0.0:
+            raise Exception("hysteresis must be greater than or equal to 0.0 ({})"
+                            .format(hysteresis))
+        start_thresh = threshold + hysteresis / 2.0
+        stop_thresh = threshold - hysteresis / 2.0
+        start_indices = numpy.where((self[1:] >= start_thresh) & (self[:-1] < start_thresh))[0] + 1
+        stop_indices = numpy.where((self[1:] < stop_thresh) & (self[:-1] >= stop_thresh))[0] + 1
+        # If the recording period begins or ends with a threshold crossing trim them from the 
+        # crossing periods so the start and stop indices are the same length        
+        if self.dvdt[0] >= start_thresh:
+            stop_indices = stop_indices[1:]
+        if self.dvdt[-1] >= stop_thresh:
+            start_indices = start_indices[:-1]
+        assert len(start_indices) == len(stop_indices)
+        assert all(stop_indices > start_indices)
+        return zip(start_indices, stop_indices)
+    
+    @property
+    def dvdt(self):
+        try:
+            return self._dvdt
+        except AttributeError:
+            dv = numpy.diff(self)
+            dt = numpy.diff(self.times)
+            self._dvdt = dv / dt
+            return self._dvdt
+        
+    def average_spike_frequency(self, t_start=None, t_stop=None, **kwargs):
+        spike_times = self.spike_times(**kwargs)
+        if t_start is None:
+            t_start = spike_times.t_start
+        else:
+            spike_times = spike_times[numpy.where(spike_times >= t_start)]
+        if t_stop is None:
+            t_stop = spike_times.t_stop
+        else:
+            spike_times = spike_times[numpy.where(spike_times <= t_stop)]
+        return float(len(spike_times)) / (t_stop - t_start)
             
 
 def smooth(x,window_len=11,window='hanning'):

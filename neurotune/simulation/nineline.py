@@ -57,26 +57,27 @@ class NineLineSimulation(Simulation):
         if len(self._simulation_setups) == 1:
             self._prepare(self._simulation_setups[0])            
 
-    def run(self, candidate):
+    def run(self, candidate, setup):
         """
-        Run all simulations required to assess the candidate
+        Run a simulation given a requested experimental setup required to assess the candidate
         
         `candidate` -- a list of parameters [list(float)]
+        `setup`             -- a simulation setup [Simulation.Setup]
+        
+        returns neo.Segment containing the measured analog signals
+
         """
-        recordings = neo.core.Block()
-        for setup in self._simulation_setups:
-            # If there aren't multiple simulation setups the same setup can be reused with just the
-            # recorders being reset
-            if len(self._simulation_setups) != 1:
-                self._prepare(setup)
-            else:
-                nineline_controller.reset()
-            self._set_candidate_params(candidate)
-            nineline_controller.run(setup.time)
-            seg = neo.core.Segment()
-            seg.analogsignals.extend(self.cell.get_recording(*zip(*setup.record_variables)))
-            recordings.segments.append(seg)
-        return recordings
+        # If there aren't multiple simulation setups the same setup can be reused with just the
+        # recorders being reset
+        if len(self._simulation_setups) != 1:
+            self._prepare(setup)
+        else:
+            nineline_controller.reset()
+        self._set_candidate_params(candidate)
+        nineline_controller.run(setup.time)
+        seg = neo.core.Segment()
+        seg.analogsignals.extend(self.cell.get_recording(*zip(*setup.record_variables)))
+        return seg
         
     def _prepare(self, simulation_setup):
         """
