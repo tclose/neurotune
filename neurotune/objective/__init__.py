@@ -12,7 +12,7 @@ class Objective(object):
     __metaclass__ = ABCMeta  # Declare this class abstract to avoid accidental construction
 
     def __init__(self, time_start=0, time_stop=2000.0, exp_conditions=None, 
-                 record_sites=['default']):
+                 record_sites=[None]):
         """
         `time_stop` -- the required length of the recording required to evaluate the objective
         """
