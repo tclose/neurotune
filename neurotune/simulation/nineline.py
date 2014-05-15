@@ -17,6 +17,7 @@ class NineLineSimulation(Simulation):
         self.default_seg = self.celltype().source_section.name     
         
     def set_tune_parameters(self, tune_parameters):
+        super(NineLineSimulation, self).set_tune_parameters(tune_parameters)
         self.genome_keys = []
         self.log_scales = []
         for param in tune_parameters:

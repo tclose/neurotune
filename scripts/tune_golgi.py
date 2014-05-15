@@ -169,7 +169,7 @@ def record_candidate(candidate_path, filepath, args):
     parameters = _get_parameters(args)
     objective = _get_objective(args)
     simulation = _get_simulation(args, parameters=parameters, objective=objective)
-    recordings = simulation.run(candidate[:len(parameters)])
+    recordings = simulation.run_all(candidate[:len(parameters)])
     with open(filepath, 'w') as f:
         pkl.dump((recordings.segments[0].analogsignals[0], objective) , f)
     
