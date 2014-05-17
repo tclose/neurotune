@@ -79,7 +79,7 @@ class NineLineSimulation(Simulation):
         seg = neo.core.Segment()
         seg.analogsignals.extend(self.cell.get_recording(*zip(*setup.record_variables)))
         return seg
-        
+           
     def _prepare(self, simulation_setup):
         """
         Initialises cell and sets recording sites. Record sites are delimited by '.'s into segment 

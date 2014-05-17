@@ -21,23 +21,25 @@ class EvaluationException(Exception):
     def save(self, filename):
         with open(filename, 'w') as f:
             pkl.dump((self.objective, self.candidate, self.recordings), f)
-        print "Saving failed candidate and recordings to file at '{}'".format(filename)
+        print ("Saving failed candidate and recordings to file at '{}'"
+               .format(filename))
             
     
 class Tuner(object):
     """
-    Base Tuner object that contains the three components (objective function, algorithm and 
-    simulation objects) and runs the algorithm
+    Base Tuner object that contains the three components (objective function, 
+    algorithm and simulation objects) and runs the algorithm
     """
     num_processes = 1
     
-    SaveRecordingsTuple = collections.namedtuple('SaveRecordingsTuple', 'dir ext prefix io')
+    SaveRecordingsTuple = collections.namedtuple('SaveRecordingsTuple', 
+                                                 'dir ext prefix io')
     
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
     
-    def set(self, tune_parameters, objective, algorithm, simulation, verbose=False,
-            save_recordings=None):
+    def set(self, tune_parameters, objective, algorithm, simulation, 
+            verbose=False, save_recordings=None):
         """
         `objective`  -- The objective function to be tuned against [neurotune.objectives.*Objective]
         `algorithm`  -- The algorithm used to tune the cell with [neurotune.algorithms.*Algorithm]
@@ -66,14 +68,16 @@ class Tuner(object):
             elif rec_ext == '.h5':
                 rec_io = neo.io.hdf5io.NeoHdf5IO
             else:
-                raise Exception("Unrecognised Neo extention '{}' for saving recordings"
-                                .format(rec_ext))
-            self.save_recordings = self.SaveRecordingsTuple(rec_dir, '.neo' + rec_ext, rec_prefix, 
+                raise Exception("Unrecognised Neo extention '{}' for saving "
+                                "recordings".format(rec_ext))
+            self.save_recordings = self.SaveRecordingsTuple(rec_dir, '.neo' + 
+                                                            rec_ext, rec_prefix, 
                                                             rec_io)
             try:
                 os.makedirs(rec_dir)
             except OSError as e:
-                if e.errno != 17: # If directory already exists ignore the exception
+                # If directory already exists ignore the exception
+                if e.errno != 17: 
                     raise
             print "Recordings will be saved to '{}' directory".format(rec_dir)
         else:
@@ -87,7 +91,8 @@ class Tuner(object):
         
     def tune(self, **kwargs):
         """
-        Runs the optimisation algorithm and returns the final population and algorithm state
+        Runs the optimisation algorithm and returns the final population and
+        algorithm state
         """
         return self.algorithm.optimize(self._evaluate_all_candidates, **kwargs)
     
@@ -102,7 +107,8 @@ class Tuner(object):
             if self.save_recordings:
                 fname = (self.save_recordings.prefix + 
                          ','.join(['{}={}'.format(p.name, c)
-                                   for p, c in zip(self.tune_parameters, candidate)]) + 
+                                   for p, c in zip(self.tune_parameters, 
+                                                   candidate)]) + 
                          self.save_recordings.ext)
                 fpath = os.path.join(self.save_recordings.dir, fname)
                 if os.path.exists(fpath):
@@ -114,19 +120,21 @@ class Tuner(object):
             if __debug__:
                 raise
             else:
-                # Check to see whether the candidate was recorded properly before the error
+                # Check to see whether the candidate was recorded properly
+                # before the error
                 if not locals().has_key('analysis'):
                     analysis = None
                 raise EvaluationException(self.objective, candidate, analysis)
         return fitness
-            
+ 
     def _evaluate_all_candidates(self, candidates, args=None): #@UnusedVariable args
         """
-        Evaluate each candidate and return the evaluations in a numpy array. To be passed to 
-        inspyred optimisation algorithm (overridden in MPI derived class)
+        Evaluate each candidate and return the evaluations in a numpy array. To
+        be passed to inspyred optimisation algorithm (overridden in MPI derived
+        class)
         
-        `candidates` -- a list of candidates (themselves an iterable of float parameters) 
-                        [list(list(float))]
+        `candidates` -- a list of candidates (themselves an iterable of float 
+                        parameters) [list(list(float))]
         `args`       -- unused but provided to match inspyred API
         """
         return [self._evaluate_candidate(c) for c in candidates]

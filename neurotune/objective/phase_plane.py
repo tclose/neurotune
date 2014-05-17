@@ -138,10 +138,10 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     Phase-plane histogram objective function based on the objective in Van Geit 2007 (Neurofitter)
     """
 
-    _FRAC_TO_EXTEND_DEFAULT_BOUNDS = 0.5
+    _FRAC_TO_EXTEND_UNSPECIFIED_BOUNDS = 0.5
 
-    def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=None, dvdt_bounds=None,
-                 sample_to_bin_ratio=3.0, **kwargs):
+    def __init__(self, reference_traces, num_bins=(150, 150), v_bounds=(-100.0,50.0), 
+                 dvdt_bounds=(-300.0, 300.0), sample_to_bin_ratio=3.0, **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares that with the 
         histograms from the simulated traces
@@ -194,7 +194,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         """
         Sets the bounds of the histogram. If v_bounds or dvdt_bounds is not provided (i.e. is None)
         then the bounds is taken to be the bounds between the maximum and minium values of the 
-        reference trace extended in both directions by _FRAC_TO_EXTEND_DEFAULT_BOUNDS
+        reference trace extended in both directions by _FRAC_TO_EXTEND_UNSPECIFIED_BOUNDS
         
         `v_bounds`         -- the bounds of voltages over which the histogram is generated for. If 
                               'None' then it is calculated from the bounds of the reference traces 
@@ -218,7 +218,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                 min_trace = numpy.min(trace)
                 max_trace = numpy.max(trace)
                 # Extend the bounds by the fraction in DEFAULT_RANGE_EXTEND
-                range_extend = (max_trace - min_trace) * self._FRAC_TO_EXTEND_DEFAULT_BOUNDS
+                range_extend = (max_trace - min_trace) * self._FRAC_TO_EXTEND_UNSPECIFIED_BOUNDS
                 bounds = (numpy.floor(min_trace - range_extend),
                           numpy.ceil(max_trace + range_extend))
             self.bounds.append(bounds)
@@ -312,8 +312,8 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
     with the exception that the histograms are smoothed by a Gaussian kernel after they are generated
     """
 
-    def __init__(self, reference_traces, num_bins=(150, 150), kernel_width=(5.25, 18.75),
-                 num_stdevs=(5, 5), **kwargs):
+    def __init__(self, reference_traces, num_bins=(150, 150), kernel_width=(20, 80),
+                 num_stdevs=(3.5, 3.5), **kwargs):
         """
         Creates a phase plane histogram convolved with a Gaussian kernel from the reference traces 
         and compares that with a similarly convolved histogram of the simulated traces
