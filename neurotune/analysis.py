@@ -6,7 +6,6 @@ AUTHOR: Mike Vella vellamike@gmail.com
 
 """
 import scipy.stats
-import numpy as np
 import numpy
 import math
 from copy import copy
@@ -183,14 +182,14 @@ def smooth(x,window_len=11,window='hanning'):
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
         raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
 
-    s=np.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
+    s=numpy.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
     #print(len(s))
     if window == 'flat': #moving average
-        w=np.ones(window_len,'d')
+        w=numpy.ones(window_len,'d')
     else:
-        w=eval('np.'+window+'(window_len)')
+        w=eval('numpy.'+window+'(window_len)')
 
-    y=np.convolve(w/w.sum(),s,mode='valid')
+    y=numpy.convolve(w/w.sum(),s,mode='valid')
 
     edge=window_len/2
     return y[edge:-edge]
@@ -203,8 +202,8 @@ def linear_fit(t, y):
     :returns: Gradient M for a formula of the type y=C+M*x
     """
 
-    vals=np.array(y)
-    m, _ = np.polyfit(t, vals, 1)
+    vals=numpy.array(y)
+    m, _ = numpy.polyfit(t, vals, 1)
     return m
 
 
@@ -219,8 +218,8 @@ def three_spike_adaptation(t,y):
     :returns: Gradient M for a formula of the type y=C+M*x for first three action potentials
     """
 
-    t = np.array(t)
-    y = np.array(y)
+    t = numpy.array(t)
+    y = numpy.array(y)
 
     t = t[0:3]
     y = y[0:3]
@@ -241,11 +240,11 @@ def exp_fit(t, y):
     
     """
 
-    vals = np.array(y)
-    C = np.min(vals)
+    vals = numpy.array(y)
+    C = numpy.min(vals)
     vals = vals-C+1e-9 #make sure the data is all positive
-    vals = np.log(vals)
-    K, _ = np.polyfit(t, vals, 1)
+    vals = numpy.log(vals)
+    K, _ = numpy.polyfit(t, vals, 1)
 
     return K
 
@@ -271,7 +270,7 @@ def max_min(a,t,delta=0,peak_threshold=0):
         
     """
 
-    gradients = np.diff(a)
+    gradients = numpy.diff(a)
         
     maxima_info = []
     minima_info = []
@@ -345,8 +344,8 @@ def spike_frequencies(t):
         times associated with the frequency (time of first spike in pair)
     
     """
-    spike_times=np.array(t)
-    interspike_times=np.diff(spike_times)
+    spike_times=numpy.array(t)
+    interspike_times=numpy.diff(spike_times)
     interspike_frequencies=1000/interspike_times
     
     return [t[:-1],interspike_frequencies]
@@ -361,8 +360,8 @@ def mean_spike_frequency(t):
     :return: mean spike frequency in Hz, calculated from mean interspike time
     
     """
-    interspike_times=np.diff(t)
-    mean_interspike_time=np.mean(interspike_times)
+    interspike_times=numpy.diff(t)
+    mean_interspike_time=numpy.mean(interspike_times)
     mean_frequency=1000.0/(mean_interspike_time) #factor of 1000 to give frequency in Hz
     
     if (math.isnan(mean_frequency)):
@@ -386,7 +385,7 @@ def y_from_x(y,x,y_to_find):
 
     from scipy import interpolate
 
-    yreduced = np.array(y) - y_to_find
+    yreduced = numpy.array(y) - y_to_find
     freduced = interpolate.UnivariateSpline(x, yreduced, s=3)
     
     return freduced.roots()
@@ -424,7 +423,7 @@ def single_spike_width(y,t,baseline):
             undershoot_value = y[location + 1]
             overshoot_time = t[location]
             undershoot_time = t[location + 1]
-            interpolated_left_time = np.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
+            interpolated_left_time = numpy.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
                             
             if location < 0:
                 raise Exception('Baseline does not intersect spike')
@@ -439,7 +438,7 @@ def single_spike_width(y,t,baseline):
             undershoot_value = y[location - 1]
             overshoot_time = t[location]
             undershoot_time = t[location - 1]
-            interpolated_right_time = np.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
+            interpolated_right_time = numpy.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
             
             if location > len(y) - 1:
                 raise Exception('Baseline does not intersect spike')
@@ -513,7 +512,7 @@ def burst_analyser(t):
     :return: pearson's correlation coefficient of interspike times 
     """
 
-    x=np.arange(len(t))
+    x=numpy.arange(len(t))
     pearsonr=scipy.stats.pearsonr(x,t)[0]
     return pearsonr
 
@@ -525,7 +524,7 @@ def spike_covar(t):
     :return: coefficient of variation of interspike times 
     """
     
-    interspike_times=np.diff(t)
+    interspike_times=numpy.diff(t)
     covar=scipy.stats.variation(interspike_times)
     return covar
 
@@ -537,7 +536,7 @@ def elburg_bursting(spike_times):
     :return: bursting measure B as described by Elburg & Ooyen 2004
     """
 
-    interspikes_1=np.diff(spike_times)
+    interspikes_1=numpy.diff(spike_times)
 
     num_interspikes=len(spike_times)-1
 
@@ -546,10 +545,10 @@ def elburg_bursting(spike_times):
         interspike=interspikes_1[i]+interspikes_1[i+1]
         interspikes_2.append(interspike)
 
-    mean_interspike=np.mean(interspikes_1)    
+    mean_interspike=numpy.mean(interspikes_1)    
 
-    var_i_1=np.var(interspikes_1)
-    var_i_2=np.var(interspikes_2)
+    var_i_1=numpy.var(interspikes_1)
+    var_i_2=numpy.var(interspikes_2)
 
     B=(2*var_i_1-var_i_2)/(2*mean_interspike**2)
 
@@ -665,8 +664,8 @@ def phase_plane(t,y,plot=False): #plot should be here really
     Return a tuple with two vectors corresponding to the phase plane of
     the tracetarget
     """
-    dv=np.diff(y)
-    dt=np.diff(t)
+    dv=numpy.diff(y)
+    dt=numpy.diff(t)
     dy_dt=dv/dt
 
     y=list(y)
@@ -717,10 +716,10 @@ def pptd(t,y,bins=10,xyrange=None,dvdt_threshold=None,plot=False):
         phase_space[0]=phase_v_new
 
     if xyrange!=None:
-        density_map=np.histogram2d(phase_space[1], phase_space[0], bins=bins, 
+        density_map=numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, 
                                 normed=False, weights=None)
     elif xyrange==None:
-        density_map=np.histogram2d(phase_space[1], phase_space[0], bins=bins, range=xyrange, 
+        density_map=numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, range=xyrange, 
                                 normed=False, weights=None)
 
     #Reverse the density map (probably not necessary as
@@ -749,7 +748,7 @@ def spike_broadening(spike_width_list):
     """
 
     first_spike=spike_width_list[0]
-    mean_following_spikes=np.mean(spike_width_list[1:])
+    mean_following_spikes=numpy.mean(spike_width_list[1:])
     broadening=first_spike/mean_following_spikes
 
     return broadening
@@ -860,10 +859,10 @@ class TraceAnalysis(object):
 			target_value):
 
         """Finds index of first nearest value to target_value in array"""
-        nparray=np.array(array)
-        differences=np.abs(nparray-target_value)
+        nparray=numpy.array(array)
+        differences=numpy.abs(nparray-target_value)
         min_difference=differences.min()
-        index=np.nonzero(differences==min_difference)[0][0]
+        index=numpy.nonzero(differences==min_difference)[0][0]
         return index
         
     def __init__(self,v,t,start_analysis=0,end_analysis=None):
@@ -1011,8 +1010,8 @@ class IClampAnalysis(TraceAnalysis):
             max_min_dictionary=self.max_min_dictionary
             analysis_results={}
 
-            analysis_results['average_minimum'] = np.average(max_min_dictionary['minima_values'])
-            analysis_results['average_maximum'] = np.average(max_min_dictionary['maxima_values'])
+            analysis_results['average_minimum'] = numpy.average(max_min_dictionary['minima_values'])
+            analysis_results['average_maximum'] = numpy.average(max_min_dictionary['maxima_values'])
             analysis_results['min_peak_no'] = max_min_dictionary['minima_number']
             analysis_results['max_peak_no'] = max_min_dictionary['maxima_number']
             analysis_results['mean_spike_frequency'] = mean_spike_frequency(max_min_dictionary['maxima_times'])
