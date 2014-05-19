@@ -15,8 +15,7 @@ class SpikeFrequencyObjective(Objective):
         `time_start` -- the time from which to start calculating the frequency
         `time_stop`  -- the length of time to run the simulation
         """
-        super(SpikeFrequencyObjective, self).__init__(time_stop,
-                                                      record_sites=['spikes'])
+        super(SpikeFrequencyObjective, self).__init__(time_stop)
         self.time_start = time_start
         self.frequency = frequency
 
@@ -38,8 +37,7 @@ class SpikeTimesObjective(Objective):
         `spikes`    -- the reference spike train [neo.SpikeTrain]
         `time_stop` -- the length of time to run the simulation
         """
-        super(SpikeTimesObjective, self).__init__(time_stop,
-                                                  record_sites=['spikes'])
+        super(SpikeTimesObjective, self).__init__(time_stop)
         self.reference_spikes = spikes
 
     def fitness(self, signal):

@@ -43,7 +43,8 @@ class PhasePlaneObjective(Objective):
                               traces (see scipy.interpolate.interp1d for list
                               of options) [str]
         """
-        super(PhasePlaneObjective, self).__init__(time_start, time_stop)
+        super(PhasePlaneObjective, self).__init__(time_stop)
+        self.time_start = time_start
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
         if isinstance(reference_trace, str):
@@ -70,9 +71,9 @@ class PhasePlaneObjective(Objective):
         """
         Gets all recording requests required by the objective function
         """
-        return RecordingRequest(record_variable=self.record_variable,
-                                record_time=self.time_stop,
-                                conditions=self.exp_conditions)
+        return {None: RecordingRequest(record_variable=self.record_variable,
+                                       record_time=self.time_stop,
+                                       conditions=self.exp_conditions)}
 
     def _trimmed_v_dvdt(self, trace):
         """

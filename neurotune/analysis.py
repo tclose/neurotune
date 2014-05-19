@@ -32,7 +32,7 @@ class Analysis(object):
             key = self._objective_key + (key,)
         return self._requests[key]
 
-    def objective_specific_analysis(self, objective_key):
+    def objective_specific(self, objective_key):
         """
         Returns a copy of the current analysis in which the provided objective
         key is automatically prepended to the key requests, so it is

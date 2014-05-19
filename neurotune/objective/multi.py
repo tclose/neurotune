@@ -25,46 +25,26 @@ class MultiObjective(Objective):
     def __setitem__(self, i, val):
         self.objectives[i] = val
 
-    def fitness(self, recordings):
+    def fitness(self, analysis):
         """
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the
         order the objectives were passed to the __init__ method
         """
         fitnesses = []
-        for objective, objective_recordings in \
-                                          self._iterate_recordings(recordings):
-            fitnesses.append(objective.fitness(objective_recordings))
+        for obj in self.objectives:
+            fitnesses.append(analysis.objective_specific(obj))
         return fitnesses
-
-    def _iterate_recordings(self, recordings):
-        """
-        Yields a matching set of requested recordings with their objectives
-
-        `recordings` -- the recordings returned from a
-                        neurotune.simulation.Simulation object
-        """
-        for objective in self.objectives:
-            # Unzip the objective objects from the keys to pass them to the
-            # objective functions
-            rec = dict([(key[1], val)
-                        for key, val in recordings.iteritems()
-                        if key[0] == objective])
-            # Unwrap the dictionary from a single requested recording
-            if len(rec) == 1 and None in rec:
-                rec = rec.values()[0]
-            yield objective, rec
 
     def get_recording_requests(self):
         # Zip the recording requests keys with objective object in a tuple to
         # guarantee unique keys
         recordings_request = {}
-        for objective in self.objectives:
+        for obj in self.objectives:
             # Get the recording requests from the sub-objective function
-            objective_rec_requests = objective.get_recording_requests()
+            obj_requests = obj.get_recording_requests()
             # Add the recording request to the collated dictionary
-            recordings_request.update([((objective, key), val)
-                                      for key, val in
-                                      objective_rec_requests.iteritems()])
+            recordings_request.update([((obj, key), val)
+                                       for key, val in obj_requests.items()])
         return recordings_request
 
 
@@ -81,13 +61,13 @@ class WeightedSumObjective(MultiObjective):
         """
         self.weights, self.objectives = zip(*weighted_objectives)
 
-    def fitness(self, recordings):
+    def fitness(self, analysis):
         """
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the
         order the objectives were passed to the __init__ method
         """
         weighted_sum = 0.0
-        for i, (objective, recordings) in \
-                               enumerate(self._iterate_recordings(recordings)):
-            weighted_sum += self.weight[i] * objective.fitness(recordings)
+        for weight, obj in zip(self.weights, self.objectives):
+            weighted_sum += (weight *
+                             obj.fitness(analysis.objective_specific(obj)))
         return weighted_sum
