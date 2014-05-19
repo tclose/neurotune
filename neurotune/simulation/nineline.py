@@ -1,21 +1,23 @@
 from __future__ import absolute_import
 import neo.core
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller as nineline_controller
+from nineline.cells.neuron import NineCellMetaClass, \
+                                  simulation_controller as nineline_controller
 from .__init__ import Simulation
 
 
 class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
-    
+
     def __init__(self, cell_9ml, build_mode='lazy'):
         """
         `cell_9ml`    -- A 9ml file [str]
         """
-        # Generate the NineLine class from the nineml file and initialise a single cell from it
+        # Generate the NineLine class from the nineml file and initialise a
+        # single cell from it
         self.cell_9ml = cell_9ml
         self.celltype = NineCellMetaClass(cell_9ml, build_mode=build_mode)
-        self.default_seg = self.celltype().source_section.name     
-        
+        self.default_seg = self.celltype().source_section.name
+
     def set_tune_parameters(self, tune_parameters):
         super(NineLineSimulation, self).set_tune_parameters(tune_parameters)
         self.genome_keys = []
@@ -30,14 +32,16 @@ class NineLineSimulation(Simulation):
 
     def prepare_simulations(self):
         """
-        Prepare all simulations (eg. create cells and set recorders if possible)
+        Prepare all simulations (eg. create cells and set recorders if
+        possible)
         """
-        # Parse all recording sites into a tuple containing the variable name, segment name and 
-        # component names
+        # Parse all recording sites into a tuple containing the variable name,
+        # segment name and component names
         for setup in self._simulation_setups:
             for i, rec in enumerate(setup.record_variables):
                 if rec is None:
-                    var = 'v' # Records the voltage in the default segment by default
+                    # Records the voltage in the default segment by default
+                    var = 'v'
                     segname = self.default_seg
                     component = None
                 else:
@@ -52,24 +56,25 @@ class NineLineSimulation(Simulation):
                     else:
                         segname, component, var = parts
                 setup.record_variables[i] = (var, segname, component)
-        # Check to see if there are multiple setups, because if there aren't the cell can be 
-        # initialised (they can't in general if there are multiple as there is only ever one 
-        # instance of NEURON running)        
+        # Check to see if there are multiple setups, because if there aren't
+        # the cell can be initialised (they can't in general if there are
+        # multiple as there is only ever one instance of NEURON running)
         if len(self._simulation_setups) == 1:
-            self._prepare(self._simulation_setups[0])            
+            self._prepare(self._simulation_setups[0])
 
     def run(self, candidate, setup):
         """
-        Run a simulation given a requested experimental setup required to assess the candidate
-        
+        Run a simulation given a requested experimental setup required to
+        assess the candidate
+
         `candidate` -- a list of parameters [list(float)]
         `setup`             -- a simulation setup [Simulation.Setup]
-        
+
         returns neo.Segment containing the measured analog signals
 
         """
-        # If there aren't multiple simulation setups the same setup can be reused with just the
-        # recorders being reset
+        # If there aren't multiple simulation setups the same setup can be
+        # reused with just the recorders being reset
         if len(self._simulation_setups) != 1:
             self._prepare(setup)
         else:
@@ -77,32 +82,39 @@ class NineLineSimulation(Simulation):
         self._set_candidate_params(candidate)
         nineline_controller.run(setup.time)
         seg = neo.core.Segment()
-        seg.analogsignals.extend(self.cell.get_recording(*zip(*setup.record_variables)))
+        recordings = self.cell.get_recording(*zip(*setup.record_variables))
+        seg.analogsignals.extend(recordings)
         return seg
-           
+
     def _prepare(self, simulation_setup):
         """
-        Initialises cell and sets recording sites. Record sites are delimited by '.'s into segment 
-        names, component names and variable names. Sitenames without '.'s are interpreted as 
-        properties of the default segment and site-names with only one '.' are interpreted as 
-        (segment name - property) pairs. Therefore in order to record from component states you must
-        also provide the segment name to disambiguate it from the segment name - property case. 
-        
-        `simulation_setup` -- A set of simulation setup instructions [Simulation.SimulationSetup] 
+        Initialises cell and sets recording sites. Record sites are delimited
+        by '.'s into segment names, component names and variable names.
+        Sitenames without '.'s are interpreted as properties of the default
+        segment and site-names with only one '.' are interpreted as (segment
+        name - property) pairs. Therefore in order to record from component
+        states you must also provide the segment name to disambiguate it from
+        the segment name - property case.
+
+        `simulation_setup` -- A set of simulation setup instructions
+                              [Simulation.SimulationSetup]
         """
-        #Initialise cell
+        # Initialise cell
         self.cell = self.celltype()
         for rec in simulation_setup.record_variables:
             self.cell.record(*rec)
-            
+
     def _set_candidate_params(self, candidate):
         """
         Set the parameters of the candidate
-        
+
         `candidate` -- a list of parameters [list(float)]
         """
-        assert len(candidate) == len(self.genome_keys), "length of candidate and genome keys do not match"
-        for key, val, log_scale in zip(self.genome_keys, candidate, self.log_scales):
+        assert len(candidate) == len(self.genome_keys), \
+                                 "length of candidate and genome keys do " \
+                                 "not match"
+        for key, val, log_scale in zip(self.genome_keys, candidate,
+                                       self.log_scales):
             if log_scale:
                 val = 10 ** val
             setattr(self.cell, key, val)
