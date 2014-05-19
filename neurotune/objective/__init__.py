@@ -12,13 +12,12 @@ class Objective(object):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, time_start=0, time_stop=2000.0, exp_conditions=None,
+    def __init__(self, time_stop=2000.0, exp_conditions=None,
                  record_sites=[None]):
         """
         `time_stop` -- the required length of the recording required to
                        evaluate the objective
         """
-        self.time_start = time_start
         self.time_stop = time_stop
         self.exp_conditions = exp_conditions
         self.record_sites = record_sites

@@ -50,9 +50,9 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
-parser.add_argument('--objective', type=str, default='convolved',
+parser.add_argument('--objective', type=str, default='histogram',
                     help="Selects which objective function to use "
-                         "('vanilla', 'convolved', 'pointwise')")
+                         "('histogram', 'pointwise')")
 parser.add_argument('--parameter_set', type=str, default=['all-gmaxes', 3.0],
                     nargs='+', help="Select which parameter set to tune from a"
                                     " few descriptions")

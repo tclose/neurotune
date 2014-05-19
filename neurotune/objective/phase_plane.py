@@ -197,7 +197,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         super(PhasePlaneHistObjective, self).__init__(reference_trace,
                                                       **kwargs)
         self.num_bins = numpy.asarray(num_bins, dtype=int)
-        self._set_bounds(v_bounds, dvdt_bounds, self.reference_trace)
+        self._set_bounds(v_bounds, dvdt_bounds)
         if resample_ratio:
             self.resample_length = norm(self.bin_size) / resample_ratio
         else:
@@ -221,7 +221,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                             self.kernel_stdev[1]))
         # Generate the reference phase plane the simulated data will be
         # compared against
-        self.ref_hist = self._generate_hist(reference_trace)
+        self.ref_hist = self._generate_hist(self.reference_trace)
 
     @property
     def range(self):
@@ -240,7 +240,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         diff **= 2
         return diff.sum()
 
-    def _set_bounds(self, v_bounds, dvdt_bounds, reference_trace):
+    def _set_bounds(self, v_bounds, dvdt_bounds):
         """
         Sets the bounds of the histogram. If v_bounds or dvdt_bounds is not
         provided (i.e. is None) then the bounds is taken to be the bounds
@@ -255,14 +255,11 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                               histogram is generated for. If 'None' then it is
                               calculated from the bounds of the reference
                               traces [tuple[2](float)]
-        `reference_trace` -- traces (in Neo format) that are to be compared
-                              against [list(neo.AnalogSignal)]
         """
         # Get voltages and dV/dt values for all of the reference traces in a
         # list of numpy.arrays which will be converted into a single array for
         # convenient maximum and minimum calculation
-        v, dvdt = zip(*[self._trimmed_v_dvdt(t)
-                        for t in reference_trace])
+        v, dvdt = self._trimmed_v_dvdt(self.reference_trace)
         # For both v and dV/dt bounds and see if any are None and therefore
         # require a default value to be calculated.
         self.bounds = []

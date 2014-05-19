@@ -43,7 +43,7 @@ class InspyredAlgorithm(Algorithm):
         `kwargs`          -- optional arguments to be passed to the
                              optimisation algorithm
         """
-        self.ea_attributes = copy(self._default_ea_attributes)
+        self.ea_attributes = copy(self._ea_defaults)
         for key in self._ea_attribute_names:
             if key in kwargs:
                 self.ea_attributes[key] = kwargs.pop(key)
