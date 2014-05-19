@@ -123,7 +123,7 @@ def plot(grids, plot_type='surf', trim_factor=None):
                 max_under_trim = numpy.ma.masked_array(grid,
                                                        mask=over_trim).max()
                 grid[numpy.where(over_trim)] = float('nan')
-                lev = numpy.linspace(0, max_under_trim, 1000);
+                lev = numpy.linspace(0, max_under_trim, 1000)
                 kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
         if plot_type == 'surf':
             ax = fig.gca(projection='3d')
