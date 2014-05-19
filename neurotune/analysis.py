@@ -42,6 +42,7 @@ class Analysis(object):
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
 
+
 class AnalyzedSignal(neo.core.AnalogSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
