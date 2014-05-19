@@ -407,17 +407,20 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
     def __init__(self, reference_trace, dvdt_thresholds, num_points,
-                 **kwargs):
+                 no_spike_reference=(-100, 0.0), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_trace` -- traces (in Neo format) that are to be compared
-                              against [list(neo.AnalogSignal)]
-        `dvdt_thresholds`  -- the threshold above which the loop is considered
-                              to have ended [tuple[2](float)]
-        `num_points`       -- the number of sample points to interpolate
-                              between the loop start and end points
+        `reference_trace`    -- traces (in Neo format) that are to be compared
+                                against [list(neo.AnalogSignal)]
+        `dvdt_thresholds`    -- the threshold above which the loop is
+                                considered to have ended [tuple[2](float)]
+        `num_points`         -- the number of sample points to interpolate
+                                between the loop start and end points
+        `no_spike_reference` -- the reference point which is used to compare
+                                the reference spikes to when there are no
+                                recorded spikes
         """
         super(PhasePlanePointwiseObjective, self).__init__(reference_trace,
                                                            **kwargs)
@@ -426,6 +429,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
             raise Exception("Start threshold must be above 0 and end threshold"
                             " must be below 0 (found {})".format(self.thresh))
         self.num_points = num_points
+        self.no_spike_reference = no_spike_reference
         self.reference_loops = self._cut_out_loops(reference_trace)
         if len(self.reference_loops) == 0:
             raise Exception("No loops found in reference signal")
@@ -498,16 +502,13 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         """
         signal = analysis.get_signal()
         recorded_loops = self._cut_out_loops(signal)
-        # If the recording doesn't contain any loops make a dummy one which
-        # forms a straight line between the min and max dvdt values on the mean
-        # voltage
+        # If the recording doesn't contain any loops make a dummy one centred
+        # on the "no_spike_reference" point
         if len(recorded_loops) == 0:
-            v, dvdt = self._trimmed_v_dvdt(signal)
-            dummy_v = numpy.empty(self.num_points)
-            dummy_v.fill(v.mean())
-            dummy_dvdt = numpy.linspace(dvdt.min(), dvdt.max(),
-                                        self.num_points)
-            recorded_loops = [numpy.array((dummy_v, dummy_dvdt))]
+            recorded_loops = [(numpy.empty(self.num_points).fill(
+                                                  self.no_spike_reference[0]),
+                               numpy.empty(self.num_points).fill(
+                                                  self.no_spike_reference[1]))]
         # Create matrix of sum-squared-differences between recorded to
         # reference loops
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
