@@ -74,15 +74,12 @@ class PhasePlaneObjective(Objective):
                                 record_time=self.time_stop,
                                 conditions=self.exp_conditions)
 
-    def _calculate_v_and_dvdt(self, trace):
+    def _trimmed_v_dvdt(self, trace):
         """
-        Trims the trace to the indices within the time_start and time_stop then
-        calculates the discrete time derivative and resamples the trace to the
-        resampling interval if provided
+        Trims the trace to the indices within the time_start and time_stop
+        returns the trimmed V and dV/dt
 
-        `trace`        -- voltage trace [list(neo.AnalogSignal)]
-        `resample`     --
-        `interp_order` --
+        `trace`        -- voltage trace [analysis.AnalysedSignal]
 
         returns trimmed voltage trace, dV and dV/dt in a tuple
         """
@@ -92,11 +89,11 @@ class PhasePlaneObjective(Objective):
                                 (self.time_start + float(trace.t_start))))
         stop_index = int(round(trace.sampling_rate *
                                (self.time_stop + float(trace.t_start))))
-        v = trace[start_index:stop_index]
-        dv = numpy.diff(v)
-        dt = numpy.diff(v.times)
-        v = v[:-1]
-        dvdt = dv / dt
+        # If the stop index is the end of the trace v needs to be truncated
+        # as dvdt will be missing the final value
+        v = trace[start_index:(stop_index - 1
+                               if stop_index == len(trace) else stop_index)]
+        dvdt = trace.dvdt[start_index:stop_index]
         return v, dvdt
 
     def _get_interpolators(self, v, dvdt, interp_order=None):
@@ -140,9 +137,9 @@ class PhasePlaneObjective(Objective):
         # plot
         orig_resample_length = self.resample_length
         self.resample_length = False
-        orig_v, orig_dvdt = self._calculate_v_and_dvdt(trace)
+        orig_v, orig_dvdt = self._trimmed_v_dvdt(trace)
         self.resample_length = orig_resample_length
-        v, dvdt = self._calculate_v_and_dvdt(trace)
+        v, dvdt = self._trimmed_v_dvdt(trace)
         if isinstance(show, str):
             import cPickle as pickle
             with open(show, 'w') as f:
@@ -264,7 +261,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         # Get voltages and dV/dt values for all of the reference traces in a
         # list of numpy.arrays which will be converted into a single array for
         # convenient maximum and minimum calculation
-        v, dvdt = zip(*[self._calculate_v_and_dvdt(t)
+        v, dvdt = zip(*[self._trimmed_v_dvdt(t)
                         for t in reference_trace])
         # For both v and dV/dt bounds and see if any are None and therefore
         # require a default value to be calculated.
@@ -291,7 +288,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
         returns 2D histogram
         """
-        v, dvdt = self._calculate_v_and_dvdt(trace)
+        v, dvdt = self._trimmed_v_dvdt(trace)
         if self.resample_length:
             v, dvdt = self._resample_traces(v, dvdt, self.resample_length)
         hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
@@ -443,7 +440,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         `trace`  -- the voltage trace [numpy.array(float)]
         """
         # Get the v and dvdt and their spline interpolators
-        v, dvdt = self._calculate_v_and_dvdt(trace)
+        v, dvdt = self._trimmed_v_dvdt(trace)
         v_spline, dvdt_spline, s_positions = self._get_interpolators(v, dvdt)
         # Find the indices where the v-dV/dt trace crosses the start and end
         # thresholds respectively
@@ -507,7 +504,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         # forms a straight line between the min and max dvdt values on the mean
         # voltage
         if len(recorded_loops) == 0:
-            v, dvdt = self._calculate_v_and_dvdt(signal)
+            v, dvdt = self._trimmed_v_dvdt(signal)
             dummy_v = numpy.empty(self.num_points)
             dummy_v.fill(v.mean())
             dummy_dvdt = numpy.linspace(dvdt.min(), dvdt.max(),
