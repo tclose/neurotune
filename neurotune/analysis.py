@@ -13,99 +13,113 @@ import neo.core
 
 
 class Analysis(object):
-    
+
     def __init__(self, recordings, simulation_setups):
         self.recordings = recordings
         self._simulation_setups = simulation_setups
         self._requests = {}
         for seg, setup in zip(recordings.segments, self._simulation_setups):
             assert len(seg.analogsignals) == len(setup.request_keys)
-            for sig, request_keys in zip(seg.analogsignals, setup.request_keys):
-                signal = AnalyzedSignal(sig) # wrap the returned signal in an AnalyzedSignal wrapper
+            for sig, request_keys in zip(seg.analogsignals,
+                                         setup.request_keys):
+                # wrap the returned signal in an AnalyzedSignal wrapper
+                signal = AnalyzedSignal(sig)
                 self._requests.update([(key, signal) for key in request_keys])
         self._objective_key = None
-                
+
     def get_signal(self, key=None):
         if self._objective_key is not None:
             key = self._objective_key + (key,)
         return self._requests[key]
-    
+
     def objective_specific_analysis(self, objective_key):
         """
-        Returns a copy of the current analysis in which the provided objective key is 
-        automatically prepended to the key requests, so it is transparent to objective components 
-        of multi-objective functions that they are part of a multi-objective object.
+        Returns a copy of the current analysis in which the provided objective
+        key is automatically prepended to the key requests, so it is
+        transparent to objective components of multi-objective functions that
+        they are part of a multi-objective object.
         """
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
-        
-        
+
 class AnalyzedSignal(neo.core.AnalogSignal):
     """
-    A thin wrapper around the AnalogSignal class to keep all of the analysis with the signal so it
-    can be shared between multiple objectives (or even within a single more complex objective)
+    A thin wrapper around the AnalogSignal class to keep all of the analysis
+    with the signal so it can be shared between multiple objectives (or even
+    within a single more complex objective)
     """
-    
+
     def __new__(cls, signal):
         # Make a shallow copy of the original AnalogSignal object
         obj = copy(signal)
-        # "Cast" the new AnalogSignal object to the AnalyzedSignal derived class
+        # "Cast" the new AnalogSignal object to the AnalyzedSignal derived
+        # class
         obj.__class__ = AnalyzedSignal
         return obj
-    
-    def __init__(self, signal): #@UnusedVariable - needed to match up with the __new__ method
+
+    def __init__(self, signal):  # @UnusedVariable - to match with __new__
         self._spikes = {}
-    
+
     def spike_times(self, **kwargs):
-        # Sort argument values by argument keys for a unique argument-list dictionary key"
-        args_key = tuple([val for _, val in sorted(kwargs.items(), key=lambda item: item[0])])
+        # Sort argument values by argument keys for a unique argument-list
+        # dictionary key"
+        args_key = tuple([val for _, val in sorted(kwargs.items(),
+                                                   key=lambda item: item[0])])
         try:
             return self._spikes[args_key]
         except KeyError:
             spike_times = []
             for start_i, end_i in self._spike_periods(**kwargs):
                 spike_times.append(self[start_i:end_i].max())
-            self._spikes[args_key] = neo.core.SpikeTrain(spike_times, self.times[-1], 
-                                                         units=self.times.units) 
-            return self._spikes[args_key]          
-    
+            self._spikes[args_key] = neo.core.SpikeTrain(spike_times,
+                                                         self.times[-1],
+                                                        units=self.times.units)
+            return self._spikes[args_key]
+
     def _spike_periods(self, thresh_type='dvdt', **kwargs):
         if thresh_type == 'dvdt':
             return self._dvdt_threshold_crossings(**kwargs)
         elif thresh_type == 'v':
             return self._v_threshold_crossings(**kwargs)
         else:
-            raise Exception("Unrecognised threshold type '{}'".format(thresh_type))
-    
-    def _dvdt_threshold_crossings(self, start_threshold=10.0, stop_threshold=-10.0):
+            raise Exception("Unrecognised threshold type '{}'"
+                            .format(thresh_type))
+
+    def _dvdt_threshold_crossings(self, start_threshold=10.0,
+                                  stop_threshold=-10.0):
         if stop_threshold > start_threshold:
-            raise Exception("Stop threshold ({}) must be lower than start threshold ({}) for " 
-                            " dV/dt threshold crossing detection" .format(stop_threshold, 
-                                                                          start_threshold))
-        start_indices = numpy.where((self.dvdt[1:] >= start_threshold) & 
+            raise Exception("Stop threshold ({}) must be lower than start "
+                            "threshold ({}) for dV/dt threshold crossing "
+                            "detection" .format(stop_threshold,
+                                                start_threshold))
+        start_indices = numpy.where((self.dvdt[1:] >= start_threshold) &
                                     (self.dvdt[:-1] < start_threshold))[0] + 1
-        stop_indices = numpy.where((self.dvdt[1:] > stop_threshold) & 
+        stop_indices = numpy.where((self.dvdt[1:] > stop_threshold) &
                                   (self.dvdt[:-1] <= stop_threshold))[0] + 1
-        # If the recording period begins or ends with a threshold crossing trim them from the 
-        # crossing periods so the start and stop indices are the same length
+        # If the recording period begins or ends with a threshold crossing trim
+        # them from the crossing periods so the start and stop indices are the
+        # same length
         if self.dvdt[0] >= start_threshold:
             stop_indices = stop_indices[1:]
         if self.dvdt[-1] <= stop_threshold:
             start_indices = start_indices[:-1]
         assert len(start_indices) == len(stop_indices)
         assert all(stop_indices > start_indices)
-        return zip(start_indices, stop_indices)    
-    
+        return zip(start_indices, stop_indices)
+
     def _v_threshold_crossings(self, threshold=0.0, hysteresis=0.0):
         if hysteresis < 0.0:
-            raise Exception("hysteresis must be greater than or equal to 0.0 ({})"
-                            .format(hysteresis))
+            raise Exception("hysteresis must be greater than or equal to 0.0 "
+                            "({})".format(hysteresis))
         start_thresh = threshold + hysteresis / 2.0
         stop_thresh = threshold - hysteresis / 2.0
-        start_indices = numpy.where((self[1:] >= start_thresh) & (self[:-1] < start_thresh))[0] + 1
-        stop_indices = numpy.where((self[1:] < stop_thresh) & (self[:-1] >= stop_thresh))[0] + 1
-        # If the recording period begins or ends with a threshold crossing trim them from the 
-        # crossing periods so the start and stop indices are the same length        
+        start_indices = numpy.where((self[1:] >= start_thresh)
+                                    & (self[:-1] < start_thresh))[0] + 1
+        stop_indices = numpy.where((self[1:] < stop_thresh)
+                                   & (self[:-1] >= stop_thresh))[0] + 1
+        # If the recording period begins or ends with a threshold crossing trim
+        # them from the crossing periods so the start and stop indices are the
+        # same length
         if self.dvdt[0] >= start_thresh:
             stop_indices = stop_indices[1:]
         if self.dvdt[-1] >= stop_thresh:
@@ -113,7 +127,7 @@ class AnalyzedSignal(neo.core.AnalogSignal):
         assert len(start_indices) == len(stop_indices)
         assert all(stop_indices > start_indices)
         return zip(start_indices, stop_indices)
-    
+
     @property
     def dvdt(self):
         try:
@@ -123,7 +137,7 @@ class AnalyzedSignal(neo.core.AnalogSignal):
             dt = numpy.diff(self.times)
             self._dvdt = dv / dt
             return self._dvdt
-        
+
     def average_spike_frequency(self, t_start=None, t_stop=None, **kwargs):
         spike_times = self.spike_times(**kwargs)
         if t_start is None:
@@ -135,9 +149,9 @@ class AnalyzedSignal(neo.core.AnalogSignal):
         else:
             spike_times = spike_times[numpy.where(spike_times <= t_stop)]
         return float(len(spike_times)) / (t_stop - t_start)
-            
 
-def smooth(x,window_len=11,window='hanning'):
+
+def smooth(x, window_len=11, window='hanning'):
     """Smooth the data using a window with requested size.
     
     This function is useful for smoothing out experimental data.
@@ -176,22 +190,22 @@ def smooth(x,window_len=11,window='hanning'):
     if x.size < window_len:
         raise ValueError, "Input vector needs to be bigger than window size."
 
-    if window_len<3:
+    if window_len < 3:
         return x
 
     if not window in ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']:
         raise ValueError, "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
 
-    s=numpy.r_[x[window_len-1:0:-1],x,x[-1:-window_len:-1]]
-    #print(len(s))
-    if window == 'flat': #moving average
-        w=numpy.ones(window_len,'d')
+    s = numpy.r_[x[window_len - 1:0:-1], x, x[-1:-window_len:-1]]
+    # print(len(s))
+    if window == 'flat':  # moving average
+        w = numpy.ones(window_len, 'd')
     else:
-        w=eval('numpy.'+window+'(window_len)')
+        w = eval('numpy.' + window + '(window_len)')
 
-    y=numpy.convolve(w/w.sum(),s,mode='valid')
+    y = numpy.convolve(w / w.sum(), s, mode='valid')
 
-    edge=window_len/2
+    edge = window_len / 2
     return y[edge:-edge]
 
 def linear_fit(t, y):
@@ -202,12 +216,12 @@ def linear_fit(t, y):
     :returns: Gradient M for a formula of the type y=C+M*x
     """
 
-    vals=numpy.array(y)
+    vals = numpy.array(y)
     m, _ = numpy.polyfit(t, vals, 1)
     return m
 
 
-def three_spike_adaptation(t,y):
+def three_spike_adaptation(t, y):
     """ Linear fit of amplitude vs time of first three AP spikes
 
     Initial action potential amplitudes may very substaintially in amplitude
@@ -223,11 +237,11 @@ def three_spike_adaptation(t,y):
 
     t = t[0:3]
     y = y[0:3]
-    
-    m = linear_fit(t,y)
+
+    m = linear_fit(t, y)
 
     return m
-    
+
 
 def exp_fit(t, y):
     """
@@ -242,14 +256,14 @@ def exp_fit(t, y):
 
     vals = numpy.array(y)
     C = numpy.min(vals)
-    vals = vals-C+1e-9 #make sure the data is all positive
+    vals = vals - C + 1e-9  # make sure the data is all positive
     vals = numpy.log(vals)
     K, _ = numpy.polyfit(t, vals, 1)
 
     return K
 
 
-def max_min(a,t,delta=0,peak_threshold=0):
+def max_min(a, t, delta=0, peak_threshold=0):
     """
     Find the maxima and minima of a voltage trace.
     
@@ -271,67 +285,67 @@ def max_min(a,t,delta=0,peak_threshold=0):
     """
 
     gradients = numpy.diff(a)
-        
+
     maxima_info = []
     minima_info = []
-        
+
     count = 0
-    
+
     for i in gradients[:-1]:
-        count+=1
+        count += 1
 
-        if ((cmp(i,0)>0) & (cmp(gradients[count],0)<0) & (i != gradients[count])):
-            #found a maximum
-            maximum_value=a[count]
-            maximum_location=count
-            maximum_time=t[count]
-            preceding_point_value=a[maximum_location-1]
-            succeeding_point_value=a[maximum_location+1]
+        if ((cmp(i, 0) > 0) & (cmp(gradients[count], 0) < 0) & (i != gradients[count])):
+            # found a maximum
+            maximum_value = a[count]
+            maximum_location = count
+            maximum_time = t[count]
+            preceding_point_value = a[maximum_location - 1]
+            succeeding_point_value = a[maximum_location + 1]
 
-            #filter:
-            maximum_valid=False #logically consistent but not very pythonic..
-            if ((maximum_value-preceding_point_value)>delta)*((maximum_value-succeeding_point_value)>delta):
-                maximum_valid=True
-            if maximum_value<peak_threshold:
-                maximum_valid=False
+            # filter:
+            maximum_valid = False  # logically consistent but not very pythonic..
+            if ((maximum_value - preceding_point_value) > delta) * ((maximum_value - succeeding_point_value) > delta):
+                maximum_valid = True
+            if maximum_value < peak_threshold:
+                maximum_valid = False
             if maximum_valid:
-                maxima_info.append((maximum_value,maximum_location,maximum_time))
-   
-    maxima_num=len(maxima_info)
-    
-    if maxima_num>0:
-        minima_num=maxima_num-1
+                maxima_info.append((maximum_value, maximum_location, maximum_time))
+
+    maxima_num = len(maxima_info)
+
+    if maxima_num > 0:
+        minima_num = maxima_num - 1
     else:
-        minima_num=0
-    
+        minima_num = 0
+
     import operator
-    
-    values_getter=operator.itemgetter(0)
-    location_getter=operator.itemgetter(1)
-    time_getter=operator.itemgetter(2)
-    
-    maxima_locations=map(location_getter,maxima_info)
-    maxima_times=map(time_getter,maxima_info)
-    maxima_values=map(values_getter,maxima_info)
 
-    for i in range(maxima_num-1):
-        maximum_0_location=maxima_locations[i]
-        maximum_1_location=maxima_locations[i+1]
-        
-        interspike_slice=a[maximum_0_location:maximum_1_location]
-        minimum_value=min(interspike_slice)
-        minimum_location=list(interspike_slice).index(minimum_value)+maximum_0_location
-        minimum_time=t[minimum_location]
-        
-        minima_info.append((minimum_value,minimum_location,minimum_time))
-   
-    minima_locations=map(location_getter,minima_info)
-    minima_times=map(time_getter,minima_info)
-    minima_values=map(values_getter,minima_info)
+    values_getter = operator.itemgetter(0)
+    location_getter = operator.itemgetter(1)
+    time_getter = operator.itemgetter(2)
 
-    #need to construct the dictionary here:
-    turning_points = {'maxima_locations':maxima_locations,'minima_locations':minima_locations,'maxima_number':maxima_num,'minima_number':minima_num,'maxima_times':maxima_times,'minima_times':minima_times, 'maxima_values':maxima_values,'minima_values':minima_values}
-    
+    maxima_locations = map(location_getter, maxima_info)
+    maxima_times = map(time_getter, maxima_info)
+    maxima_values = map(values_getter, maxima_info)
+
+    for i in range(maxima_num - 1):
+        maximum_0_location = maxima_locations[i]
+        maximum_1_location = maxima_locations[i + 1]
+
+        interspike_slice = a[maximum_0_location:maximum_1_location]
+        minimum_value = min(interspike_slice)
+        minimum_location = list(interspike_slice).index(minimum_value) + maximum_0_location
+        minimum_time = t[minimum_location]
+
+        minima_info.append((minimum_value, minimum_location, minimum_time))
+
+    minima_locations = map(location_getter, minima_info)
+    minima_times = map(time_getter, minima_info)
+    minima_values = map(values_getter, minima_info)
+
+    # need to construct the dictionary here:
+    turning_points = {'maxima_locations':maxima_locations, 'minima_locations':minima_locations, 'maxima_number':maxima_num, 'minima_number':minima_num, 'maxima_times':maxima_times, 'minima_times':minima_times, 'maxima_values':maxima_values, 'minima_values':minima_values}
+
     return turning_points
 
 def spike_frequencies(t):
@@ -344,13 +358,13 @@ def spike_frequencies(t):
         times associated with the frequency (time of first spike in pair)
     
     """
-    spike_times=numpy.array(t)
-    interspike_times=numpy.diff(spike_times)
-    interspike_frequencies=1000/interspike_times
-    
-    return [t[:-1],interspike_frequencies]
-    
-    
+    spike_times = numpy.array(t)
+    interspike_times = numpy.diff(spike_times)
+    interspike_frequencies = 1000 / interspike_times
+
+    return [t[:-1], interspike_frequencies]
+
+
 def mean_spike_frequency(t):
     """
     Find the average frequency of spikes
@@ -360,16 +374,16 @@ def mean_spike_frequency(t):
     :return: mean spike frequency in Hz, calculated from mean interspike time
     
     """
-    interspike_times=numpy.diff(t)
-    mean_interspike_time=numpy.mean(interspike_times)
-    mean_frequency=1000.0/(mean_interspike_time) #factor of 1000 to give frequency in Hz
-    
+    interspike_times = numpy.diff(t)
+    mean_interspike_time = numpy.mean(interspike_times)
+    mean_frequency = 1000.0 / (mean_interspike_time)  # factor of 1000 to give frequency in Hz
+
     if (math.isnan(mean_frequency)):
-        mean_frequency=0
+        mean_frequency = 0
     return mean_frequency
 
 
-def y_from_x(y,x,y_to_find):
+def y_from_x(y, x, y_to_find):
     """
     Returns list of x values corresponding to a y after a doing a 
     univariate spline interpolation
@@ -387,11 +401,11 @@ def y_from_x(y,x,y_to_find):
 
     yreduced = numpy.array(y) - y_to_find
     freduced = interpolate.UnivariateSpline(x, yreduced, s=3)
-    
+
     return freduced.roots()
 
 
-def single_spike_width(y,t,baseline):
+def single_spike_width(y, t, baseline):
     """ Find the width of a spike at a fixed height
     
     calculates the width of the spike at height baseline. If the spike shape
@@ -412,11 +426,11 @@ def single_spike_width(y,t,baseline):
     
     """
     try:
-        
+
         value = max(y)
         location = y.index(value)
-        
-        #moving left:
+
+        # moving left:
         while value > baseline:
             location -= 1
             value = y[location]
@@ -424,14 +438,14 @@ def single_spike_width(y,t,baseline):
             overshoot_time = t[location]
             undershoot_time = t[location + 1]
             interpolated_left_time = numpy.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
-                            
+
             if location < 0:
                 raise Exception('Baseline does not intersect spike')
-                
-        #now go right
+
+        # now go right
         value = max(y)
         location = y.index(value)
-        
+
         while value > baseline :
             location += 1
             value = y[location]
@@ -439,19 +453,19 @@ def single_spike_width(y,t,baseline):
             overshoot_time = t[location]
             undershoot_time = t[location - 1]
             interpolated_right_time = numpy.interp(baseline, [value, undershoot_value], [overshoot_time, undershoot_time])
-            
+
             if location > len(y) - 1:
                 raise Exception('Baseline does not intersect spike')
 
         width = interpolated_right_time - interpolated_left_time
-    
+
     except:
         width = 0
-    
+
     return width
 
 
-def spike_widths(y,t,baseline=0,delta=0):
+def spike_widths(y, t, baseline=0, delta=0):
     """
     Find the widths of each spike at a fixed height in a train of spikes.
     
@@ -467,41 +481,41 @@ def spike_widths(y,t,baseline=0,delta=0):
     :return: width of spike at height defined by baseline
     
     """
-    
-    #first get the max and min data:
-    max_min_dictionary=max_min(y,t,delta)
-    
-    max_num=max_min_dictionary['maxima_number']
+
+    # first get the max and min data:
+    max_min_dictionary = max_min(y, t, delta)
+
+    max_num = max_min_dictionary['maxima_number']
 #     maxima_locations=max_min_dictionary['maxima_locations']
-    maxima_times=max_min_dictionary['maxima_times']
-    minima_locations=max_min_dictionary['minima_locations']
+    maxima_times = max_min_dictionary['maxima_times']
+    minima_locations = max_min_dictionary['minima_locations']
 #     maxima_values=max_min_dictionary['maxima_values']
-    
-    
-    spike_widths=[]
+
+
+    spike_widths = []
     for i in range(max_num):
-        #need to splice down the y:
-        if i==0:
-            left_min_location=0
-            right_min_location=minima_locations[i]+1
-        elif i==max_num-1:
-            left_min_location=minima_locations[i-1]
-            right_min_location=len(y)
+        # need to splice down the y:
+        if i == 0:
+            left_min_location = 0
+            right_min_location = minima_locations[i] + 1
+        elif i == max_num - 1:
+            left_min_location = minima_locations[i - 1]
+            right_min_location = len(y)
         else:
-            left_min_location=minima_locations[i-1]
-            right_min_location=minima_locations[i]+1
-        
-        spike_shape=y[left_min_location:right_min_location]
-        spike_t=t[left_min_location:right_min_location]
-        
+            left_min_location = minima_locations[i - 1]
+            right_min_location = minima_locations[i] + 1
+
+        spike_shape = y[left_min_location:right_min_location]
+        spike_t = t[left_min_location:right_min_location]
+
         try:
-            width=single_spike_width(spike_shape,spike_t,baseline)
+            width = single_spike_width(spike_shape, spike_t, baseline)
         except:
-            width=0
-        
+            width = 0
+
         spike_widths.append(width)
-    
-    maxima_times_widths=[maxima_times,spike_widths]
+
+    maxima_times_widths = [maxima_times, spike_widths]
     return maxima_times_widths
 
 def burst_analyser(t):
@@ -512,8 +526,8 @@ def burst_analyser(t):
     :return: pearson's correlation coefficient of interspike times 
     """
 
-    x=numpy.arange(len(t))
-    pearsonr=scipy.stats.pearsonr(x,t)[0]
+    x = numpy.arange(len(t))
+    pearsonr = scipy.stats.pearsonr(x, t)[0]
     return pearsonr
 
 def spike_covar(t):
@@ -523,9 +537,9 @@ def spike_covar(t):
 
     :return: coefficient of variation of interspike times 
     """
-    
-    interspike_times=numpy.diff(t)
-    covar=scipy.stats.variation(interspike_times)
+
+    interspike_times = numpy.diff(t)
+    covar = scipy.stats.variation(interspike_times)
     return covar
 
 def elburg_bursting(spike_times):
@@ -536,25 +550,25 @@ def elburg_bursting(spike_times):
     :return: bursting measure B as described by Elburg & Ooyen 2004
     """
 
-    interspikes_1=numpy.diff(spike_times)
+    interspikes_1 = numpy.diff(spike_times)
 
-    num_interspikes=len(spike_times)-1
+    num_interspikes = len(spike_times) - 1
 
-    interspikes_2=[]
-    for i in range(num_interspikes-1):
-        interspike=interspikes_1[i]+interspikes_1[i+1]
+    interspikes_2 = []
+    for i in range(num_interspikes - 1):
+        interspike = interspikes_1[i] + interspikes_1[i + 1]
         interspikes_2.append(interspike)
 
-    mean_interspike=numpy.mean(interspikes_1)    
+    mean_interspike = numpy.mean(interspikes_1)
 
-    var_i_1=numpy.var(interspikes_1)
-    var_i_2=numpy.var(interspikes_2)
+    var_i_1 = numpy.var(interspikes_1)
+    var_i_2 = numpy.var(interspikes_2)
 
-    B=(2*var_i_1-var_i_2)/(2*mean_interspike**2)
+    B = (2 * var_i_1 - var_i_2) / (2 * mean_interspike ** 2)
 
     return B
 
-def alpha_normalised_cost_function(value,target,base=10):
+def alpha_normalised_cost_function(value, target, base=10):
     """Fitness of a value-target pair from 0 to 1 
     
     For any value/target pair will give a normalised value for
@@ -577,12 +591,12 @@ def alpha_normalised_cost_function(value,target,base=10):
 
     value = float(value)
     target = float(target)
-    
-    x=((value-target)/(target+0.01))**2 #the 0.01 thing is a bit of a hack at the moment.
-    fitness=base**(-x)
-    return fitness    
 
-def normalised_cost_function(value,target,Q=None):
+    x = ((value - target) / (target + 0.01)) ** 2  # the 0.01 thing is a bit of a hack at the moment.
+    fitness = base ** (-x)
+    return fitness
+
+def normalised_cost_function(value, target, Q=None):
     """ Returns fitness of a value-target pair from 0 to 1 
     
     For any value/target pair will give a normalised value for
@@ -605,15 +619,15 @@ def normalised_cost_function(value,target,Q=None):
 
     value = float(value)
     target = float(target)
-    
-    if Q==None:
-        Q=7/(300*(target**2))
-               
-    fitness=1-1/(Q*(target-value)**2+1)
-    
-    return fitness    
 
-def load_csv_data(file_path,plot=False):
+    if Q == None:
+        Q = 7 / (300 * (target ** 2))
+
+    fitness = 1 - 1 / (Q * (target - value) ** 2 + 1)
+
+    return fitness
+
+def load_csv_data(file_path, plot=False):
     """Extracts time and voltage data from a csv file
     
     Data must be in a csv and in two columns, first time and second 
@@ -626,120 +640,120 @@ def load_csv_data(file_path,plot=False):
     """
     import csv
 
-    csv_file=file(file_path,'r')
-    csv_reader=csv.reader(csv_file)
+    csv_file = file(file_path, 'r')
+    csv_reader = csv.reader(csv_file)
 
-    v=[]
-    t=[]
+    v = []
+    t = []
 
-    i=0
+    i = 0
     for row in csv_reader:
 
         try:
 
-            t_value=float(row[0])*1000 #convert to ms
-            v_value=float(row[1])*1000 #convert to mV
+            t_value = float(row[0]) * 1000  # convert to ms
+            v_value = float(row[1]) * 1000  # convert to mV
 
             t.append(t_value)
             v.append(v_value)
 
         except:
-            print 'row ',i,' invalid'
+            print 'row ', i, ' invalid'
 
-        i+=1
+        i += 1
 
     if plot:
-        from matplotlib import pyplot        
-        pyplot.plot(t,v)
+        from matplotlib import pyplot
+        pyplot.plot(t, v)
         pyplot.title('Raw data')
         pyplot.xlabel('Time (ms)')
         pyplot.ylabel('Voltage (mV)')
         pyplot.show()
 
-    return t,v
+    return t, v
 
 
-def phase_plane(t,y,plot=False): #plot should be here really
+def phase_plane(t, y, plot=False):  # plot should be here really
     """
     Return a tuple with two vectors corresponding to the phase plane of
     the tracetarget
     """
-    dv=numpy.diff(y)
-    dt=numpy.diff(t)
-    dy_dt=dv/dt
+    dv = numpy.diff(y)
+    dt = numpy.diff(t)
+    dy_dt = dv / dt
 
-    y=list(y)
-    y=y[:-1]
+    y = list(y)
+    y = y[:-1]
 
     if plot:
         from matplotlib import pyplot
         pyplot.title('Phase Plot')
         pyplot.ylabel('dV/dt')
         pyplot.xlabel('Voltage (mV)')
-        pyplot.plot(y,dy_dt)
+        pyplot.plot(y, dy_dt)
         pyplot.show()
 
-    return [y,dy_dt]
+    return [y, dy_dt]
 
 # def filter(t,v): #still experimental
-# 
+#
 #     import scipy
-# 
-#     fft=scipy.fft(v) # (G) and (H)  
-#     bp=fft[:]  
-#     for i in range(len(bp)): # (H-red)  
-#         if i>=500:bp[i]=0  
-#     ibp=scipy.ifft(bp) # (I), (J), (K) and (L) 
-# 
+#
+#     fft=scipy.fft(v) # (G) and (H)
+#     bp=fft[:]
+#     for i in range(len(bp)): # (H-red)
+#         if i>=500:bp[i]=0
+#     ibp=scipy.ifft(bp) # (I), (J), (K) and (L)
+#
 #     return ibp
 
-def pptd(t,y,bins=10,xyrange=None,dvdt_threshold=None,plot=False):
+def pptd(t, y, bins=10, xyrange=None, dvdt_threshold=None, plot=False):
     """
     Returns a 2D map of x vs y data and the xedges and yedges. 
     in the form of a vector (H,xedges,yedges) Useful for the 
     PPTD method described by Van Geit 2007.
     """
 
-    phase_space=phase_plane(t,y)
+    phase_space = phase_plane(t, y)
 
-    #filter the phase space data
-    phase_dvdt_new=[]
-    phase_v_new=[]
-    if dvdt_threshold!=None:
-        i=0
+    # filter the phase space data
+    phase_dvdt_new = []
+    phase_v_new = []
+    if dvdt_threshold != None:
+        i = 0
         for dvdt in phase_space[1]:
-            if dvdt>dvdt_threshold:
+            if dvdt > dvdt_threshold:
                 phase_dvdt_new.append(phase_space[1][i])
                 phase_v_new.append(phase_space[0][i])
-            i+=1
-        phase_space[1]=phase_dvdt_new
-        phase_space[0]=phase_v_new
+            i += 1
+        phase_space[1] = phase_dvdt_new
+        phase_space[0] = phase_v_new
 
-    if xyrange!=None:
-        density_map=numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, 
+    if xyrange != None:
+        density_map = numpy.histogram2d(phase_space[1], phase_space[0], bins=bins,
                                 normed=False, weights=None)
-    elif xyrange==None:
-        density_map=numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, range=xyrange, 
+    elif xyrange == None:
+        density_map = numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, range=xyrange,
                                 normed=False, weights=None)
 
-    #Reverse the density map (probably not necessary as
-    #it's being done because imshow has a funny origin):
-    density=density_map[0][::-1]
-    xedges=density_map[1]
-    yedges=density_map[2]
+    # Reverse the density map (probably not necessary as
+    # it's being done because imshow has a funny origin):
+    density = density_map[0][::-1]
+    xedges = density_map[1]
+    yedges = density_map[2]
 
     if plot:
         from matplotlib import pyplot
-        extent = [yedges[0], yedges[-1],xedges[0], xedges[-1]]
-        imgplot=pyplot.imshow(density, extent=extent)
-        imgplot.set_interpolation('nearest') #makes image pixilated
+        extent = [yedges[0], yedges[-1], xedges[0], xedges[-1]]
+        imgplot = pyplot.imshow(density, extent=extent)
+        imgplot.set_interpolation('nearest')  # makes image pixilated
         pyplot.title('Phase Plane Trajectory Density')
         pyplot.ylabel('dV/dt')
         pyplot.xlabel('Voltage (mV)')
         pyplot.colorbar()
         pyplot.show()
 
-    return [density,xedges,yedges]
+    return [density, xedges, yedges]
 
 def spike_broadening(spike_width_list):
     """
@@ -747,59 +761,59 @@ def spike_broadening(spike_width_list):
     the mean value of the following APs.
     """
 
-    first_spike=spike_width_list[0]
-    mean_following_spikes=numpy.mean(spike_width_list[1:])
-    broadening=first_spike/mean_following_spikes
+    first_spike = spike_width_list[0]
+    mean_following_spikes = numpy.mean(spike_width_list[1:])
+    broadening = first_spike / mean_following_spikes
 
     return broadening
 
-def pptd_error(t_model,v_model,t_target,v_target,dvdt_threshold=None):
+def pptd_error(t_model, v_model, t_target, v_target, dvdt_threshold=None):
     """
     Returns error function value from comparison of two phase
     pptd maps as described by Van Geit 2007.
     """
 
-    pptd_data=pptd(t_target,v_target,dvdt_threshold=dvdt_threshold)
-    target_density_map=pptd_data[0]
+    pptd_data = pptd(t_target, v_target, dvdt_threshold=dvdt_threshold)
+    target_density_map = pptd_data[0]
 
-    xedges=pptd_data[1]
-    xmin=xedges[0]
-    xmax=xedges[-1]
-    yedges=pptd_data[1]
-    ymin=yedges[0]
-    ymax=yedges[-1]
-    xyrng=[[xmin, xmax], [ymin, ymax]]
+    xedges = pptd_data[1]
+    xmin = xedges[0]
+    xmax = xedges[-1]
+    yedges = pptd_data[1]
+    ymin = yedges[0]
+    ymax = yedges[-1]
+    xyrng = [[xmin, xmax], [ymin, ymax]]
 
-    model_density_map=pptd(t_model,v_model,xyrange=xyrng,
+    model_density_map = pptd(t_model, v_model, xyrange=xyrng,
                            dvdt_threshold=dvdt_threshold)[0]
 
-    #calculate number of data points for the model and target:
-    N_target=sum(sum(target_density_map))
-    N_model=sum(sum(model_density_map))
+    # calculate number of data points for the model and target:
+    N_target = sum(sum(target_density_map))
+    N_model = sum(sum(model_density_map))
 
-    #normalise each map:
-    normalised_target_density_map=target_density_map/float(N_target)
-    normalised_model_density_map=model_density_map/float(N_model)
+    # normalise each map:
+    normalised_target_density_map = target_density_map / float(N_target)
+    normalised_model_density_map = model_density_map / float(N_model)
 
-    #calculate the differences and calculate the mod
-    difference_matrix=normalised_target_density_map-normalised_model_density_map
-    difference_matrix=abs(difference_matrix)
-    
-    #root each value:
-    root_matrix=difference_matrix**0.5
+    # calculate the differences and calculate the mod
+    difference_matrix = normalised_target_density_map - normalised_model_density_map
+    difference_matrix = abs(difference_matrix)
 
-    #sum each element:
-    summed_matrix=sum(sum(root_matrix))
+    # root each value:
+    root_matrix = difference_matrix ** 0.5
 
-    #calculate the error:
-    error=summed_matrix**2
+    # sum each element:
+    summed_matrix = sum(sum(root_matrix))
+
+    # calculate the error:
+    error = summed_matrix ** 2
 
     print 'pptd error:'
     print error
 
     return error
 
-def minima_phases(t,y,delta=0):
+def minima_phases(t, y, delta=0):
     """
     Find the phases of minima.
     
@@ -819,29 +833,29 @@ def minima_phases(t,y,delta=0):
     :return: phase of minimum relative to peaks.
     
     """
-    max_min_dictionary=max_min(y,t,delta)
-    
-    minima_num=max_min_dictionary['minima_number']
-    maxima_times=max_min_dictionary['maxima_times']
-    minima_times=max_min_dictionary['minima_times']
+    max_min_dictionary = max_min(y, t, delta)
+
+    minima_num = max_min_dictionary['minima_number']
+    maxima_times = max_min_dictionary['maxima_times']
+    minima_times = max_min_dictionary['minima_times']
 #     maxima_locations=max_min_dictionary['maxima_locations']
-    
-    minima_phases=[]
-    
+
+    minima_phases = []
+
     for i in range(minima_num):
-        maximum_0_t=maxima_times[i]
-        maximum_1_t=maxima_times[i+1]
+        maximum_0_t = maxima_times[i]
+        maximum_1_t = maxima_times[i + 1]
 #         maximum_0_location=maxima_locations[i]
 #         maximum_1_location=maxima_locations[i+1]
-        minimum_time=minima_times[i]
-        phase=(minimum_time-maximum_0_t)/(maximum_1_t-maximum_0_t)
+        minimum_time = minima_times[i]
+        phase = (minimum_time - maximum_0_t) / (maximum_1_t - maximum_0_t)
         minima_phases.append(phase)
-        
-    phase_list=[minima_times,minima_phases]
-    
+
+    phase_list = [minima_times, minima_phases]
+
     return phase_list
-    
-    
+
+
 class TraceAnalysis(object):
     """
     Base class for analysis of electrophysiology data
@@ -853,45 +867,45 @@ class TraceAnalysis(object):
     :param start_analysis: time in v,t where analysis is to start
     :param end_analysis: time in v,t where analysis is to end
     """
-    
+
     def __nearest_index(self,
 			array,
 			target_value):
 
         """Finds index of first nearest value to target_value in array"""
-        nparray=numpy.array(array)
-        differences=numpy.abs(nparray-target_value)
-        min_difference=differences.min()
-        index=numpy.nonzero(differences==min_difference)[0][0]
+        nparray = numpy.array(array)
+        differences = numpy.abs(nparray - target_value)
+        min_difference = differences.min()
+        index = numpy.nonzero(differences == min_difference)[0][0]
         return index
-        
-    def __init__(self,v,t,start_analysis=0,end_analysis=None):
 
-        self.v=v
-        self.t=t
-        
-        start_index=self.__nearest_index(self.t,start_analysis)
-        end_index=self.__nearest_index(self.t,end_analysis)
-        
-        if end_analysis!=None:            
-            self.v=v[start_index:end_index]
-            self.t=t[start_index:end_index]
-            
+    def __init__(self, v, t, start_analysis=0, end_analysis=None):
+
+        self.v = v
+        self.t = t
+
+        start_index = self.__nearest_index(self.t, start_analysis)
+        end_index = self.__nearest_index(self.t, end_analysis)
+
+        if end_analysis != None:
+            self.v = v[start_index:end_index]
+            self.t = t[start_index:end_index]
+
     def plot_trace(self, save_fig=False, trace_name='voltage_trace.png', show_plot=True):
         """
         Plot the trace and save it if requested by user.
         """
 
         import matplotlib.pyplot as plt
-        
-        plt.plot(self.t,self.v)
+
+        plt.plot(self.t, self.v)
         if save_fig:
             plt.savefig(trace_name)
-        
+
         if show_plot:
             plt.show()
-                
-    def evaluate_fitness(self, target_dict={}, target_weights=None, 
+
+    def evaluate_fitness(self, target_dict={}, target_weights=None,
                          cost_function=normalised_cost_function):
         """
         Return the estimated fitness of the data, based on the cost function being used.
@@ -901,49 +915,49 @@ class TraceAnalysis(object):
             :param cost_function: cost function (callback) to assign individual targets sub-fitness.
         """
 
-        #calculate max fitness value (TODO: there may be a more pythonic way to do this..)
-        worst_cumulative_fitness=0
+        # calculate max fitness value (TODO: there may be a more pythonic way to do this..)
+        worst_cumulative_fitness = 0
         for target in target_dict.keys():
             print target
-            if target_weights == None: 
+            if target_weights == None:
                 target_weight = 1
             else:
                 if target in target_weights.keys():
                     target_weight = target_weights[target]
                 else:
                     target_weight = 1.0
-                
+
             worst_cumulative_fitness += target_weight
-    
-        #if we have 1 or 0 peaks we won't conduct any analysis
+
+        # if we have 1 or 0 peaks we won't conduct any analysis
         if self.analysable_data == False:
             print 'data is non-analysable'
             return worst_cumulative_fitness
-            
+
         else:
             fitness = 0
-        
+
             for target in target_dict.keys():
-            
-                target_value=target_dict[target]
+
+                target_value = target_dict[target]
 
                 print 'examining target ' + target
 
-                if target_weights == None: 
+                if target_weights == None:
                     target_weight = 1
                 else:
                     if target in target_weights.keys():
                         target_weight = target_weights[target]
                     else:
                         target_weight = 1.0
-            
-                value=self.analysis_results[target]
-                #let function pick Q automatically
-                fitness+=target_weight*cost_function(value,target_value)
-                
-            self.fitness=fitness
+
+                value = self.analysis_results[target]
+                # let function pick Q automatically
+                fitness += target_weight * cost_function(value, target_value)
+
+            self.fitness = fitness
             return self.fitness
-            
+
 class IClampAnalysis(TraceAnalysis):
     """Analysis class for data from whole cell current injection experiments
 
@@ -957,7 +971,7 @@ class IClampAnalysis(TraceAnalysis):
     :param end_analysis: time in t where analysis is to end
        
     """
-        
+
     def __init__(self,
                  v,
                  t,
@@ -968,47 +982,47 @@ class IClampAnalysis(TraceAnalysis):
                  smooth_data=False,
                  show_smoothed_data=False,
                  smoothing_window_len=11):
-    
-        #call the parent constructor to prepare the v,t vectors:
-        super(IClampAnalysis,self).__init__(v,t,start_analysis,end_analysis)
+
+        # call the parent constructor to prepare the v,t vectors:
+        super(IClampAnalysis, self).__init__(v, t, start_analysis, end_analysis)
 
         if smooth_data == True:
-            self.v = smooth(self.v,window_len=smoothing_window_len)
+            self.v = smooth(self.v, window_len=smoothing_window_len)
 
         if show_smoothed_data == True:
             from matplotlib import pyplot as plt
-            plt.plot(self.t,self.v)
+            plt.plot(self.t, self.v)
             plt.show()
 
         self.delta = analysis_var['peak_delta']
         self.baseline = analysis_var['baseline']
         self.dvdt_threshold = analysis_var['dvdt_threshold']
-    
-        self.target_data_path=target_data_path
-    
+
+        self.target_data_path = target_data_path
+
         if "peak_threshold" in analysis_var.keys():
             peak_threshold = analysis_var["peak_threshold"]
         else:
             peak_threshold = None
-    
+
         self.max_min_dictionary = max_min(self.v,
                                           self.t,
                                           self.delta,
-                                          peak_threshold = peak_threshold)
-        
-        max_peak_no=self.max_min_dictionary['maxima_number']
-        
-        if max_peak_no<3:
-            self.analysable_data=False
+                                          peak_threshold=peak_threshold)
+
+        max_peak_no = self.max_min_dictionary['maxima_number']
+
+        if max_peak_no < 3:
+            self.analysable_data = False
         else:
-            self.analysable_data=True
+            self.analysable_data = True
 
     def analyse(self):
-        """If data is analysable analyses and puts all results into a dict"""    
-        
+        """If data is analysable analyses and puts all results into a dict"""
+
         if self.analysable_data:
-            max_min_dictionary=self.max_min_dictionary
-            analysis_results={}
+            max_min_dictionary = self.max_min_dictionary
+            analysis_results = {}
 
             analysis_results['average_minimum'] = numpy.average(max_min_dictionary['minima_values'])
             analysis_results['average_maximum'] = numpy.average(max_min_dictionary['maxima_values'])
@@ -1017,30 +1031,30 @@ class IClampAnalysis(TraceAnalysis):
             analysis_results['mean_spike_frequency'] = mean_spike_frequency(max_min_dictionary['maxima_times'])
             analysis_results['interspike_time_covar'] = spike_covar(max_min_dictionary['maxima_times'])
             analysis_results['first_spike_time'] = max_min_dictionary['maxima_times'][0]
-            trough_phases=minima_phases(self.t,self.v,delta = self.delta)
-            analysis_results['trough_phase_adaptation'] = exp_fit(trough_phases[0],trough_phases[1])
-            spike_width_list=spike_widths(self.v,self.t,self.baseline,self.delta)
-            analysis_results['spike_width_adaptation'] = exp_fit(spike_width_list[0],spike_width_list[1])
+            trough_phases = minima_phases(self.t, self.v, delta=self.delta)
+            analysis_results['trough_phase_adaptation'] = exp_fit(trough_phases[0], trough_phases[1])
+            spike_width_list = spike_widths(self.v, self.t, self.baseline, self.delta)
+            analysis_results['spike_width_adaptation'] = exp_fit(spike_width_list[0], spike_width_list[1])
             spike_frequency_list = spike_frequencies(max_min_dictionary['maxima_times'])
-            analysis_results['peak_decay_exponent'] = three_spike_adaptation(max_min_dictionary['maxima_times'],max_min_dictionary['maxima_values'])
-            analysis_results['trough_decay_exponent'] = three_spike_adaptation(max_min_dictionary['minima_times'],max_min_dictionary['minima_values'])
-            analysis_results['spike_frequency_adaptation'] = exp_fit(spike_frequency_list[0],spike_frequency_list[1])
+            analysis_results['peak_decay_exponent'] = three_spike_adaptation(max_min_dictionary['maxima_times'], max_min_dictionary['maxima_values'])
+            analysis_results['trough_decay_exponent'] = three_spike_adaptation(max_min_dictionary['minima_times'], max_min_dictionary['minima_values'])
+            analysis_results['spike_frequency_adaptation'] = exp_fit(spike_frequency_list[0], spike_frequency_list[1])
             analysis_results['spike_broadening'] = spike_broadening(spike_width_list[1])
-            analysis_results['peak_linear_gradient'] = linear_fit(max_min_dictionary["maxima_times"],max_min_dictionary["maxima_values"])
+            analysis_results['peak_linear_gradient'] = linear_fit(max_min_dictionary["maxima_times"], max_min_dictionary["maxima_values"])
 
 
-            #this line here is because PPTD needs to be compared directly with experimental data:
-            if self.target_data_path!=None:
-                t_experimental,v_experimental=load_csv_data(self.target_data_path)
+            # this line here is because PPTD needs to be compared directly with experimental data:
+            if self.target_data_path != None:
+                t_experimental, v_experimental = load_csv_data(self.target_data_path)
                 try:
-                    analysis_results['pptd_error']=pptd_error(self.t,self.v,
-                                              t_experimental,v_experimental,
+                    analysis_results['pptd_error'] = pptd_error(self.t, self.v,
+                                              t_experimental, v_experimental,
                                               dvdt_threshold=self.dvdt_threshold)
                 except:
                     print 'WARNING PPTD failure'
                     analysis_results['pptd_error'] = 1
 
-            self.analysis_results=analysis_results
+            self.analysis_results = analysis_results
 
         else:
             print 'data not suitable for analysis,<3 APs'
