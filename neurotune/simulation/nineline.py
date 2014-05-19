@@ -68,7 +68,7 @@ class NineLineSimulation(Simulation):
         assess the candidate
 
         `candidate` -- a list of parameters [list(float)]
-        `setup`             -- a simulation setup [Simulation.Setup]
+        `setup`             -- a simulation setup [Setup]
 
         returns neo.Segment containing the measured analog signals
 

@@ -1,5 +1,5 @@
 """
-Run the simulation 
+Run the simulation
 """
 from __future__ import absolute_import
 from collections import namedtuple
@@ -13,17 +13,17 @@ from neurotune.conditions import ExperimentalConditions
 class RecordingRequest(object):
     """"
     RecordingRequests are raised by objective functions and are passed to
-    Simulation objects so they can set up the required simulation conditions (eg
-    IClamp, VClamp, spike input) and recorders
+    Simulation objects so they can set up the required simulation conditions
+    (eg IClamp, VClamp, spike input) and recorders
     """
 
     def __init__(self, record_time=2000.0, record_variable=None,
                  conditions=None):
         """
         `record_time`     -- the length of the recording required by the
-                             simulation 
+                             simulation
         `record_variable` -- the name of the section/synapse/current
-                             to record from (simulation specific) 
+                             to record from (simulation specific)
         `conditions`      -- the experimental conditions
                              required (eg. initial voltage, current clamp)
         """
@@ -33,9 +33,9 @@ class RecordingRequest(object):
 
 
 class Setup(object):
-    """ 
-    Groups together all the information to interface to and from a requested
-    simulation
+    """
+    Groups together all the simulation set-up information to interface to and
+    from a requested simulation
     """
     def __init__(self, time, conditions, record_variables, request_keys):
         self.time = time
@@ -56,9 +56,9 @@ class Simulation():
         """
         Merge recording requests so that the same recording/simulation doesn't
         get performed multiple times
-        
-        `recording_requests`  -- a list of recording requests from the objective
-                                 functions [.RecordingRequest]
+
+        `recording_requests`  -- a list of recording requests from the
+                                 objective functions [RecordingRequest]
         """
         # Group into requests by common experimental conditions
         try:
@@ -66,7 +66,7 @@ class Simulation():
         except AttributeError:
             request_items = [(None, recording_requests)]
         request_items.sort(key=lambda x: x[1].conditions)
-        common_conditions = groupby(request_items, 
+        common_conditions = groupby(request_items,
                                     key=lambda x: x[1].conditions)
         # Merge the common requests into simulation setups
         self._simulation_setups = []
@@ -74,8 +74,8 @@ class Simulation():
             if conditions is not None:
                 for c in conditions.clamps:
                     if type(c) not in self.supported_clamp_types:
-                        raise Exception("Condition of type {} is not supported "
-                                        "by this Simulation class ({})"
+                        raise Exception("Condition of type {} is not supported"
+                                        " by this Simulation class ({})"
                                         .format(type(c), self.__class__))
             requests = [r for r in requests_iter]
             # Get the maxium record time in the group
@@ -83,13 +83,13 @@ class Simulation():
             # Group the requests by common recording sites
             requests.sort(key=lambda x: x[1].record_variable)
             common_record_variables = groupby(requests,
-                                             key=lambda x: x[1].record_variable)
+                                            key=lambda x: x[1].record_variable)
             # Get the common recording sites
-            record_variables, requests_iters = zip(*[(rv, [r for r in requests])
+            record_variables, requests_iters = zip(*[(rv, list(requests))
                                                       for rv, requests in
                                                       common_record_variables])
             # Get the list of request keys for each requested recording
-            request_keys = [zip(*com_record)[0] 
+            request_keys = [zip(*com_record)[0]
                             for com_record in requests_iters]
             # Append the simulation request to the
             self._simulation_setups.append(Setup(record_time, conditions,
@@ -113,14 +113,14 @@ class Simulation():
         Return the recordings in a dictionary to be returned to the objective
         functions, so each objective function can access the recording it
         requested
-        
+
         `candidate` -- a list of parameters [list(float)]
         """
         recordings = self.run(candidate)
         requests_dict = {}
         for seg, setup in zip(recordings.segments, self._simulation_setups):
             assert len(seg.analogsignals) == len(setup.request_keys)
-            for signal, request_keys in zip(seg.analogsignals, 
+            for signal, request_keys in zip(seg.analogsignals,
                                             setup.request_keys):
                 requests_dict.update([(key, signal) for key in request_keys])
         return recordings, requests_dict
@@ -136,7 +136,7 @@ class Simulation():
         """
         Sets the parameters in which the candidate arrays passed to the 'run'
         method will map to in respective order
-        
+
         `tune_parameters` -- list of parameter names which correspond to the
                              candidate order
         """
@@ -147,9 +147,9 @@ class Simulation():
         Runs all simulation reuquired by requested simulation setups
         """
         recordings = neo.Block(name=','.join(['{}={}'.format(p.name, c)
-                                              for p, c in 
+                                              for p, c in
                                               zip(self.tune_parameters,
-                                                  candidate)]), 
+                                                  candidate)]),
                                candidate=candidate)
         for setup in self.setups:
             recordings.segments.append(self.run(candidate, setup))
@@ -159,10 +159,10 @@ class Simulation():
         """
         At a high level - accepts a candidate (a list of cell parameters that
         are being tuned)
-        
+
         `candidate`         -- a list of parameters [list(float)]
-        `setup`             -- a simulation setup [Simulation.Setup]
-        
+        `setup`             -- a simulation setup [Setup]
+
         Returns:
             A Neo block object with a segment for each Setup in
             self._simulation_setups containing an analogsignal for each
