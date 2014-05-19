@@ -22,8 +22,8 @@ class Analysis(object):
             assert len(seg.analogsignals) == len(setup.request_keys)
             for sig, request_keys in zip(seg.analogsignals,
                                          setup.request_keys):
-                # wrap the returned signal in an AnalyzedSignal wrapper
-                signal = AnalyzedSignal(sig)
+                # wrap the returned signal in an AnalysedSignal wrapper
+                signal = AnalysedSignal(sig)
                 self._requests.update([(key, signal) for key in request_keys])
         self._objective_key = None
 
@@ -43,7 +43,7 @@ class Analysis(object):
         specific_analysis._objective_key = (objective_key,)
 
 
-class AnalyzedSignal(neo.core.AnalogSignal):
+class AnalysedSignal(neo.core.AnalogSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
     with the signal so it can be shared between multiple objectives (or even
@@ -51,14 +51,17 @@ class AnalyzedSignal(neo.core.AnalogSignal):
     """
 
     def __new__(cls, signal):
+        if not isinstance(signal, neo.core.AnalogSignal):
+            raise Exception("Can only analyse neo.coreAnalogSignals (not {})"
+                            .format(type(signal)))
         # Make a shallow copy of the original AnalogSignal object
         obj = copy(signal)
-        # "Cast" the new AnalogSignal object to the AnalyzedSignal derived
+        # "Cast" the new AnalogSignal object to the AnalysedSignal derived
         # class
-        obj.__class__ = AnalyzedSignal
+        obj.__class__ = AnalysedSignal
         return obj
 
-    def __init__(self, signal):  # @UnusedVariable - to match with __new__
+    def __init__(self, signal):  # @UnusedVariable - to match __new__ args
         self._spikes = {}
 
     def spike_times(self, **kwargs):

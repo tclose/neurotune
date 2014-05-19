@@ -1,12 +1,14 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
+from numpy.linalg import norm
 import scipy.signal
 from scipy.interpolate import InterpolatedUnivariateSpline
 import scipy.optimize
 import neo.io
-from .__init__ import Objective
-from ..simulation.__init__ import RecordingRequest
+from . import Objective
+from ..simulation import RecordingRequest
+from ..analysis import AnalysedSignal
 
 
 class PhasePlaneObjective(Objective):
@@ -18,14 +20,14 @@ class PhasePlaneObjective(Objective):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, reference_traces, time_start=500.0, time_stop=2000.0,
+    def __init__(self, reference_trace, time_start=500.0, time_stop=2000.0,
                  record_variable=None, exp_conditions=None, dvdt_scale=0.25,
                  interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_traces` -- traces (in Neo format) that are to be compared
+        `reference_trace` -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         `time_stop`        -- the length of the recording [float]
         `record_variable`  -- the recording site [str]
@@ -44,12 +46,20 @@ class PhasePlaneObjective(Objective):
         super(PhasePlaneObjective, self).__init__(time_start, time_stop)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
-        if isinstance(reference_traces, str):
-            f = neo.io.PickleIO(reference_traces)
+        if isinstance(reference_trace, str):
+            f = neo.io.PickleIO(reference_trace)
             seg = f.read_segment()
-            self.reference_traces = seg.analogsignals
-        elif isinstance(reference_traces, neo.AnalogSignal):
-            self.reference_traces = [reference_traces]
+            try:
+                self.reference_trace = seg.analogsignals[0]
+            except IndexError:
+                raise Exception("No analog signals were loaded from file '{}'"
+                                .format(reference_trace))
+        elif isinstance(reference_trace, neo.AnalogSignal):
+            self.reference_trace = AnalysedSignal(reference_trace)
+        elif not isinstance(reference_trace, AnalysedSignal):
+            raise Exception("Unrecognised format for reference trace ({}), "
+                            "must be either path-to-file, neo.AnalogSignal or "
+                            "AnalysedSignal".format(type(reference_trace)))
         # Save members
         self.record_variable = record_variable
         self.exp_conditions = exp_conditions
@@ -157,14 +167,15 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
     BOUND_DEFAULT = 0.5
 
-    def __init__(self, reference_traces, num_bins=(150, 150),
+    def __init__(self, reference_trace, num_bins=(150, 150),
                  v_bounds=(-100.0, 50.0), dvdt_bounds=(-300.0, 300.0),
-                 bin_ratio=3.0, **kwargs):
+                 resample_ratio=3.0, kernel_stdev=(20.0, 80.0),
+                 kernel_cutoff=(3.5, 3.5), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_traces` -- traces (in Neo format) that are to be compared
+        `reference_trace` -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         `num_bins`         -- the number of bins to use for the histogram
                               [tuple[2](int)]
@@ -176,28 +187,44 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                               histogram is generated for. If 'None' then it is
                               calculated from the bounds of the reference
                               traces [tuple[2](float)]
-        `bin_ratio`        -- the frequency for the reinterpolated samples
+        `resample_ratio`   -- the frequency for the reinterpolated samples
                               as a fraction of bin length. Can be a scalar or a
                               tuple. No resampling is performed if it evaluates
                               to False
+        `kernel_stdev`     -- the standard deviation of the Gaussian kernel
+                              used to convolve the histogram. If None then
+                              no convolution is performed [tuple[2](float)]
+        `kernel_cutoff`    -- the number of standard deviations the Gaussian
+                              kernel is truncated at
         """
-        super(PhasePlaneHistObjective, self).__init__(reference_traces,
+        super(PhasePlaneHistObjective, self).__init__(reference_trace,
                                                       **kwargs)
         self.num_bins = numpy.asarray(num_bins, dtype=int)
-        self._set_bounds(v_bounds, dvdt_bounds, self.reference_traces)
-        if bin_ratio:
-            resample = self.bin_size / bin_ratio
-            self.resample_length = numpy.sqrt(resample[0] ** 2 +
-                                              resample[1] ** 2)
+        self._set_bounds(v_bounds, dvdt_bounds, self.reference_trace)
+        if resample_ratio:
+            self.resample_length = norm(self.bin_size) / resample_ratio
         else:
             self.resample_length = None
+        if kernel_stdev is not None:
+            # Calculate the extent of the Gaussian kernel from the provided
+            # width and number of standard deviations
+            self.kernel_stdev = numpy.asarray(kernel_stdev)
+            self.kernel_cutoff = numpy.asarray(kernel_cutoff)
+            self.kernel_extent = self.kernel_stdev * kernel_cutoff
+            # Calculate the number of bins the kernel spans
+            nbins = 1j * (self.kernel_extent) / self.bin_size
+            # Get the mesh of values over which the Gaussian kernel will be
+            # evaluated
+            mesh = numpy.ogrid[-kernel_cutoff[0]:kernel_cutoff[0]:nbins[0],
+                               -kernel_cutoff[1]:kernel_cutoff[1]:nbins[1]]
+            # Calculate the Gaussian kernel
+            self.kernel = (numpy.exp(-mesh[0] ** 2) *
+                           numpy.exp(-mesh[1] ** 2) /
+                           (2 * numpy.pi * self.kernel_stdev[0] *
+                            self.kernel_stdev[1]))
         # Generate the reference phase plane the simulated data will be
         # compared against
-        self.ref_hist = numpy.zeros(self.num_bins)
-        for ref_trace in self.reference_traces:
-            self.ref_hist += self._generate_hist(ref_trace)
-        # Normalise the reference phase plane
-        self.ref_hist /= len(self.reference_traces)
+        self.ref_hist = self._generate_hist(reference_trace)
 
     @property
     def range(self):
@@ -216,7 +243,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         diff **= 2
         return diff.sum()
 
-    def _set_bounds(self, v_bounds, dvdt_bounds, reference_traces):
+    def _set_bounds(self, v_bounds, dvdt_bounds, reference_trace):
         """
         Sets the bounds of the histogram. If v_bounds or dvdt_bounds is not
         provided (i.e. is None) then the bounds is taken to be the bounds
@@ -231,14 +258,14 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                               histogram is generated for. If 'None' then it is
                               calculated from the bounds of the reference
                               traces [tuple[2](float)]
-        `reference_traces` -- traces (in Neo format) that are to be compared
+        `reference_trace` -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         """
         # Get voltages and dV/dt values for all of the reference traces in a
         # list of numpy.arrays which will be converted into a single array for
         # convenient maximum and minimum calculation
         v, dvdt = zip(*[self._calculate_v_and_dvdt(t)
-                        for t in reference_traces])
+                        for t in reference_trace])
         # For both v and dV/dt bounds and see if any are None and therefore
         # require a default value to be calculated.
         self.bounds = []
@@ -257,7 +284,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     def _generate_hist(self, trace):
         """
         Generates the phase plane histogram see Neurofitter paper (Van Geit
-        2007)
+        2007). Optionally phase plane histogram is convolved
+        with a Gaussian kernel
 
         `trace` -- a voltage trace [neo.Anaologsignal]
 
@@ -266,8 +294,12 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         v, dvdt = self._calculate_v_and_dvdt(trace)
         if self.resample_length:
             v, dvdt = self._resample_traces(v, dvdt, self.resample_length)
-        return numpy.histogram2d(v, dvdt, bins=self.num_bins,
+        hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
                                  range=self.bounds, normed=False)[0]
+        if self.kernel is not None:
+            # Convolve the histogram with the precalculated Gaussian kernel
+            hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
+        return hist
 
     def _resample_traces(self, v, dvdt, resample_length):
         """
@@ -346,69 +378,6 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             if show:
                 plt.show()
 
-
-class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
-    """
-    Phase-plane histogram objective function based on the objective in Van Geit
-    2007 (Neurofitter) with the exception that the histograms are smoothed by a
-    Gaussian kernel after they are generated
-    """
-
-    def __init__(self, reference_traces, num_bins=(150, 150),
-                 kernel_width=(20, 80), num_stdevs=(3.5, 3.5), **kwargs):
-        """
-        Creates a phase plane histogram convolved with a Gaussian kernel from
-        the reference traces and compares that with a similarly convolved
-        histogram of the simulated traces
-
-        `reference_traces` -- traces (in Neo format) that are to be compared
-                              against [list(neo.AnalogSignal)]
-        `num_bins`         -- the number of bins to use for the histogram
-                              [tuple(int)]
-        `kernel_width`     -- the standard deviation of the Gaussian kernel
-                              used to convolve the histogram [tuple[2](float)]
-        `nstds`       -- the number of standard deviations the Gaussian
-                              kernel extends over
-        """
-        # Calculate the extent of the Gaussian kernel from the provided width
-        # and number of standard deviations
-        self.kernel_width = numpy.asarray(kernel_width)
-        self.nstds = numpy.asarray(num_stdevs)
-        self.kernel_extent = self.kernel_width * self.nstds
-        # The creation of the kernel is delayed until it is required (in the
-        # _generate_hist method) because it relies on the range of the
-        # histogram which is set in the super().__init__ method
-        self.kernel = None
-        # Call the parent class __init__ method
-        super(ConvPhasePlaneHistObjective, self).__init__(reference_traces,
-                                                          num_bins=num_bins,
-                                                          **kwargs)
-
-    def _generate_hist(self, trace):
-        """
-        Extends the vanilla phase plane histogram to allow it to be convolved
-        with a Gaussian kernel
-
-        `trace` -- a voltage trace [neo.Anaologsignal]
-        """
-        # Get the unconvolved histogram
-        unconv_hist = (super(ConvPhasePlaneHistObjective, self)
-                       ._generate_hist(trace))
-        if self.kernel is None:
-            # Calculate the number of bins the kernel spans
-            nkbins = (self.kernel_extent) / self.bin_size
-            # Get the mesh of values over which the Gaussian kernel will be
-            # evaluated
-            mesh = numpy.ogrid[-self.nstds[0]:self.nstds[0]:nkbins[0] * 1j,
-                               - self.nstds[1]:self.nstds[1]:nkbins[1] * 1j]
-            # Calculate the Gaussian kernel
-            self.kernel = (numpy.exp(-mesh[0] ** 2) *
-                           numpy.exp(-mesh[1] ** 2) /
-                           (2 * numpy.pi * self.kernel_width[0] *
-                            self.kernel_width[1]))
-        # Convolve the histogram with the precalculated Gaussian kernel
-        return scipy.signal.convolve2d(unconv_hist, self.kernel, mode='same')
-
     def plot_kernel(self, show=True):
         """
         Used in debugging to plot the kernel
@@ -416,6 +385,8 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
         `show`  -- whether to call the matplotlib 'show' function (depends on
                    whether there are subsequent plots to compare or not) [bool]
         """
+        if self.kernel is None:
+            raise Exception("Histogram does not use a convolution kernel")
         from matplotlib import pyplot as plt
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -440,29 +411,27 @@ class ConvPhasePlaneHistObjective(PhasePlaneHistObjective):
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
-    def __init__(self, reference_traces, dvdt_thresholds, num_points,
+    def __init__(self, reference_trace, dvdt_thresholds, num_points,
                  **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_traces` -- traces (in Neo format) that are to be compared
+        `reference_trace` -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         `dvdt_thresholds`  -- the threshold above which the loop is considered
                               to have ended [tuple[2](float)]
         `num_points`       -- the number of sample points to interpolate
                               between the loop start and end points
         """
-        super(PhasePlanePointwiseObjective, self).__init__(reference_traces,
+        super(PhasePlanePointwiseObjective, self).__init__(reference_trace,
                                                            **kwargs)
         self.thresh = dvdt_thresholds
         if self.thresh[0] < 0.0 or self.thresh[1] > 0.0:
             raise Exception("Start threshold must be above 0 and end threshold"
                             " must be below 0 (found {})".format(self.thresh))
         self.num_points = num_points
-        self.reference_loops = []
-        for t in self.reference_traces:
-            self.reference_loops.extend(self._cut_out_loops(t))
+        self.reference_loops = self._cut_out_loops(reference_trace)
         if len(self.reference_loops) == 0:
             raise Exception("No loops found in reference signal")
 
