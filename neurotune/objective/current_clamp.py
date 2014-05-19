@@ -2,8 +2,8 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import neo.io
 from .__init__ import Objective
-from ..simulation import RecordingRequest
-from ..conditions import ExperimentalConditions, StepCurrentSource
+from ..simulation import RecordingRequest, ExperimentalConditions, \
+                         StepCurrentSource
 
 
 class CurrentClampObjective(Objective):
