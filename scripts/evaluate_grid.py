@@ -13,9 +13,11 @@ from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
-from neurotune.objective.spike import SpikeFrequencyObjective
+from neurotune.objective.spike import (SpikeFrequencyObjective,
+                                       SpikeTimesObjective)
 from neurotune.algorithm import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.analysis import AnalysedSignal
 import cPickle as pkl
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -62,12 +64,14 @@ def run(args):
     cell.record('v')
     simulation_controller.run(simulation_time=args.time,
                               timestep=args.timestep)
-    reference_trace = cell.get_recording('v')
+    reference = AnalysedSignal(cell.get_recording('v'))
     # Instantiate the multi-objective objective from 3 phase-plane objectives
-    objective = MultiObjective(PhasePlaneHistObjective(reference_trace),
-                               PhasePlanePointwiseObjective(reference_trace,
+    objective = MultiObjective(PhasePlaneHistObjective(reference),
+                               PhasePlanePointwiseObjective(reference,
                                                             (20, -20), 100),
-                               SpikeFrequencyObjective(10))
+                               SpikeFrequencyObjective(reference.\
+                                                       spike_frequency),
+                               SpikeTimesObjective(reference.spike_times))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,

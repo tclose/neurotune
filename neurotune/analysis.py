@@ -142,7 +142,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
             self._dvdt = dv / dt
             return self._dvdt
 
-    def average_spike_frequency(self, t_start=None, t_stop=None, **kwargs):
+    def spike_frequency(self, t_start=None, t_stop=None, **kwargs):
         spike_times = self.spike_times(**kwargs)
         if t_start is None:
             t_start = spike_times.t_start
