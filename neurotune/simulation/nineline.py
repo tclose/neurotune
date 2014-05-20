@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import quantities as pq
 import neo.core
 from nineline.cells.neuron import NineCellMetaClass, \
                                   simulation_controller as nineline_controller
@@ -80,7 +81,11 @@ class NineLineSimulation(Simulation):
         else:
             nineline_controller.reset()
         self._set_candidate_params(candidate)
-        nineline_controller.run(setup.time)
+        # Convert requested record time to ms
+        record_time = float(pq.Quantity(setup.time, units='ms'))
+        # Run simulation
+        nineline_controller.run(record_time)
+        # Return neo Segment object with all recordings
         seg = neo.core.Segment()
         recordings = self.cell.get_recording(*zip(*setup.record_variables))
         seg.analogsignals.extend(recordings)

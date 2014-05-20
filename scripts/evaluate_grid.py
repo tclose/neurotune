@@ -6,6 +6,7 @@ import os.path
 import argparse
 import numpy.ma
 import shutil
+import cPickle as pkl
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
@@ -18,15 +19,15 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
 from neurotune.algorithm import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.analysis import AnalysedSignal
-import cPickle as pkl
+try:
+    from neurotune.tuner.mpi import MPITuner as Tuner
+except ImportError:
+    from neurotune.tuner import Tuner  # @Reimport
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('cell_9ml', type=str,
                        help="The path of the 9ml cell to test the objective "
                             "function on (default: %(default)s)")
-parser.add_argument('--num_steps', type=int, default=2,
-                    help="The number of grid steps to take along each "
-                         "dimension (default: %(default)s)")
 parser.add_argument('--disable_mpi', action='store_true',
                     help="Disable MPI tuner and replace with basic tuner")
 parser.add_argument('--build', type=str, default='lazy',
@@ -41,9 +42,9 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
-parser.add_argument('-p', '--parameter', nargs=4,
-                    metavar=('NAME', 'LBOUND', 'UBOUND', 'NUM_STEPS'),
-                    default=[], action='append',
+parser.add_argument('-p', '--parameter', nargs=5, default=[], action='append',
+                    metavar=('NAME', 'LBOUND', 'UBOUND', 'NUM_STEPS',
+                             'LOG_SCALE'),
                     help="Sets a parameter to tune and its lower and upper "
                          "bounds")
 parser.add_argument('--plot', action='store_true',
@@ -51,19 +52,15 @@ parser.add_argument('--plot', action='store_true',
 parser.add_argument('--plot_saved', nargs='*', default=False,
                     help="Plot a file that has been saved to file already")
 
-# The parameters to be tuned by the tuner
-parameters = [Parameter('diam', 'um', 20.0, 40.0),
-              Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)]
+# # The parameters to be tuned by the tuner
+# parameters = [Parameter('diam', 'um', 20.0, 40.0),
+#               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)]
 # 1e-5, 3e-5)]
 
 objective_names = ['Phase-plane original', 'Pointwise phase-plane']
 
 
-def run(args):
-    if args.disable_mpi:
-        from neurotune import Tuner  # @UnusedImport
-    else:
-        from neurotune.tuner.mpi import MPITuner as Tuner  # @Reimport
+def run(parameters, args):
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.cell_9ml)()
     cell.record('v')
@@ -80,12 +77,8 @@ def run(args):
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
-                  GridAlgorithm(num_steps=args.num_steps),
+                  GridAlgorithm(num_steps=[p[3] for p in args.parameter]),
                   NineLineSimulation(args.cell_9ml))
-
-    from neurotune.analysis import Analysis
-    objective.fitness(Analysis(tuner.simulation.run_all([25, -4.5]),
-                               tuner.simulation.setups))
     # Run the tuner
     try:
         pop, grid = tuner.tune()
@@ -110,7 +103,7 @@ def run(args):
                            out=args.output))
 
 
-def plot(grids, plot_type='surf', trim_factor=None):
+def plot(grids, parameters, plot_type='surf', trim_factor=None):
     # Import the plotting modules here so they are not imported unless plotting
     # is required
     from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
@@ -179,8 +172,13 @@ def prepare_work_dir(work_dir, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    if not args.parameter:
+        raise Exception("At least one parameter argument '--parameter' needs "
+                        "to be supplied")
+    parameters = [Parameter(name, 'S/cm^2', lbound, ubound, log_scale)
+                  for name, lbound, ubound, _, log_scale in args.parameter]
     if args.plot_saved is not False:
         with open(args.cell_9ml) as f:
-            plot(pkl.load(f), *args.plot_saved)
+            plot(pkl.load(f), parameters, *args.plot_saved)
     else:
-        run(args)
+        run(parameters, args)

@@ -11,7 +11,8 @@ class SpikeFrequencyObjective(Objective):
     frequencies
     """
 
-    def __init__(self, frequency, time_start=500.0, time_stop=2000.0):
+    def __init__(self, frequency, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms):
         """
         `frequency`  -- the desired spike frequency [quantities.Quantity]
         `time_start` -- the time from which to start calculating the frequency
@@ -21,6 +22,13 @@ class SpikeFrequencyObjective(Objective):
         self.frequency = pq.Quantity(frequency, units='Hz')
 
     def fitness(self, analysis):
+        """
+        Calculates the sum squared difference between the reference freqency
+        and the spike frequency of the recorded trace
+
+        `analysis` -- The analysis object containing all recordings and
+                      analysis of them [analysis.Analysis]
+        """
         signal = analysis.get_signal(t_start=self.time_start,
                                      t_stop=self.time_stop)
         frequency = signal.spike_frequency()
@@ -33,7 +41,8 @@ class SpikeTimesObjective(Objective):
     nearest spike in the reference set and vice versa.
     """
 
-    def __init__(self, spikes, time_start=500.0, time_stop=2000.0):
+    def __init__(self, spikes, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms):
         """
         `spikes`    -- the reference spike train [neo.SpikeTrain]
         `time_start` -- the time from which to start including spikes [float]
@@ -51,11 +60,18 @@ class SpikeTimesObjective(Objective):
         signal and the closest spike in the reference spike train, plus the
         vice-versa case
 
-        `signal` -- the recorded signal
+        `analysis` -- The analysis object containing all recordings and
+                      analysis of them [analysis.Analysis]
         """
         signal = analysis.get_signal(t_start=self.time_start,
                                      t_stop=self.time_stop)
         spikes = signal.spike_times()
+        # If no spikes were generated create a dummy spike that is guaranteed
+        # to be further away from a reference spike than any within the time
+        # window
+        if len(spikes) == 0:
+            spike_t = self.time_stop + self.time_start
+            spikes = neo.SpikeTrain([spike_t], spike_t, units=spike_t.units)
         fitness = 0.0
         for spike in spikes:
             fitness += float(numpy.square(self.reference_spikes - spike).min())

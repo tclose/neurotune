@@ -5,6 +5,7 @@ from numpy.linalg import norm
 import scipy.signal
 from scipy.interpolate import InterpolatedUnivariateSpline
 import scipy.optimize
+import quantities as pq
 import neo.io
 from . import Objective
 from ..simulation import RecordingRequest
@@ -20,9 +21,9 @@ class PhasePlaneObjective(Objective):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, reference_trace, time_start=500.0, time_stop=2000.0,
-                 record_variable=None, exp_conditions=None, dvdt_scale=0.25,
-                 interp_order=3):
+    def __init__(self, reference_trace, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms, record_variable=None,
+                 exp_conditions=None, dvdt_scale=0.25, interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
@@ -502,10 +503,9 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point
         if len(recorded_loops) == 0:
-            recorded_loops = [(numpy.empty(self.num_points).fill(
-                                                  self.no_spike_reference[0]),
-                               numpy.empty(self.num_points).fill(
-                                                  self.no_spike_reference[1]))]
+            recorded_loops = [numpy.empty((2, self.num_points))]
+            recorded_loops[0][0, :] = self.no_spike_reference[0]
+            recorded_loops[0][1, :] = self.no_spike_reference[1]
         # Create matrix of sum-squared-differences between recorded to
         # reference loops
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
