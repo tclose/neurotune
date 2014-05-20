@@ -9,6 +9,7 @@ import scipy.stats
 import numpy
 import math
 from copy import copy
+import quantities as pq
 import neo.core
 
 
@@ -25,12 +26,28 @@ class Analysis(object):
                 # wrap the returned signal in an AnalysedSignal wrapper
                 signal = AnalysedSignal(sig)
                 self._requests.update([(key, signal) for key in request_keys])
+        self._signals = {}
         self._objective_key = None
 
-    def get_signal(self, key=None):
+    def get_signal(self, key=None, t_start=0.0, t_stop=None):
+        # If this is an objective specific analysis (i.e. one with an objective
+        # key preset) prepend the objective key to the signal key for the
+        # complete "request" key
         if self._objective_key is not None:
             key = self._objective_key + (key,)
-        return self._requests[key]
+        try:
+            # See if this signal has been sliced by the passed start and end
+            # times previously
+            return self._signals[(key, t_start, t_stop)]
+        except KeyError:
+            # Slice the requested signal by the required start and end times
+            signal = self._requests[key]
+            if t_start or t_stop is not None:
+                if t_stop == None:
+                    t_stop = signal.t_stop
+                
+            self._signals[(key, t_start, t_stop)] = signal
+            return signal
 
     def objective_specific(self, objective_key):
         """
@@ -41,6 +58,7 @@ class Analysis(object):
         """
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
+        return specific_analysis
 
 
 class AnalysedSignal(neo.core.AnalogSignal):
@@ -59,10 +77,18 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # "Cast" the new AnalogSignal object to the AnalysedSignal derived
         # class
         obj.__class__ = AnalysedSignal
+        obj._spikes = {}
         return obj
 
-    def __init__(self, signal):  # @UnusedVariable - to match __new__ args
-        self._spikes = {}
+    @property
+    def dvdt(self):
+        try:
+            return self._dvdt
+        except AttributeError:
+            dv = numpy.diff(self)
+            dt = numpy.diff(self.times)
+            self._dvdt = dv / dt
+            return self._dvdt
 
     def spike_times(self, **kwargs):
         # Sort argument values by argument keys for a unique argument-list
@@ -74,11 +100,28 @@ class AnalysedSignal(neo.core.AnalogSignal):
         except KeyError:
             spike_times = []
             for start_i, end_i in self._spike_periods(**kwargs):
-                spike_times.append(self[start_i:end_i].max())
-            self._spikes[args_key] = neo.core.SpikeTrain(spike_times,
-                                                         self.times[-1],
-                                                        units=self.times.units)
+                dvdt = self.dvdt[start_i:end_i]
+                times = self.times[start_i:end_i]
+                # Get the index before dV/dt crosses 0
+                cross_index = numpy.where((dvdt[:-1] >= 0) & (dvdt[1:] < 0))[0]
+                assert(len(cross_index) == 1), "One dV/dt zero crossing " \
+                                               "expected in spike period"
+                i = cross_index[0]  # There should only be one zero crossing
+                # Get the interpolated point where dV/dt crosses 0
+                exact_cross = dvdt[i] / (dvdt[i] - dvdt[i + 1])
+                # Calculate the exact spike time by interpolating between
+                # the points straddling the zero crossing
+                spike_time = times[i] + (times[i + 1] - times[i]) * exact_cross
+                spike_times.append(spike_time)
+            self._spikes[args_key] = neo.SpikeTrain(spike_times,
+                                                    self.t_stop,
+                                                    units=self.times.units)
             return self._spikes[args_key]
+
+    def spike_frequency(self, **kwargs):
+        spike_times = self.spike_times(**kwargs)
+        return pq.Quantity(float(len(spike_times)) /
+                           (self.t_stop - self.t_start), units='Hz')
 
     def _spike_periods(self, thresh_type='dvdt', **kwargs):
         if thresh_type == 'dvdt':
@@ -132,28 +175,26 @@ class AnalysedSignal(neo.core.AnalogSignal):
         assert all(stop_indices > start_indices)
         return zip(start_indices, stop_indices)
 
-    @property
-    def dvdt(self):
-        try:
-            return self._dvdt
-        except AttributeError:
-            dv = numpy.diff(self)
-            dt = numpy.diff(self.times)
-            self._dvdt = dv / dt
-            return self._dvdt
 
-    def spike_frequency(self, t_start=None, t_stop=None, **kwargs):
-        spike_times = self.spike_times(**kwargs)
-        if t_start is None:
-            t_start = spike_times.t_start
-        else:
-            spike_times = spike_times[numpy.where(spike_times >= t_start)]
-        if t_stop is None:
-            t_stop = spike_times.t_stop
-        else:
-            spike_times = spike_times[numpy.where(spike_times <= t_stop)]
-        return float(len(spike_times)) / (t_stop - t_start)
+class SlicedAnalysedSignal(neo.core.AnalogSignal):
+    """
+    A thin wrapper around the AnalogSignal class to keep all of the analysis
+    with the signal so it can be shared between multiple objectives (or even
+    within a single more complex objective)
+    """
 
+    def __new__(cls, analysed_signal):
+        if not isinstance(analysed_signal, AnalysedSignal):
+            raise Exception("Can only analyse AnalysedSignals (not {})"
+                            .format(type(analysed_signal)))
+        # Make a shallow copy of the original AnalogSignal object
+        obj = copy(signal)
+        # "Cast" the new AnalogSignal object to the AnalysedSignal derived
+        # class
+        obj.__class__ = AnalysedSignal
+        obj._spikes = {}
+        return obj
+    
 
 def smooth(x, window_len=11, window='hanning'):
     """Smooth the data using a window with requested size.
