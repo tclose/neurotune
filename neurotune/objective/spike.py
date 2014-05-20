@@ -39,7 +39,7 @@ class SpikeTimesObjective(Objective):
         `time_stop` -- the length of time to run the simulation
         """
         super(SpikeTimesObjective, self).__init__(time_start, time_stop)
-        if not isinstance(spikes, neo.SpikeTrain):
+        if not isinstance(spikes, neo.core.SpikeTrain):
             raise Exception("Spikes must be a neo.core.SpikeTrain object not "
                             "{}".format(type(spikes)))
         self.reference_spikes = spikes
