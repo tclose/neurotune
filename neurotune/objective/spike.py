@@ -1,5 +1,7 @@
 from __future__ import absolute_import
 import numpy
+import quantities as pq
+import neo.core
 from . import Objective
 
 
@@ -9,21 +11,20 @@ class SpikeFrequencyObjective(Objective):
     frequencies
     """
 
-    def __init__(self, frequency, time_start=0.0, time_stop=2000.0):
+    def __init__(self, frequency, time_start=500.0, time_stop=2000.0):
         """
         `frequency`  -- the desired spike frequency [quantities.Quantity]
         `time_start` -- the time from which to start calculating the frequency
         `time_stop`  -- the length of time to run the simulation
         """
-        super(SpikeFrequencyObjective, self).__init__(time_stop)
-        self.time_start = time_start
-        self.frequency = frequency
+        super(SpikeFrequencyObjective, self).__init__(time_start, time_stop)
+        self.frequency = pq.Quantity(frequency, units='Hz')
 
-    def fitness(self, signal):
-        signal_frequency = (len(signal[signal >= self.time_start &
-                                       signal <= self.time_stop])
-                            / self.time_stop)
-        return (self.frequency - signal_frequency) ** 2
+    def fitness(self, analysis):
+        signal = analysis.get_signal(t_start=self.time_start,
+                                     t_stop=self.time_stop)
+        frequency = signal.spike_frequency()
+        return (self.frequency - frequency) ** 2
 
 
 class SpikeTimesObjective(Objective):
@@ -32,15 +33,18 @@ class SpikeTimesObjective(Objective):
     frequencies
     """
 
-    def __init__(self, spikes, time_stop=2000.0):
+    def __init__(self, spikes, time_start=500.0, time_stop=2000.0):
         """
         `spikes`    -- the reference spike train [neo.SpikeTrain]
         `time_stop` -- the length of time to run the simulation
         """
-        super(SpikeTimesObjective, self).__init__(time_stop)
+        super(SpikeTimesObjective, self).__init__(time_start, time_stop)
+        if not isinstance(spikes, neo.SpikeTrain):
+            raise Exception("Spikes must be a neo.core.SpikeTrain object not "
+                            "{}".format(type(spikes)))
         self.reference_spikes = spikes
 
-    def fitness(self, signal):
+    def fitness(self, analysis):
         """
         Calculates the sum squared difference between each spike in the
         signal and the closest spike in the reference spike train, plus the
@@ -48,10 +52,12 @@ class SpikeTimesObjective(Objective):
 
         `signal` -- the recorded signal
         """
-        spikes = signal[signal < self.time_stop].spikes
+        signal = analysis.get_signal(t_start=self.time_start,
+                                     t_stop=self.time_stop)
+        spikes = signal.spike_times()
         fitness = 0.0
         for spike in spikes:
-            fitness += numpy.square(self.reference_spikes - spike).min()
+            fitness += float(numpy.square(self.reference_spikes - spike).min())
         for ref_spike in self.reference_spikes:
-            fitness += numpy.square(spikes - ref_spike).min()
+            fitness += float(numpy.square(spikes - ref_spike).min())
         return fitness

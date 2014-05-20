@@ -6,6 +6,7 @@ AUTHOR: Mike Vella vellamike@gmail.com
 
 """
 import scipy.stats
+from scipy.interpolate import UnivariateSpline
 import numpy
 import math
 from copy import copy
@@ -45,7 +46,8 @@ class Analysis(object):
             if t_start or t_stop is not None:
                 if t_stop == None:
                     t_stop = signal.t_stop
-                
+                signal = SlicedAnalysedSignal(signal, t_start=t_start,
+                                              t_stop=t_stop)
             self._signals[(key, t_start, t_stop)] = signal
             return signal
 
@@ -68,6 +70,15 @@ class AnalysedSignal(neo.core.AnalogSignal):
     within a single more complex objective)
     """
 
+    @classmethod
+    def _argkey(cls, kwargs):
+        """
+        Returns keyword argument values, sorted by key names to be used for
+        dictionary lookups
+        """
+        return tuple([val for _, val in sorted(kwargs.items(),
+                                                   key=lambda item: item[0])])
+
     def __new__(cls, signal):
         if not isinstance(signal, neo.core.AnalogSignal):
             raise Exception("Can only analyse neo.coreAnalogSignals (not {})"
@@ -87,14 +98,19 @@ class AnalysedSignal(neo.core.AnalogSignal):
         except AttributeError:
             dv = numpy.diff(self)
             dt = numpy.diff(self.times)
-            self._dvdt = dv / dt
+            # Get the dvdt at the intervals between the samples
+            dvdt = dv / dt
+            # Linearly interpolate the dV/dt value back to the time points of
+            # the original time course.
+            spline = UnivariateSpline(self.times[:-1] + dt / 2.0, dvdt, s=1)
+            self._dvdt = numpy.hstack((dvdt[0],
+                                       pq.Quantity(spline(self.times[1:-1]),
+                                                  units=dvdt.units), dvdt[-1]))
             return self._dvdt
 
     def spike_times(self, **kwargs):
-        # Sort argument values by argument keys for a unique argument-list
-        # dictionary key"
-        args_key = tuple([val for _, val in sorted(kwargs.items(),
-                                                   key=lambda item: item[0])])
+        # Get unique dictionary key from keyword arguments
+        args_key = self._argkey(kwargs)
         try:
             return self._spikes[args_key]
         except KeyError:
@@ -113,10 +129,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 # the points straddling the zero crossing
                 spike_time = times[i] + (times[i + 1] - times[i]) * exact_cross
                 spike_times.append(spike_time)
-            self._spikes[args_key] = neo.SpikeTrain(spike_times,
-                                                    self.t_stop,
-                                                    units=self.times.units)
-            return self._spikes[args_key]
+            spikes = neo.SpikeTrain(spike_times, self.t_stop,
+                                    units=self.times.units)
+            self._spikes[args_key] = spikes
+            return spikes
 
     def spike_frequency(self, **kwargs):
         spike_times = self.spike_times(**kwargs)
@@ -176,25 +192,33 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return zip(start_indices, stop_indices)
 
 
-class SlicedAnalysedSignal(neo.core.AnalogSignal):
+class SlicedAnalysedSignal(AnalysedSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
     with the signal so it can be shared between multiple objectives (or even
     within a single more complex objective)
     """
 
-    def __new__(cls, analysed_signal):
-        if not isinstance(analysed_signal, AnalysedSignal):
+    def __new__(cls, signal, t_start=0.0, t_stop=None):
+        if not isinstance(signal, AnalysedSignal):
             raise Exception("Can only analyse AnalysedSignals (not {})"
-                            .format(type(analysed_signal)))
-        # Make a shallow copy of the original AnalogSignal object
-        obj = copy(signal)
-        # "Cast" the new AnalogSignal object to the AnalysedSignal derived
-        # class
-        obj.__class__ = AnalysedSignal
-        obj._spikes = {}
+                            .format(type(signal)))
+        indices = numpy.where((signal.times >= t_start) &
+                              (signal.times <= t_stop))
+        obj = AnalysedSignal.__new__(cls, signal[indices])
+        obj._parent = signal
+        obj._indices = indices
         return obj
-    
+
+    @property
+    def dvdt(self):
+        return self._parent.dvdt[self._indices]
+
+    def spike_times(self, **kwargs):
+        spikes = self._parent.spike_times(**kwargs)
+        return spikes[numpy.where((spikes >= self.t_start) &
+                                  (spikes <= self.t_stop))]
+
 
 def smooth(x, window_len=11, window='hanning'):
     """Smooth the data using a window with requested size.

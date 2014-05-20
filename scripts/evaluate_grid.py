@@ -70,13 +70,17 @@ def run(args):
                                PhasePlanePointwiseObjective(reference,
                                                             (20, -20), 100),
                                SpikeFrequencyObjective(reference.\
-                                                       spike_frequency),
-                               SpikeTimesObjective(reference.spike_times))
+                                                       spike_frequency()),
+                               SpikeTimesObjective(reference.spike_times()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=args.num_steps),
                   NineLineSimulation(args.cell_9ml))
+
+    from neurotune.analysis import Analysis
+    objective.fitness(Analysis(tuner.simulation.run_all([25, -4.5]),
+                               tuner.simulation.setups))
     # Run the tuner
     try:
         pop, grid = tuner.tune()

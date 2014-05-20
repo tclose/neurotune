@@ -32,7 +32,7 @@ class MultiObjective(Objective):
         """
         fitnesses = []
         for obj in self.objectives:
-            fitnesses.append(analysis.objective_specific(obj))
+            fitnesses.append(obj.fitness(analysis.objective_specific(obj)))
         return fitnesses
 
     def get_recording_requests(self):

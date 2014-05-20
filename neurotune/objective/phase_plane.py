@@ -43,8 +43,7 @@ class PhasePlaneObjective(Objective):
                               traces (see scipy.interpolate.interp1d for list
                               of options) [str]
         """
-        super(PhasePlaneObjective, self).__init__(time_stop)
-        self.time_start = time_start
+        super(PhasePlaneObjective, self).__init__(time_start, time_stop)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
         if isinstance(reference_trace, str):
@@ -75,27 +74,28 @@ class PhasePlaneObjective(Objective):
                                        record_time=self.time_stop,
                                        conditions=self.exp_conditions)}
 
-    def _trimmed_v_dvdt(self, trace):
-        """
-        Trims the trace to the indices within the time_start and time_stop
-        returns the trimmed V and dV/dt
-
-        `trace`        -- voltage trace [analysis.AnalysedSignal]
-
-        returns trimmed voltage trace, dV and dV/dt in a tuple
-        """
-        # Calculate dv/dt via difference between trace samples. NB # the
-        # float() call is required to remove the "python-quantities" units
-        start_index = int(round(trace.sampling_rate *
-                                (self.time_start + float(trace.t_start))))
-        stop_index = int(round(trace.sampling_rate *
-                               (self.time_stop + float(trace.t_start))))
-        # If the stop index is the end of the trace v needs to be truncated
-        # as dvdt will be missing the final value
-        v = trace[start_index:(stop_index - 1
-                               if stop_index == len(trace) else stop_index)]
-        dvdt = trace.dvdt[start_index:stop_index]
-        return v, dvdt
+#     def _trimmed_v_dvdt(self, trace):
+#         """
+#         Trims the trace to the indices within the time_start and time_stop
+#         returns the trimmed V and dV/dt
+#
+#         `trace`        -- voltage trace [analysis.AnalysedSignal]
+#
+#         returns trimmed voltage trace, dV and dV/dt in a tuple
+#         """
+#         #TODO: This is made redundant, should be removed
+#         # Calculate dv/dt via difference between trace samples. NB # the
+#         # float() call is required to remove the "python-quantities" units
+#         start_index = int(round(trace.sampling_rate *
+#                                 (self.time_start + float(trace.t_start))))
+#         stop_index = int(round(trace.sampling_rate *
+#                                (self.time_stop + float(trace.t_start))))
+#         # If the stop index is the end of the trace v needs to be truncated
+#         # as dvdt will be missing the final value
+#         v = trace[start_index:(stop_index - 1
+#                                if stop_index == len(trace) else stop_index)]
+#         dvdt = trace.dvdt[start_index:stop_index]
+#         return v, dvdt
 
     def _get_interpolators(self, v, dvdt, interp_order=None):
         """
@@ -136,20 +136,17 @@ class PhasePlaneObjective(Objective):
         from matplotlib import pyplot as plt
         # Temporarily switch of resampling to get original positions of v dvdt
         # plot
-        orig_resample_length = self.resample_length
-        self.resample_length = False
-        orig_v, orig_dvdt = self._trimmed_v_dvdt(trace)
-        self.resample_length = orig_resample_length
-        v, dvdt = self._trimmed_v_dvdt(trace)
+        resamp_v, resamp_dvdt = self._resample_traces(trace, trace.dvdt,
+                                                      self.resample_length)
         if isinstance(show, str):
             import cPickle as pickle
             with open(show, 'w') as f:
-                pickle.dump(((orig_v, orig_dvdt), (v, dvdt)), f)
+                pickle.dump(((trace, trace.dvdt), (resamp_v, resamp_dvdt)), f)
         else:
             # Plot original positions and interpolated traces
             plt.figure()
-            plt.plot(orig_v, orig_dvdt, 'x')
-            plt.plot(v, dvdt)
+            plt.plot(trace, trace.dvdt, 'x')
+            plt.plot(resamp_v, resamp_dvdt)
             plt.xlabel('v')
             plt.ylabel('dv/dt')
             plt.title('v-dv/dt plot of trace')
@@ -214,7 +211,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             # Get the mesh of values over which the Gaussian kernel will be
             # evaluated
             mesh = numpy.ogrid[-kernel_cutoff[0]:kernel_cutoff[0]:nbins[0],
-                               -kernel_cutoff[1]:kernel_cutoff[1]:nbins[1]]
+                               - kernel_cutoff[1]:kernel_cutoff[1]:nbins[1]]
             # Calculate the Gaussian kernel
             self.kernel = (numpy.exp(-mesh[0] ** 2) *
                            numpy.exp(-mesh[1] ** 2) /
@@ -234,7 +231,9 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         return self.range / self.num_bins
 
     def fitness(self, analysis):
-        phase_plane_hist = self._generate_hist(analysis.get_signal())
+        signal = analysis.get_signal(t_start=self.time_start,
+                                     t_stop=self.time_stop)
+        phase_plane_hist = self._generate_hist(signal)
         # Get the root-mean-square difference between the reference and
         # simulated histograms
         diff = self.ref_hist - phase_plane_hist
@@ -257,14 +256,11 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                               calculated from the bounds of the reference
                               traces [tuple[2](float)]
         """
-        # Get voltages and dV/dt values for all of the reference traces in a
-        # list of numpy.arrays which will be converted into a single array for
-        # convenient maximum and minimum calculation
-        v, dvdt = self._trimmed_v_dvdt(self.reference_trace)
         # For both v and dV/dt bounds and see if any are None and therefore
         # require a default value to be calculated.
         self.bounds = []
-        for bounds, trace in ((v_bounds, v), (dvdt_bounds, dvdt)):
+        for bounds, trace in ((v_bounds, self.reference_trace),
+                              (dvdt_bounds, self.reference_trace.dvdt)):
             if bounds is None:
                 # Calculate the bounds of the reference traces
                 trace = numpy.array(trace)
@@ -286,7 +282,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
         returns 2D histogram
         """
-        v, dvdt = self._trimmed_v_dvdt(trace)
+        v, dvdt = trace, trace.dvdt
         if self.resample_length:
             v, dvdt = self._resample_traces(v, dvdt, self.resample_length)
         hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
@@ -442,14 +438,14 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         `trace`  -- the voltage trace [numpy.array(float)]
         """
         # Get the v and dvdt and their spline interpolators
-        v, dvdt = self._trimmed_v_dvdt(trace)
+        v, dvdt = trace, trace.dvdt
         v_spline, dvdt_spline, s_positions = self._get_interpolators(v, dvdt)
         # Find the indices where the v-dV/dt trace crosses the start and end
         # thresholds respectively
-        loop_starts = numpy.where((dvdt[1:] >= self.thresh[0])
-                                  & (dvdt[:-1] < self.thresh[0]))[0] + 1
-        loop_ends = numpy.where((dvdt[1:] >= self.thresh[1])
-                                & (dvdt[:-1] < self.thresh[1]))[0] + 1
+        loop_starts = numpy.where((dvdt[1:] >= self.thresh[0]) &
+                                  (dvdt[:-1] < self.thresh[0]))[0] + 1
+        loop_ends = numpy.where((dvdt[1:] >= self.thresh[1]) &
+                                (dvdt[:-1] < self.thresh[1]))[0] + 1
         # Cut up the traces in between where the interpolated curve exactly
         # crosses the start and end thresholds
         loops = []
@@ -500,7 +496,8 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
-        signal = analysis.get_signal()
+        signal = analysis.get_signal(t_start=self.time_start,
+                                     t_stop=self.time_stop)
         recorded_loops = self._cut_out_loops(signal)
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point
