@@ -49,7 +49,7 @@ parser.add_argument('-p', '--parameter', nargs=5, default=[], action='append',
                          "bounds")
 parser.add_argument('--plot', action='store_true',
                     help="Plot the grid on a 1-2d mesh")
-parser.add_argument('--plot_saved', nargs='*', default=False,
+parser.add_argument('--plot_saved', nargs='*', default=[],
                     help="Plot a file that has been saved to file already")
 
 # # The parameters to be tuned by the tuner
@@ -177,7 +177,7 @@ if __name__ == '__main__':
                         "to be supplied")
     parameters = [Parameter(name, 'S/cm^2', lbound, ubound, log_scale)
                   for name, lbound, ubound, _, log_scale in args.parameter]
-    if args.plot_saved is not False:
+    if args.plot_saved:
         with open(args.cell_9ml) as f:
             plot(pkl.load(f), parameters, *args.plot_saved)
     else:
