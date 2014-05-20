@@ -29,14 +29,15 @@ class SpikeFrequencyObjective(Objective):
 
 class SpikeTimesObjective(Objective):
     """
-    A simple objective based on the squared difference between the spike
-    frequencies
+    A simple objective based on the squared difference spike times and the
+    nearest spike in the reference set and vice versa.
     """
 
     def __init__(self, spikes, time_start=500.0, time_stop=2000.0):
         """
         `spikes`    -- the reference spike train [neo.SpikeTrain]
-        `time_stop` -- the length of time to run the simulation
+        `time_start` -- the time from which to start including spikes [float]
+        `time_stop` -- the length of time to run the simulation [float]
         """
         super(SpikeTimesObjective, self).__init__(time_start, time_stop)
         if not isinstance(spikes, neo.core.SpikeTrain):

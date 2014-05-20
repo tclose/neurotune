@@ -41,6 +41,11 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
+parser.add_argument('-p', '--parameter', nargs=4,
+                    metavar=('NAME', 'LBOUND', 'UBOUND', 'NUM_STEPS'),
+                    default=[], action='append',
+                    help="Sets a parameter to tune and its lower and upper "
+                         "bounds")
 parser.add_argument('--plot', action='store_true',
                     help="Plot the grid on a 1-2d mesh")
 parser.add_argument('--plot_saved', nargs='*', default=False,

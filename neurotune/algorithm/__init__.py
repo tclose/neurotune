@@ -24,6 +24,15 @@ class Algorithm(object):
         self.seeds = seeds
 
     def optimize(self, evaluator):
+        """
+        The optimisation algorithm, which takes the tries to minimise the
+        supplied evaluator function
+
+        `evaluator` -- a function that takes a candidate (iterable of floats)
+                       and evaluates its fitness. This function is supplied by
+                       the relevant Tuner class and is transparent to the
+                       algorithm.
+        """
         raise NotImplementedError("'optimize' is not implemented by derived "
                                   "class of 'Algorithm' ,'{}'"
                                   .format(self.__class__.__name__))
@@ -37,6 +46,10 @@ class Algorithm(object):
 
 
 class GridAlgorithm(Algorithm):
+    """
+    The basic "algorithm" in which fixed points on a multi-dimensional grid
+    over the parameter bounds are evaluated and the minimum value returned
+    """
 
     def __init__(self, num_steps):
         self.num_steps = num_steps

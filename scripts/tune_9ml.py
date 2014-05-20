@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Evaluates objective functions on a grid of positions in parameter space
+Tunes a 9ml file against a 9ml reference simulation
 """
 import argparse
 import shutil
