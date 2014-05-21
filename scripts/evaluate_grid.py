@@ -25,9 +25,8 @@ except ImportError:
     from neurotune.tuner import Tuner  # @Reimport
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('cell_9ml', type=str,
-                       help="The path of the 9ml cell to test the objective "
-                            "function on (default: %(default)s)")
+parser.add_argument('cell_9ml', help="The path of the 9ml cell to test the "
+                    "objective function on")
 parser.add_argument('--disable_mpi', action='store_true',
                     help="Disable MPI tuner and replace with basic tuner")
 parser.add_argument('--build', type=str, default='lazy',
