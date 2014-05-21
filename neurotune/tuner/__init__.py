@@ -21,9 +21,9 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.objective, self.candidate, self.recordings), f)
-        print ("Saving failed candidate and recordings to file at '{}'"
-               .format(filename))
+            pkl.dump((self.objective, self.candidate, self.analysis), f)
+        print ("Saving failed candidate along with objective and analysis "
+               "to file at '{}'".format(filename))
 
 
 class Tuner(object):
