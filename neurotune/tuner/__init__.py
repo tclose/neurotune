@@ -9,10 +9,10 @@ from ..analysis import Analysis
 
 class EvaluationException(Exception):
 
-    def __init__(self, objective, candidate, recordings, tback=None):
+    def __init__(self, objective, candidate, analysis, tback=None):
         self.objective = objective
         self.candidate = candidate
-        self.recordings = recordings
+        self.analysis = analysis
         self.traceback = tback if tback is not None else traceback.format_exc()
 
     def __str__(self):
@@ -132,11 +132,8 @@ class Tuner(object):
             if self.num_processes == 1 and __debug__:
                 raise
             else:
-                # Check to see whether the candidate was recorded properly
-                # before the error
-                if analysis not in locals():
-                    analysis = None
-                raise EvaluationException(self.objective, candidate, analysis)
+                raise EvaluationException(self.objective, candidate,
+                                          locals().get('analysis', None))
         return fitness
 
     def _evaluate_all_candidates(self, candidates,
