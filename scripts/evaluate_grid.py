@@ -56,7 +56,8 @@ parser.add_argument('--plot_saved', nargs='*', default=[],
 #               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)]
 # 1e-5, 3e-5)]
 
-objective_names = ['Phase-plane original', 'Pointwise phase-plane']
+objective_names = ['Phase-plane Histogram', 'Phase-plane Pointwise',
+                   'Spike Frequency', 'Spike Times']
 
 
 def run(parameters, args):
@@ -112,51 +113,70 @@ def plot(grids, parameters, plot_type='surf', trim_factor=None):
     import matplotlib
     # If using a non-multi-objective reshape the grid into a 1-?-? so it fits
     # the looping structure
-    if grids.ndim == 2:
-        grids.reshape(1, grids.shape[0], grids.shape[1])
+    if grids.ndim == len(parameters):
+        grids = [grids]
     # Loop through all grids and plot a surface mesh
     for grid, title in zip(grids, objective_names):
         fig = plt.figure()
-        x_range = numpy.linspace(parameters[0].lbound, parameters[0].ubound,
-                                 grid.shape[0])
-        y_range = numpy.linspace(parameters[1].lbound, parameters[1].ubound,
-                                 grid.shape[1])
-        kwargs = {}
-        max_under_trim = None
-        if trim_factor is not None:
-            trim_value = (trim_factor * numpy.percentile(grid, 95))
-            if numpy.max(grid) > trim_value:
-                over_trim = grid > trim_value
-                max_under_trim = numpy.ma.masked_array(grid,
-                                                       mask=over_trim).max()
-                grid[numpy.where(over_trim)] = float('nan')
-                lev = numpy.linspace(0, max_under_trim, 1000)
-                kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
-        if plot_type == 'surf':
-            ax = fig.gca(projection='3d')
-            X, Y = numpy.meshgrid(x_range, y_range)
-            surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1,
-                                   cmap=cm.jet, linewidth=0,
-                                   antialiased=False, **kwargs)
-            if max_under_trim is not None:
-                ax.set_zlim(0, max_under_trim)
-            ax.zaxis.set_major_locator(LinearLocator(10))
-            fig.colorbar(surf, shrink=0.5, aspect=5)
-        elif plot_type == 'image':
-            plt.imshow(grid, interpolation='nearest', vmax=max_under_trim,
-                       origin='lower', aspect='auto',
-                       extent=(parameters[0].lbound, parameters[0].ubound,
-                               parameters[1].lbound, parameters[1].ubound))
-            plt.grid()
-            plt.colorbar()
+        if len(parameters) == 1:
+            x_range = numpy.linspace(parameters[0].lbound,
+                                     parameters[0].ubound,
+                                     grid.shape[0])
+            if parameters[0].log_scale:
+                x_range = 10 ** x_range
+            plt.plot(x_range, grid)
+            plt.xlabel('{} ({})'.format(parameters[0].name,
+                                        parameters[0].units))
+            plt.ylabel('Objective')
+        elif len(parameters) == 2:
+            x_range = numpy.linspace(parameters[0].lbound,
+                                     parameters[0].ubound,
+                                     grid.shape[0])
+            y_range = numpy.linspace(parameters[1].lbound,
+                                     parameters[1].ubound,
+                                     grid.shape[1])
+            if parameters[0].log_scale:
+                x_range = 10 ** x_range
+            if parameters[1].log_scale:
+                y_range = 10 ** y_range
+            kwargs = {}
+            max_under_trim = None
+            if trim_factor is not None:
+                trim_value = (trim_factor * numpy.percentile(grid, 95))
+                if numpy.max(grid) > trim_value:
+                    over_trim = grid > trim_value
+                    max_under_trim = numpy.ma.masked_array(grid,
+                                                          mask=over_trim).max()
+                    grid[numpy.where(over_trim)] = float('nan')
+                    lev = numpy.linspace(0, max_under_trim, 1000)
+                    kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
+            if plot_type == 'surf':
+                ax = fig.gca(projection='3d')
+                X, Y = numpy.meshgrid(x_range, y_range)
+                surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1,
+                                       cmap=cm.jet, linewidth=0,
+                                       antialiased=False, **kwargs)
+                if max_under_trim is not None:
+                    ax.set_zlim(0, max_under_trim)
+                ax.zaxis.set_major_locator(LinearLocator(10))
+                fig.colorbar(surf, shrink=0.5, aspect=5)
+                ax.set_zlabel('Objective')
+            elif plot_type == 'image':
+                plt.imshow(grid, interpolation='nearest', vmax=max_under_trim,
+                           origin='lower', aspect='auto',
+                           extent=(parameters[0].lbound, parameters[0].ubound,
+                                   parameters[1].lbound, parameters[1].ubound))
+                plt.grid()
+                plt.colorbar()
+            else:
+                raise Exception("Unrecognised plot_type '{}'"
+                                .format(plot_type))
+            plt.xlabel('{} ({})'.format(parameters[0].name,
+                                        parameters[0].units))
+            plt.ylabel('{} ({})'.format(parameters[1].name,
+                                        parameters[1].units))
         else:
-            raise Exception("Unrecognised plot_type '{}'".format(plot_type))
-        plt.xlabel('{}{} ({})'.format('log_10 '
-                                      if parameters[0].log_scale else '',
-                                      parameters[0].name, parameters[0].units))
-        plt.ylabel('{}{} ({})'.format('log_10 '
-                                      if parameters[1].log_scale else '',
-                                      parameters[1].name, parameters[1].units))
+            raise Exception("Cannot plot grids with dimensions greater than 2")
         plt.title('{} objective'.format(title))
     plt.show()
 
@@ -177,7 +197,7 @@ if __name__ == '__main__':
     parameters = [Parameter(name, 'S/cm^2', lbound, ubound, log_scale)
                   for name, lbound, ubound, _, log_scale in args.parameter]
     if args.plot_saved:
-        with open(args.cell_9ml) as f:
-            plot(pkl.load(f), parameters, *args.plot_saved)
+        with open(args.plot_saved[0]) as f:
+            plot(pkl.load(f), parameters, *args.plot_saved[1:])
     else:
         run(parameters, args)
