@@ -125,6 +125,7 @@ class Tuner(object):
             fitness = self.objective.fitness(analysis)
         except Exception:
             if __debug__:
+                print "Evaluation exception not raised because of debug mode"
                 raise
             else:
                 # Check to see whether the candidate was recorded properly
