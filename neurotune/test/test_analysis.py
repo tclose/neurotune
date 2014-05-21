@@ -16,7 +16,7 @@ except ImportError:
 
 import quantities as pq
 from neo.core import AnalogSignal
-from ..analysis import AnalysedSignal, SlicedAnalysedSignal
+from neurotune.analysis import AnalysedSignal, SlicedAnalysedSignal
 from neo.test.tools import assert_arrays_equal
 
 
@@ -55,7 +55,3 @@ class TestSlicedAnalysedSignalFunctions(unittest.TestCase):
                 sliced_signal2 = None
         os.remove('./pickle')
         assert_arrays_equal(sliced_signal1, sliced_signal2)
-
-if __name__ == '__main__':
-    TestAnalysedSignalFunctions().test_pickle()
-    TestSlicedAnalysedSignalFunctions().test_pickle()
