@@ -17,13 +17,12 @@ except ImportError:
 import quantities as pq
 from neo.core import AnalogSignal
 from neurotune.analysis import AnalysedSignal, SlicedAnalysedSignal
-from neo.test.tools import assert_arrays_equal
 
 
 class TestAnalysedSignalFunctions(unittest.TestCase):
 
     def test_pickle(self):
-        signal = AnalogSignal([1, 2, 3, 4], sampling_period=1 * pq.ms,
+        signal = AnalogSignal(range(20), sampling_period=1 * pq.ms,
                                units=pq.mV)
         analysed_signal1 = AnalysedSignal(signal)
         with open('./pickle', 'wb') as f:
@@ -34,7 +33,7 @@ class TestAnalysedSignalFunctions(unittest.TestCase):
             except ValueError:
                 analysed_signal2 = None
         os.remove('./pickle')
-        assert_arrays_equal(analysed_signal1, analysed_signal2)
+        self.assertEqual(analysed_signal1, analysed_signal2)
 
 
 class TestSlicedAnalysedSignalFunctions(unittest.TestCase):
@@ -54,4 +53,4 @@ class TestSlicedAnalysedSignalFunctions(unittest.TestCase):
             except ValueError:
                 sliced_signal2 = None
         os.remove('./pickle')
-        assert_arrays_equal(sliced_signal1, sliced_signal2)
+        self.assertEqual(sliced_signal1, sliced_signal2)

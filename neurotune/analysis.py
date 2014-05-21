@@ -97,13 +97,27 @@ class AnalysedSignal(neo.core.AnalogSignal):
         Map the __new__ function onto _new_AnalysedSignal, so that pickle
         works
         '''
-        # Make a shallow copy of the AnalysedSignal
-        neo_signal = copy(self)
-        # Cast the copy back to a neo.core.AnalogSignal
-        neo_signal.__class__ = neo.core.AnalogSignal
         # Pass the unpickling function along with the neo_signal and members
-        return _unpickle_AnalysedSignal, (self.__class__, neo_signal,
+        return _unpickle_AnalysedSignal, (self.__class__, self._base(),
                                           self._spikes, self._dvdt)
+
+    def _base(self):
+        """
+        Uncovers the neo.core.AnalogSignal object beneath
+        """
+        # Make a shallow copy of the AnalysedSignal
+        neo_obj = copy(self)
+        # Cast the copy back to a neo.core.AnalogSignal
+        neo_obj.__class__ = neo.core.AnalogSignal
+        return neo_obj
+
+    def __eq__(self, other):
+        '''
+        Equality test (==).
+        '''
+        return ((self._base() == other._base()).all() and
+                self._spikes == other._spikes and
+                self._dvdt == other._dvdt)
 
     @property
     def dvdt(self):
@@ -235,6 +249,14 @@ class SlicedAnalysedSignal(AnalysedSignal):
         obj._parent = signal
         obj._indices = indices
         return obj
+
+    def __eq__(self, other):
+        '''
+        Equality test (==)
+        '''
+        return (super(SlicedAnalysedSignal, self).__eq__(other) and
+                self._parent == other._parent and
+                self._indices == other._indices)
 
     def __reduce__(self):
         '''
