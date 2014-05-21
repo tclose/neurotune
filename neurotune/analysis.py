@@ -166,6 +166,9 @@ class AnalysedSignal(neo.core.AnalogSignal):
             stop_indices = stop_indices[1:]
         if self.dvdt[-1] <= stop_threshold:
             start_indices = start_indices[:-1]
+        if len(start_indices) != len(stop_indices):
+            raise Exception("indices wrong lengths (start {}, end {})"
+                            .format(len(start_indices), len(stop_indices)))
         assert len(start_indices) == len(stop_indices)
         assert all(stop_indices > start_indices)
         return zip(start_indices, stop_indices)
