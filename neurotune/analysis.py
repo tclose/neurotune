@@ -188,10 +188,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # If the recording period begins or ends with a threshold crossing trim
         # them from the crossing periods so the start and stop indices are the
         # same length
-        if self.dvdt[0] >= start_threshold:
-            stop_indices = stop_indices[1:]
-        if self.dvdt[-1] <= stop_threshold:
+        if start_indices[-1] > stop_indices[-1]:
             start_indices = start_indices[:-1]
+        if stop_indices[0] < start_indices[0]:
+            stop_indices = stop_indices[1:]
         if len(start_indices) != len(stop_indices):
             raise Exception("indices wrong lengths (start {}, end {})"
                             .format(len(start_indices), len(stop_indices)))
@@ -212,9 +212,9 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # If the recording period begins or ends with a threshold crossing trim
         # them from the crossing periods so the start and stop indices are the
         # same length
-        if self.dvdt[0] >= start_thresh:
+        if self[0] >= start_thresh:
             stop_indices = stop_indices[1:]
-        if self.dvdt[-1] >= stop_thresh:
+        if self[-1] >= stop_thresh:
             start_indices = start_indices[:-1]
         assert len(start_indices) == len(stop_indices)
         assert all(stop_indices > start_indices)

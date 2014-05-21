@@ -32,7 +32,7 @@ class SpikeFrequencyObjective(Objective):
         signal = analysis.get_signal(t_start=self.time_start,
                                      t_stop=self.time_stop)
         frequency = signal.spike_frequency()
-        return (self.frequency - frequency) ** 2
+        return float((self.frequency - frequency) ** 2)
 
 
 class SpikeTimesObjective(Objective):

@@ -10,7 +10,7 @@ parser.add_argument('exception_file',
                     help="The path of the saved evaluation exception file")
 args = parser.parse_args()
 
-with open(args.exception_file, 'b') as f:
+with open(args.exception_file, 'rb') as f:
     objective, candidate, analysis = pkl.load(f)
 
 if analysis is None:
