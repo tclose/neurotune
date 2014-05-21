@@ -89,13 +89,25 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # class
         obj.__class__ = AnalysedSignal
         obj._spikes = {}
+        obj._dvdt = None
         return obj
+
+    def __reduce__(self):
+        '''
+        Map the __new__ function onto _new_AnalysedSignal, so that pickle
+        works
+        '''
+        # Make a shallow copy of the AnalysedSignal
+        neo_signal = copy(self)
+        # Cast the copy back to a neo.core.AnalogSignal
+        neo_signal.__class__ = neo.core.AnalogSignal
+        # Pass the unpickling function along with the neo_signal and members
+        return _unpickle_AnalysedSignal, (self.__class__, neo_signal,
+                                          self._spikes, self._dvdt)
 
     @property
     def dvdt(self):
-        try:
-            return self._dvdt
-        except AttributeError:
+        if self._dvdt is None:
             dv = numpy.diff(self)
             dt = numpy.diff(self.times)
             # Get the dvdt at the intervals between the samples
@@ -106,7 +118,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
             self._dvdt = numpy.hstack((dvdt[0],
                                        pq.Quantity(spline(self.times[1:-1]),
                                                   units=dvdt.units), dvdt[-1]))
-            return self._dvdt
+        return self._dvdt
 
     def spike_times(self, **kwargs):
         # Get unique dictionary key from keyword arguments
@@ -195,6 +207,17 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return zip(start_indices, stop_indices)
 
 
+def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
+    '''
+    A function to map BaseAnalogSignal.__new__ to function that
+        does not do the unit checking. This is needed for pickle to work.
+    '''
+    obj = cls(signal)
+    obj._spikes = spikes
+    obj._dvdt = dvdt
+    return obj
+
+
 class SlicedAnalysedSignal(AnalysedSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
@@ -212,6 +235,12 @@ class SlicedAnalysedSignal(AnalysedSignal):
         obj._parent = signal
         obj._indices = indices
         return obj
+
+    def __reduce__(self):
+        '''
+        Reduce the sliced analysedSignal for pickling
+        '''
+        return self.__class__, (self._parent, self.t_start, self.t_stop)
 
     @property
     def dvdt(self):
