@@ -124,8 +124,12 @@ class Tuner(object):
             analysis = Analysis(recordings, self.simulation.setups)
             fitness = self.objective.fitness(analysis)
         except Exception:
-            if __debug__:
-                print "Evaluation exception not raised because of debug mode"
+            # Check to see if using distributed processing, in which case
+            # raise an EvaluationException (allows the MPI tuner to fail
+            # gracefully). Otherwise the assumption is that you are debugging
+            # and would prefer to raise the exception normally to debug in an
+            # IDE.
+            if self.num_processes == 1 and __debug__:
                 raise
             else:
                 # Check to see whether the candidate was recorded properly
