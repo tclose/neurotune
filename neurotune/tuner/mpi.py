@@ -15,6 +15,7 @@ class MPITuner(Tuner):
     MASTER = 0  # The processing node to be used for the master node
     COMMAND_MSG = 1  # Signifies that the message is a command to a slave node
     DATA_MSG = 2  # Signifies that the message is data returned by a slave node
+    ANY_SOURCE = MPI.ANY_SOURCE
 
     comm = MPI.COMM_WORLD  # The MPI communicator object
     rank = comm.Get_rank()  # The ID of the current process
@@ -85,7 +86,7 @@ class MPITuner(Tuner):
         """
         assert self.is_master(), "Distribution of candidate jobs should only "\
                                  "be performed by master node"
-        candidate_jobs = deque(enumerate(candidates))
+        candidate_jobs = list(enumerate(candidates))
         free_processes = (deque(xrange(1, self.num_processes))
                           if self.num_processes > 1 else [0])
         # Create a list of None values the same length as the candidate list
@@ -103,7 +104,7 @@ class MPITuner(Tuner):
             if free_processes and candidate_jobs:
                 if self.num_processes > 1:
                     self.comm.send(candidate_jobs.pop(),
-                                   dest=free_processes.pop(),
+                                   dest=free_processes.popleft(),
                                    tag=self.COMMAND_MSG)
                     until_master_eval -= 1
                 # If evaluate_on_master is set, check to see how many
@@ -122,7 +123,7 @@ class MPITuner(Tuner):
             # record their result
             else:
                 # Receive evaluation from slave node
-                received = self.comm.recv(source=MPI.ANY_SOURCE,
+                received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
                 try:
                     processID, jobID, result = received
