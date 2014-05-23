@@ -199,5 +199,5 @@ class Simulation():
             requested recording
         """
         raise NotImplementedError("Derived Simulation class '{}' does not "
-                                  "implement _run_simulation method"
-                                  .format(self.__class__.__name__))
+                                  "implement 'run(self, candidate, setup)' "
+                                  "method" .format(self.__class__.__name__))
