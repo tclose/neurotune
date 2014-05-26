@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests of the neo.core.analogsignal.AnalogSignal class and related functions
+Tests of the analysis module
 """
 
 # needed for python 3 compatibility
