@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
+import quantities as pq
 from ..simulation.__init__ import RecordingRequest
 
 
@@ -12,8 +13,8 @@ class Objective(object):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, time_start=500.0, time_stop=2000.0, exp_conditions=None,
-                 record_sites=[None]):
+    def __init__(self, time_start=500.0 * pq.ms, time_stop=2000.0 * pq.ms,
+                 exp_conditions=None, record_sites=[None]):
         """
         `time_stop` -- the required length of the recording required to
                        evaluate the objective
@@ -44,7 +45,8 @@ class Objective(object):
         """
         requests = {}
         for site in self.record_sites:
-            requests[site] = RecordingRequest(record_time=self.time_stop,
+            requests[site] = RecordingRequest(time_start=self.time_start,
+                                              time_stop=self.time_stop,
                                               conditions=self.exp_conditions,
                                               record_variable=site)
         return requests

@@ -29,8 +29,7 @@ class SpikeFrequencyObjective(Objective):
         `analysis` -- The analysis object containing all recordings and
                       analysis of them [analysis.Analysis]
         """
-        signal = analysis.get_signal(t_start=self.time_start,
-                                     t_stop=self.time_stop)
+        signal = analysis.get_signal()
         frequency = signal.spike_frequency()
         return float((self.frequency - frequency) ** 2)
 
@@ -63,8 +62,7 @@ class SpikeTimesObjective(Objective):
         `analysis` -- The analysis object containing all recordings and
                       analysis of them [analysis.Analysis]
         """
-        signal = analysis.get_signal(t_start=self.time_start,
-                                     t_stop=self.time_stop)
+        signal = analysis.get_signal()
         spikes = signal.spike_times()
         # If no spikes were generated create a dummy spike that is guaranteed
         # to be further away from a reference spike than any within the time

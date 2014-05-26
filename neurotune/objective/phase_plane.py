@@ -67,13 +67,14 @@ class PhasePlaneObjective(Objective):
         self.interp_order = interp_order
         self.dvdt_scale = dvdt_scale
 
-    def get_recording_requests(self):
-        """
-        Gets all recording requests required by the objective function
-        """
-        return {None: RecordingRequest(record_variable=self.record_variable,
-                                       record_time=self.time_stop,
-                                       conditions=self.exp_conditions)}
+#     def get_recording_requests(self):
+#         """
+#         Gets all recording requests required by the objective function
+#         """
+#         return {None: RecordingRequest(record_variable=self.record_variable,
+#                                        time_start=self.time_start,
+#                                        time_stop=self.time_stop,
+#                                        conditions=self.exp_conditions)}
 
 #     def _trimmed_v_dvdt(self, trace):
 #         """
@@ -232,8 +233,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         return self.range / self.num_bins
 
     def fitness(self, analysis):
-        signal = analysis.get_signal(t_start=self.time_start,
-                                     t_stop=self.time_stop)
+        signal = analysis.get_signal()
         phase_plane_hist = self._generate_hist(signal)
         # Get the root-mean-square difference between the reference and
         # simulated histograms
@@ -497,8 +497,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
-        signal = analysis.get_signal(t_start=self.time_start,
-                                     t_stop=self.time_stop)
+        signal = analysis.get_signal()
         recorded_loops = self._cut_out_loops(signal)
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point

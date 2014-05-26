@@ -21,40 +21,46 @@ class Analysis(object):
         self._simulation_setups = simulation_setups
         self._requests = {}
         for seg, setup in zip(recordings.segments, self._simulation_setups):
-            assert len(seg.analogsignals) == len(setup.request_keys)
-            for sig, request_keys in zip(seg.analogsignals,
-                                         setup.request_keys):
+            assert len(seg.analogsignals) == len(setup.var_request_refs)
+            for sig, request_refs, in zip(seg.analogsignals,
+                                              setup.var_request_refs):
                 # wrap the returned signal in an AnalysedSignal wrapper
                 signal = AnalysedSignal(sig)
-                self._requests.update([(key, signal) for key in request_keys])
-        self._signals = {}
+                # For each request reference for the recorded variable
+                # add the full signal or a sliced version to the requests
+                # dictionary
+                sliced_signals = {}
+                for key, t_start, t_stop in request_refs:
+                    if t_start != signal.t_start or t_stop != signal.t_stop:
+                        # Try to reuse the SlicedAnalysedSignals as much as
+                        # possible by storing in temporary dictionary using
+                        # time start and stop as the key
+                        dict_key = (float(pq.Quantity(t_start, 'ms')),
+                                    float(pq.Quantity(t_stop, 'ms')))
+                        try:
+                            req_signal = sliced_signals[dict_key]
+                        except KeyError:
+                            req_signal = SlicedAnalysedSignal(signal,
+                                                              t_start=t_start,
+                                                              t_stop=t_stop)
+                            sliced_signals[dict_key] = req_signal
+                    else:
+                        req_signal = signal
+                    self._requests[key] = req_signal
         self._objective_key = None
 
-    def get_signal(self, key=None, t_start=0.0, t_stop=None):
+    def get_signal(self, key=None):
         # If this is an objective specific analysis (i.e. one with an objective
         # key preset) prepend the objective key to the signal key for the
         # complete "request" key
         if self._objective_key is not None:
             key = self._objective_key + (key,)
-        try:
-            # See if this signal has been sliced by the passed start and end
-            # times previously
-            return self._signals[(key, t_start, t_stop)]
-        except KeyError:
-            # Slice the requested signal by the required start and end times
-            signal = self._requests[key]
-            if t_start or t_stop is not None:
-                if t_stop == None:
-                    t_stop = signal.t_stop
-                signal = SlicedAnalysedSignal(signal, t_start=t_start,
-                                              t_stop=t_stop)
-            self._signals[(key, t_start, t_stop)] = signal
-            return signal
+        return self._requests[key]
 
     def objective_specific(self, objective_key):
         """
         Returns a copy of the current analysis in which the provided objective
-        key is automatically prepended to the key requests, so it is
+        key is automatically prepended to the key requests. This makes it
         transparent to objective components of multi-objective functions that
         they are part of a multi-objective object.
         """
@@ -185,19 +191,23 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                     (self.dvdt[:-1] < start_threshold))[0] + 1
         stop_indices = numpy.where((self.dvdt[1:] > stop_threshold) &
                                   (self.dvdt[:-1] <= stop_threshold))[0] + 1
-        # If the recording period begins or ends with a threshold crossing trim
-        # them from the crossing periods so the start and stop indices are the
-        # same length
-        if start_indices[-1] > stop_indices[-1]:
-            start_indices = start_indices[:-1]
-        if stop_indices[0] < start_indices[0]:
-            stop_indices = stop_indices[1:]
-        if len(start_indices) != len(stop_indices):
-            raise Exception("indices wrong lengths (start {}, end {})"
-                            .format(len(start_indices), len(stop_indices)))
-        assert len(start_indices) == len(stop_indices)
-        assert all(stop_indices > start_indices)
-        return zip(start_indices, stop_indices)
+        if len(start_indices) == 0 or len(stop_indices) == 0:
+            threshold_crosses = []
+        else:
+            # If the recording period begins or ends with a threshold crossing
+            # trim them from the crossing periods so the start and stop indices
+            # are the same length
+            if start_indices[-1] > stop_indices[-1]:
+                start_indices = start_indices[:-1]
+            if stop_indices[0] < start_indices[0]:
+                stop_indices = stop_indices[1:]
+            if len(start_indices) != len(stop_indices):
+                raise Exception("indices wrong lengths (start {}, end {})"
+                                .format(len(start_indices), len(stop_indices)))
+            assert len(start_indices) == len(stop_indices)
+            assert all(stop_indices > start_indices)
+            threshold_crosses = zip(start_indices, stop_indices)
+        return threshold_crosses
 
     def _v_threshold_crossings(self, threshold=0.0, hysteresis=0.0):
         if hysteresis < 0.0:
@@ -209,16 +219,20 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                     & (self[:-1] < start_thresh))[0] + 1
         stop_indices = numpy.where((self[1:] < stop_thresh)
                                    & (self[:-1] >= stop_thresh))[0] + 1
-        # If the recording period begins or ends with a threshold crossing trim
-        # them from the crossing periods so the start and stop indices are the
-        # same length
-        if self[0] >= start_thresh:
-            stop_indices = stop_indices[1:]
-        if self[-1] >= stop_thresh:
-            start_indices = start_indices[:-1]
-        assert len(start_indices) == len(stop_indices)
-        assert all(stop_indices > start_indices)
-        return zip(start_indices, stop_indices)
+        if len(start_indices) == 0 or len(stop_indices) == 0:
+            threshold_crosses = []
+        else:
+            # If the recording period begins or ends with a threshold crossing
+            # trim them from the crossing periods so the start and stop indices
+            # are the same length
+            if self[0] >= start_thresh:
+                stop_indices = stop_indices[1:]
+            if self[-1] >= stop_thresh:
+                start_indices = start_indices[:-1]
+            assert len(start_indices) == len(stop_indices)
+            assert all(stop_indices > start_indices)
+            threshold_crosses = zip(start_indices, stop_indices)
+        return threshold_crosses
 
 
 def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
@@ -244,10 +258,14 @@ class SlicedAnalysedSignal(AnalysedSignal):
             raise Exception("Can only analyse AnalysedSignals (not {})"
                             .format(type(signal)))
         indices = numpy.where((signal.times >= t_start) &
-                              (signal.times <= t_stop))
-        obj = AnalysedSignal.__new__(cls, signal[indices])
+                              (signal.times <= t_stop))[0]
+        start_index = indices[0]
+        end_index = indices[-1] + 1
+        obj = AnalysedSignal.__new__(cls, signal[start_index:end_index])
+        obj.__class__ = SlicedAnalysedSignal
         obj._parent = signal
-        obj._indices = indices
+        obj._start_index = start_index
+        obj._end_index = end_index
         return obj
 
     def __eq__(self, other):
@@ -266,7 +284,7 @@ class SlicedAnalysedSignal(AnalysedSignal):
 
     @property
     def dvdt(self):
-        return self._parent.dvdt[self._indices]
+        return self._parent.dvdt[self._start_index:self._end_index]
 
     def spike_times(self, **kwargs):
         spikes = self._parent.spike_times(**kwargs)
@@ -1081,6 +1099,7 @@ class TraceAnalysis(object):
             self.fitness = fitness
             return self.fitness
 
+
 class IClampAnalysis(TraceAnalysis):
     """Analysis class for data from whole cell current injection experiments
 
@@ -1092,7 +1111,7 @@ class IClampAnalysis(TraceAnalysis):
         in analysis such as delta for peak detection
     :param start_analysis: time t where analysis is to start
     :param end_analysis: time in t where analysis is to end
-       
+
     """
 
     def __init__(self,

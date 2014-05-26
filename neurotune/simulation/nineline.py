@@ -82,7 +82,7 @@ class NineLineSimulation(Simulation):
             nineline_controller.reset()
         self._set_candidate_params(candidate)
         # Convert requested record time to ms
-        record_time = float(pq.Quantity(setup.time, units='ms'))
+        record_time = float(pq.Quantity(setup.record_time, units='ms'))
         # Run simulation
         nineline_controller.run(record_time)
         # Return neo Segment object with all recordings

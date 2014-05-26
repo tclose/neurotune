@@ -50,6 +50,8 @@ parser.add_argument('--plot', action='store_true',
                     help="Plot the grid on a 1-2d mesh")
 parser.add_argument('--plot_saved', nargs='*', default=[],
                     help="Plot a file that has been saved to file already")
+parser.add_argument('--verbose', action='store_true', default=False,
+                    help="Print out which candidates are being evaluated")
 
 # # The parameters to be tuned by the tuner
 # parameters = [Parameter('diam', 'um', 20.0, 40.0),
@@ -78,7 +80,8 @@ def run(parameters, args):
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=[p[3] for p in args.parameter]),
-                  NineLineSimulation(args.cell_9ml))
+                  NineLineSimulation(args.cell_9ml),
+                  verbose=args.verbose)
     # Run the tuner
     try:
         pop, grid = tuner.tune()
@@ -97,9 +100,11 @@ def run(parameters, args):
             plot(grid)
         else:
             print ("Saved grid file '{out}' can be plotted using the command: "
-                   "\n {script_name} {cell9ml} --plot_saved {out}"
+                   "\n {script_name} {cell9ml} {params} --plot_saved {out}"
                    .format(cell9ml=args.cell_9ml,
                            script_name=os.path.basename(__file__),
+                           params=' '.join(['-p ' + ' '.join(p)
+                                            for p in args.parameter]),
                            out=args.output))
 
 

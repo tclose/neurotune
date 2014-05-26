@@ -16,17 +16,18 @@ class RecordingRequest(object):
     (eg IClamp, VClamp, spike input) and recorders
     """
 
-    def __init__(self, record_time=2000.0, record_variable=None,
+    def __init__(self, time_start=0.0, time_stop=2000.0, record_variable=None,
                  conditions=None):
         """
-        `record_time`     -- the length of the recording required by the
+        `time_stop`     -- the length of the recording required by the
                              simulation
         `record_variable` -- the name of the section/synapse/current
                              to record from (simulation specific)
         `conditions`      -- the experimental conditions
                              required (eg. initial voltage, current clamp)
         """
-        self.record_time = record_time
+        self.time_start = time_start
+        self.time_stop = time_stop
         self.record_variable = record_variable
         self.conditions = conditions
 
@@ -36,11 +37,15 @@ class Setup(object):
     Groups together all the simulation set-up information to interface to and
     from a requested simulation
     """
-    def __init__(self, time, conditions, record_variables, request_keys):
-        self.time = time
+
+    RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
+
+    def __init__(self, record_time, conditions, record_variables,
+                 var_request_refs):
+        self.record_time = record_time
         self.conditions = conditions
         self.record_variables = record_variables
-        self.request_keys = request_keys
+        self.var_request_refs = var_request_refs
 
 
 class ExperimentalConditions(object):
@@ -107,9 +112,9 @@ class Simulation():
                         raise Exception("Condition of type {} is not supported"
                                         " by this Simulation class ({})"
                                         .format(type(c), self.__class__))
-            requests = [r for r in requests_iter]
+            requests = list(requests_iter)
             # Get the maxium record time in the group
-            record_time = max([r[1].record_time for r in requests])
+            record_time = max([r[1].time_stop for r in requests])
             # Group the requests by common recording sites
             requests.sort(key=lambda x: x[1].record_variable)
             common_record_variables = groupby(requests,
@@ -119,12 +124,13 @@ class Simulation():
                                                       for rv, requests in
                                                       common_record_variables])
             # Get the list of request keys for each requested recording
-            request_keys = [zip(*com_record)[0]
-                            for com_record in requests_iters]
+            req_refs = [[Setup.RequestRef(key, req.time_start, req.time_stop)
+                         for key, req in com_record]
+                        for com_record in requests_iters]
             # Append the simulation request to the
             self._simulation_setups.append(Setup(record_time, conditions,
                                                  list(record_variables),
-                                                 request_keys))
+                                                 req_refs))
         # Do initial preparation for simulation (how much preparation can be
         # done depends on whether the same experimental conditions are used
         # throughout the evaluation process.
