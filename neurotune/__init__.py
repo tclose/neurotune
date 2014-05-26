@@ -9,4 +9,4 @@ class Parameter(object):
         self.units = units
         self.lbound = float(lbound)
         self.ubound = float(ubound)
-        self.log_scale = log_scale
+        self.log_scale = bool(int(log_scale))

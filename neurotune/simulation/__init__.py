@@ -182,10 +182,10 @@ class Simulation():
         """
         Runs all simulation reuquired by requested simulation setups
         """
-        recordings = neo.Block(name=','.join(['{}={}'.format(p.name, c)
-                                              for p, c in
-                                              zip(self.tune_parameters,
-                                                  candidate)]),
+        recordings_name = ','.join(['{}={}'.format(p.name, c)
+                                    for p, c in zip(self.tune_parameters,
+                                                    candidate)])
+        recordings = neo.Block(name=recordings_name,
                                candidate=candidate)
         for setup in self.setups:
             recordings.segments.append(self.run(candidate, setup))
