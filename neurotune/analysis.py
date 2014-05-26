@@ -32,7 +32,7 @@ class Analysis(object):
                 sliced_signals = {}
                 for key, t_start, t_stop in request_refs:
                     if t_start != signal.t_start or t_stop != signal.t_stop:
-                        # Try to reuse the SlicedAnalysedSignals as much as
+                        # Try to reuse the AnalysedSignalSlices as much as
                         # possible by storing in temporary dictionary using
                         # time start and stop as the key
                         dict_key = (float(pq.Quantity(t_start, 'ms')),
@@ -40,9 +40,7 @@ class Analysis(object):
                         try:
                             req_signal = sliced_signals[dict_key]
                         except KeyError:
-                            req_signal = SlicedAnalysedSignal(signal,
-                                                              t_start=t_start,
-                                                              t_stop=t_stop)
+                            req_signal = signal.slice(t_start, t_stop)
                             sliced_signals[dict_key] = req_signal
                     else:
                         req_signal = signal
@@ -234,6 +232,9 @@ class AnalysedSignal(neo.core.AnalogSignal):
             threshold_crosses = zip(start_indices, stop_indices)
         return threshold_crosses
 
+    def slice(self, t_start, t_stop):
+        return AnalysedSignalSlice(self, t_start=t_start, t_stop=t_stop)
+
 
 def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
     '''
@@ -246,7 +247,7 @@ def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
     return obj
 
 
-class SlicedAnalysedSignal(AnalysedSignal):
+class AnalysedSignalSlice(AnalysedSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
     with the signal so it can be shared between multiple objectives (or even
@@ -257,12 +258,18 @@ class SlicedAnalysedSignal(AnalysedSignal):
         if not isinstance(signal, AnalysedSignal):
             raise Exception("Can only analyse AnalysedSignals (not {})"
                             .format(type(signal)))
+        if t_start < signal.t_start:
+            raise Exception("Slice t_start ({}) is before signal t_start ({})"
+                            .format(t_start, signal.t_start))
+        if t_stop > signal.t_stop:
+            raise Exception("Slice t_stop ({}) is after signal t_start ({})"
+                            .format(t_stop, signal.t_stop))
         indices = numpy.where((signal.times >= t_start) &
                               (signal.times <= t_stop))[0]
         start_index = indices[0]
         end_index = indices[-1] + 1
         obj = AnalysedSignal.__new__(cls, signal[start_index:end_index])
-        obj.__class__ = SlicedAnalysedSignal
+        obj.__class__ = AnalysedSignalSlice
         obj._parent = signal
         obj._start_index = start_index
         obj._end_index = end_index
@@ -272,7 +279,7 @@ class SlicedAnalysedSignal(AnalysedSignal):
         '''
         Equality test (==)
         '''
-        return (super(SlicedAnalysedSignal, self).__eq__(other) and
+        return (super(AnalysedSignalSlice, self).__eq__(other) and
                 self._parent == other._parent and
                 self._indices == other._indices)
 

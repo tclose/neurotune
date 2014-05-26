@@ -16,7 +16,7 @@ except ImportError:
 
 import quantities as pq
 from neo.core import AnalogSignal
-from neurotune.analysis import AnalysedSignal, SlicedAnalysedSignal
+from neurotune.analysis import AnalysedSignal, AnalysedSignalSlice
 
 
 class TestAnalysedSignalFunctions(unittest.TestCase):
@@ -36,13 +36,13 @@ class TestAnalysedSignalFunctions(unittest.TestCase):
         self.assertEqual(analysed_signal1, analysed_signal2)
 
 
-class TestSlicedAnalysedSignalFunctions(unittest.TestCase):
+class TestAnalysedSignalSliceFunctions(unittest.TestCase):
 
     def test_pickle(self):
         signal = AnalogSignal(range(20), sampling_period=1 * pq.ms,
                                units=pq.mV)
         analysed_signal = AnalysedSignal(signal)
-        sliced_signal1 = SlicedAnalysedSignal(analysed_signal,
+        sliced_signal1 = AnalysedSignalSlice(analysed_signal,
                                               t_start=5 * pq.ms,
                                               t_stop=15 * pq.ms)
         with open('./pickle', 'wb') as f:

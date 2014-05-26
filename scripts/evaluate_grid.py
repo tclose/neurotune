@@ -7,6 +7,7 @@ import argparse
 import numpy.ma
 import shutil
 import cPickle as pkl
+import quantities as pq
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
@@ -52,6 +53,9 @@ parser.add_argument('--plot_saved', nargs='*', default=[],
                     help="Plot a file that has been saved to file already")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Print out which candidates are being evaluated")
+parser.add_argument('--save_recordings', type=str, default=None,
+                    metavar='DIRECTORY',
+                    help="Save recordings to file")
 
 # # The parameters to be tuned by the tuner
 # parameters = [Parameter('diam', 'um', 20.0, 40.0),
@@ -69,19 +73,22 @@ def run(parameters, args):
     simulation_controller.run(simulation_time=args.time,
                               timestep=args.timestep)
     reference = AnalysedSignal(cell.get_recording('v'))
+    sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
     # Instantiate the multi-objective objective from 3 phase-plane objectives
     objective = MultiObjective(PhasePlaneHistObjective(reference),
                                PhasePlanePointwiseObjective(reference,
                                                             (20, -20), 100),
-                               SpikeFrequencyObjective(reference.\
+                               SpikeFrequencyObjective(sliced_reference.\
                                                        spike_frequency()),
-                               SpikeTimesObjective(reference.spike_times()))
+                               SpikeTimesObjective(sliced_reference.\
+                                                   spike_times()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=[p[3] for p in args.parameter]),
                   NineLineSimulation(args.cell_9ml),
-                  verbose=args.verbose)
+                  verbose=args.verbose,
+                  save_recordings=args.save_recordings)
     # Run the tuner
     try:
         pop, grid = tuner.tune()

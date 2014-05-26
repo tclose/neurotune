@@ -61,7 +61,7 @@ class Tuner(object):
         self.simulation = simulation
         self.verbose = verbose
         if save_recordings:
-            rec_dir = os.path.dirname(save_recordings)
+            rec_dir = os.path.abspath(os.path.dirname(save_recordings))
             rec_prefix = os.path.basename(save_recordings)
             if rec_prefix.startswith('.'):
                 rec_ext = rec_prefix

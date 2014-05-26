@@ -8,7 +8,6 @@ import scipy.optimize
 import quantities as pq
 import neo.io
 from . import Objective
-from ..simulation import RecordingRequest
 from ..analysis import AnalysedSignal
 
 
@@ -48,56 +47,29 @@ class PhasePlaneObjective(Objective):
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
         if isinstance(reference_trace, str):
+            self.reference_trace_location = reference_trace
             f = neo.io.PickleIO(reference_trace)
             seg = f.read_segment()
             try:
-                self.reference_trace = seg.analogsignals[0]
+                reference_trace = AnalysedSignal(seg.analogsignals[0])
             except IndexError:
                 raise Exception("No analog signals were loaded from file '{}'"
                                 .format(reference_trace))
         elif isinstance(reference_trace, neo.AnalogSignal):
-            self.reference_trace = AnalysedSignal(reference_trace)
+            reference_trace = AnalysedSignal(reference_trace)
         elif not isinstance(reference_trace, AnalysedSignal):
             raise Exception("Unrecognised format for reference trace ({}), "
                             "must be either path-to-file, neo.AnalogSignal or "
                             "AnalysedSignal".format(type(reference_trace)))
+        if (time_start > reference_trace.t_start or
+            time_stop < reference_trace.t_stop):
+            reference_trace = reference_trace.slice(time_start, time_stop)
+        self.reference_trace = reference_trace
         # Save members
         self.record_variable = record_variable
         self.exp_conditions = exp_conditions
         self.interp_order = interp_order
         self.dvdt_scale = dvdt_scale
-
-#     def get_recording_requests(self):
-#         """
-#         Gets all recording requests required by the objective function
-#         """
-#         return {None: RecordingRequest(record_variable=self.record_variable,
-#                                        time_start=self.time_start,
-#                                        time_stop=self.time_stop,
-#                                        conditions=self.exp_conditions)}
-
-#     def _trimmed_v_dvdt(self, trace):
-#         """
-#         Trims the trace to the indices within the time_start and time_stop
-#         returns the trimmed V and dV/dt
-#
-#         `trace`        -- voltage trace [analysis.AnalysedSignal]
-#
-#         returns trimmed voltage trace, dV and dV/dt in a tuple
-#         """
-#         #TODO: This is made redundant, should be removed
-#         # Calculate dv/dt via difference between trace samples. NB # the
-#         # float() call is required to remove the "python-quantities" units
-#         start_index = int(round(trace.sampling_rate *
-#                                 (self.time_start + float(trace.t_start))))
-#         stop_index = int(round(trace.sampling_rate *
-#                                (self.time_stop + float(trace.t_start))))
-#         # If the stop index is the end of the trace v needs to be truncated
-#         # as dvdt will be missing the final value
-#         v = trace[start_index:(stop_index - 1
-#                                if stop_index == len(trace) else stop_index)]
-#         dvdt = trace.dvdt[start_index:stop_index]
-#         return v, dvdt
 
     def _get_interpolators(self, v, dvdt, interp_order=None):
         """
