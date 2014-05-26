@@ -15,3 +15,4 @@ examples/basket_cell/src/output
 *.#*
 examples/*/src/x86_64
 x86_64
+.9build

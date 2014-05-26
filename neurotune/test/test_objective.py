@@ -13,6 +13,7 @@ except ImportError:
     import unittest  # @UnusedImport
 
 import os.path
+import shutil
 import numpy
 import quantities as pq
 import neo
@@ -33,11 +34,12 @@ except:
 time_start = 500 * pq.ms
 time_stop = 2000 * pq.ms
 
-data_dir = os.path.abspath(os.path.join(__file__, 'test_objective_data'))
+data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                        'test_objective_data'))
 nineml_file = os.path.join(data_dir, 'Golgi_Solinas08.9ml')
 
-parameter = Parameter('soma.KA.gbar', 0.001, 0.008, False)
-parameter_range = numpy.linspace(parameter.lbound, parameter.ubound, 10)
+parameter = Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False)
+parameter_range = numpy.linspace(parameter.lbound, parameter.ubound, 15)
 simulation = NineLineSimulation(nineml_file)
 # Create a dummy tuner to generate the simulation 'setups'
 tuner = Tuner([parameter],
@@ -48,32 +50,39 @@ tuner = Tuner([parameter],
 
 cache_dir = os.path.join(data_dir, 'cached')
 reference_path = os.path.join(cache_dir, 'reference.neo.pkl')
-recordings_path = os.path.join(cache_dir, 'recordings.neo.pkl')
 try:
-    reference = (neo.PickleIO(reference_path).read()[0].segments[0]
-                 .analogsignals[0])
-    recordings = neo.PickleIO(recordings_path).read()
+    reference_block = neo.PickleIO(reference_path).read()[0]
+    recordings = []
+    for p in parameter_range:
+        recording = neo.PickleIO(os.path.join(cache_dir,
+                                              str(p) + '.neo.pkl')).read()[0]
+        recordings.append(recording)
 except:
     try:
-        os.removedirs(cache_dir)
+        shutil.rmtree(cache_dir)
     except:
         pass
     print ("Generating test recordings, this may take some time (but will be "
-           " cached for future reference)...")
+           "cached for future reference)...")
     os.makedirs(cache_dir)
     cell = NineCellMetaClass(nineml_file)()
     cell.record('v')
+    print "Simulating reference trace"
     simulation_controller.run(simulation_time=time_stop, timestep=0.025)
-    reference = cell.get_recording('v', in_block=True)
-    neo.PickleIO(reference_path).write(reference)
+    reference_block = cell.get_recording('v', in_block=True)
+    neo.PickleIO(reference_path).write(reference_block)
     recordings = []
-    for candidate in parameter_range:
-        recordings.append(simulation.run_all([candidate]))
-    neo.PickleIO(recordings_path).write(recordings)
+    for param in parameter_range:
+        print "Simulating candidate parameter {}".format(param)
+        recording = simulation.run_all([param])
+        neo.PickleIO(os.path.join(cache_dir,
+                                  str(param) + '.neo.pkl')).write(recording)
+        recordings.append(recording)
     print "Finished regenerating test recordings"
 
-reference = AnalysedSignal(reference).slice(time_start, time_stop)
-analyses = [Analysis(r, simulation.setup) for r in recordings]
+reference = AnalysedSignal(reference_block.segments[0].analogsignals[0]).\
+                                                   slice(time_start, time_stop)
+analyses = [Analysis(r, simulation.setups) for r in recordings]
 
 
 class TestObjective(object):
@@ -81,25 +90,18 @@ class TestObjective(object):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    @unittest.skip
-    def _get_fitnesses(self):
-        try:
-            return self._fitnesses
-        except AttributeError:
-            self._fitnesses = [self.objective.fitness(a) for a in analyses]
-            return self._fitnesses
-
-    @unittest.skip
     def plot(self):
         if not plt:
             raise Exception("Matplotlib not imported properly")
-        plt.plot(parameter_range, self._get_fitnesses())
+        plt.plot(parameter_range,
+                 [self.objective.fitness(a) for a in analyses])
         plt.xlabel('soma.KA.gbar')
-        plt.ylable('fitness')
+        plt.ylabel('fitness')
         plt.show()
 
     def test_fitness(self):
-        self.assertEqual(self, self.get_fitnesses(), self.target_fitnesses)
+        fitnesses = [self.objective.fitness(a) for a in analyses]
+        self.assertEqual(self, fitnesses, self.target_fitnesses)
 
 
 class TestPhasePlaneHistObjective(TestObjective, unittest.TestCase):
@@ -133,10 +135,3 @@ class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
 
     def setUp(self):
         self.objective = SpikeTimesObjective(reference.spike_times())
-
-
-if __name__ == '__main__':
-
-    test = TestPhasePlaneHistObjective()
-    print test.test_fitness()
-    test.plot()
