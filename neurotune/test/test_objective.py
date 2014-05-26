@@ -7,10 +7,24 @@ Tests of the objective module
 from __future__ import division
 from abc import ABCMeta  # Metaclass for abstract base classes
 
-try:
-    import unittest2 as unittest
-except ImportError:
-    import unittest  # @UnusedImport
+if __name__ == '__main__':
+
+    class unittest(object):
+
+        class TestCase(object):
+
+            def __init__(self):
+                self.setUp()
+
+            def assertEqual(self, first, second):
+                print 'are{} equal'.format(' not' if first != second else '')
+
+else:
+    try:
+        import unittest2 as unittest
+    except ImportError:
+        import unittest  # @UnusedImport
+
 
 import os.path
 import shutil
@@ -83,6 +97,9 @@ except:
 reference = AnalysedSignal(reference_block.segments[0].analogsignals[0]).\
                                                    slice(time_start, time_stop)
 analyses = [Analysis(r, simulation.setups) for r in recordings]
+analyses_dict = dict([(str(r.annotations['candidate'][0]),
+                       Analysis(r, simulation.setups))
+                      for r in recordings])
 
 
 class TestObjective(object):
@@ -135,3 +152,10 @@ class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
 
     def setUp(self):
         self.objective = SpikeTimesObjective(reference.spike_times())
+
+if __name__ == '__main__':
+
+    test = TestSpikeTimesObjective()
+    test.objective.fitness(analyses_dict['0.008'])
+    test.test_fitness()
+    test.plot()
