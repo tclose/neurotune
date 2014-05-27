@@ -32,13 +32,14 @@ class RecordingRequest(object):
         self.conditions = conditions
 
 
+RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
+
+
 class Setup(object):
     """
     Groups together all the simulation set-up information to interface to and
     from a requested simulation
     """
-
-    RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
 
     def __init__(self, record_time, conditions, record_variables,
                  var_request_refs):
@@ -124,7 +125,7 @@ class Simulation():
                                                       for rv, requests in
                                                       common_record_variables])
             # Get the list of request keys for each requested recording
-            req_refs = [[Setup.RequestRef(key, req.time_start, req.time_stop)
+            req_refs = [[RequestRef(key, req.time_start, req.time_stop)
                          for key, req in com_record]
                         for com_record in requests_iters]
             # Append the simulation request to the
