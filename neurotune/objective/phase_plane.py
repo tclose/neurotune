@@ -137,8 +137,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     BOUND_DEFAULT = 0.5
 
     def __init__(self, reference_trace, num_bins=(150, 150),
-                 v_bounds=(-100.0, 50.0), dvdt_bounds=(-300.0, 300.0),
-                 resample_ratio=3.0, kernel_stdev=(20.0, 80.0),
+                 v_bounds=(-100.0, 80.0), dvdt_bounds=(-300.0, 400.0),
+                 resample_ratio=3.0, kernel_stdev=(10.0, 40.0),
                  kernel_cutoff=(3.5, 3.5), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
@@ -206,6 +206,9 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
     def fitness(self, analysis):
         signal = analysis.get_signal()
+        assert((signal.t_stop - signal.t_start) ==
+               (self.reference_trace.t_stop - self.reference_trace.t_start)), \
+               "Attempting to compare traces of different lengths"
         phase_plane_hist = self._generate_hist(signal)
         # Get the root-mean-square difference between the reference and
         # simulated histograms

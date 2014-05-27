@@ -262,7 +262,7 @@ class AnalysedSignalSlice(AnalysedSignal):
             raise Exception("Slice t_start ({}) is before signal t_start ({})"
                             .format(t_start, signal.t_start))
         if t_stop > signal.t_stop:
-            raise Exception("Slice t_stop ({}) is after signal t_start ({})"
+            raise Exception("Slice t_stop ({}) is after signal t_stop ({})"
                             .format(t_stop, signal.t_stop))
         indices = numpy.where((signal.times >= t_start) &
                               (signal.times <= t_stop))[0]
