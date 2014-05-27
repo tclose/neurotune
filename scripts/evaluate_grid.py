@@ -59,7 +59,7 @@ parser.add_argument('--save_recordings', type=str, default=None,
 
 # # The parameters to be tuned by the tuner
 # parameters = [Parameter('diam', 'um', 20.0, 40.0),
-#               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, log_scale=True)]
+#               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, /log_scale=True)]
 # 1e-5, 3e-5)]
 
 objective_names = ['Phase-plane Histogram', 'Phase-plane Pointwise',
@@ -206,7 +206,7 @@ if __name__ == '__main__':
     if not args.parameter:
         raise Exception("At least one parameter argument '--parameter' needs "
                         "to be supplied")
-    parameters = [Parameter(name, 'S/cm^2', lbound, ubound, log_scale)
+    parameters = [Parameter(name, 'S/cm^2', lbound, ubound, False)
                   for name, lbound, ubound, _, log_scale in args.parameter]
     if args.plot_saved:
         with open(args.plot_saved[0]) as f:
