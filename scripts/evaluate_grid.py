@@ -115,7 +115,7 @@ def run(parameters, args):
                            out=args.output))
 
 
-def plot(grids, parameters, plot_type='surf', trim_factor=None):
+def plot(grids, parameters, plot_type='image', trim_factor=None):
     # Import the plotting modules here so they are not imported unless plotting
     # is required
     from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
@@ -154,15 +154,18 @@ def plot(grids, parameters, plot_type='surf', trim_factor=None):
             kwargs = {}
             max_under_trim = None
             if trim_factor is not None:
-                trim_value = (trim_factor * numpy.percentile(grid, 95))
+                trim_value = (float(trim_factor) *
+                              numpy.percentile(grid, 95))
                 if numpy.max(grid) > trim_value:
                     over_trim = grid > trim_value
                     max_under_trim = numpy.ma.masked_array(grid,
                                                           mask=over_trim).max()
+            if plot_type == 'surf':
+                if max_under_trim is not None:
                     grid[numpy.where(over_trim)] = float('nan')
                     lev = numpy.linspace(0, max_under_trim, 1000)
                     kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
-            if plot_type == 'surf':
+
                 ax = fig.gca(projection='3d')
                 X, Y = numpy.meshgrid(x_range, y_range)
                 surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1,
@@ -180,6 +183,7 @@ def plot(grids, parameters, plot_type='surf', trim_factor=None):
                                    parameters[1].lbound, parameters[1].ubound))
                 plt.grid()
                 plt.colorbar()
+                plt.clim(0, max_under_trim)
             else:
                 raise Exception("Unrecognised plot_type '{}'"
                                 .format(plot_type))
