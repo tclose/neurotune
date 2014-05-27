@@ -45,7 +45,7 @@ try:
 except:
     plt = None
 
-time_start = 250 * pq.ms  # 500 * pq.ms
+time_start = 250 * pq.ms
 time_stop = 2000 * pq.ms
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -187,12 +187,13 @@ class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
                                              time_start=time_start,
                                              time_stop=time_stop)
 
-# if __name__ == '__main__':
-#
-#     for TestClass in [TestPhasePlaneHistObjective,
-#                       TestPhasePlanePointwiseObjective,
-#                       TestSpikeFrequencyObjective,
-#                       TestSpikeTimesObjective]:
-#         test = TestClass()
-#         print TestClass.__name__ + ': ' + repr([test.objective.fitness(a) for a in analyses])  # @IgnorePep8
-#         test.plot()
+if __name__ == '__main__':
+
+    for TestClass in [TestPhasePlaneHistObjective,
+                      TestPhasePlanePointwiseObjective,
+                      TestSpikeFrequencyObjective,
+                      TestSpikeTimesObjective]:
+        test = TestClass()
+        print TestClass.__name__ + ': ' + repr([test.objective.fitness(a)
+                                                for a in analyses])
+        test.plot()
