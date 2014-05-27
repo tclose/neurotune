@@ -26,8 +26,6 @@ else:
         import unittest2 as unittest
     except ImportError:
         import unittest  # @UnusedImport
-
-
 import os.path
 import numpy
 import shutil
