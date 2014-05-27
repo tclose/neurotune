@@ -492,4 +492,6 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0) ** 2) +
                     numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) /
                    (fit_mat.shape[0] + fit_mat.shape[1]))
+        if fitness > 5e+12:
+            raise Exception("This is where the bad values are being generated")
         return fitness
