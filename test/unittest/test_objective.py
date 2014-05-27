@@ -51,7 +51,7 @@ time_start = 250 * pq.ms  # 500 * pq.ms
 time_stop = 2000 * pq.ms
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                        'data', 'objective'))
+                                        '..', 'data', 'objective'))
 nineml_file = os.path.join(data_dir, 'Golgi_Solinas08.9ml')
 
 parameter = Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False)
