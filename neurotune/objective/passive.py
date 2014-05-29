@@ -7,14 +7,14 @@ from ..simulation import RecordingRequest, ExperimentalConditions, \
                          StepCurrentSource
 
 
-class CurrentClampObjective(Objective):
+class PassivePropertiesObjective(Objective):
 
     __metaclass__ = ABCMeta
 
     def __init__(self, reference_trace, injected_current,
                  record_variable=None, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms):
-        super(CurrentClampObjective, self).__init__(time_start, time_stop)
+        super(PassivePropertiesObjective, self).__init__(time_start, time_stop)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
         if isinstance(reference_trace, str):
@@ -40,11 +40,11 @@ class CurrentClampObjective(Objective):
                                 conditions=self.exp_conditions)
 
 
-class CurrentClampTimeConstantObjective(CurrentClampObjective):
+class TimeConstantObjective(PassivePropertiesObjective):
 
     pass
 
 
-class CurrentClampPeakHeightObjective(CurrentClampObjective):
+class PeakConductanceObjective(PassivePropertiesObjective):
 
     pass
