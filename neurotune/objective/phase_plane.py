@@ -201,7 +201,9 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         returns 2D histogram
         """
         if self.resample_length:
-            v, dvdt = self._resample_traces(trace, self.resample_length)
+            v, dvdt = trace.evenly_sampled_v_dvdt(self.resample_length,
+                                                  self.dvdt2v_scale,
+                                                  self.interp_order)
         else:
             v, dvdt = trace, trace.dvdt
         hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
@@ -210,23 +212,6 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             # Convolve the histogram with the precalculated Gaussian kernel
             hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
         return hist
-
-    def _resample_traces(self, trace, resample_length):
-        """
-        Resamples traces at intervals along their path of length one taking
-        given the axes scaled by 'resample'
-
-        `v`               -- voltage trace [numpy.array(float)]
-        `dvdt`            -- dV/dt trace [numpy.array(float)]
-        `resample_length` -- the new length between the samples
-        """
-        v_interp, dvdt_interp, s = trace.v_dvdt_splines(
-                                       dvdt2v_scale=self.dvdt2v_scale,
-                                       order=self.interp_order)
-        # Get a regularly spaced array of new positions along the phase-plane
-        # path to interpolate to
-        new_s = numpy.arange(s[0], s[-1], resample_length)
-        return v_interp(new_s), dvdt_interp(new_s)
 
     def plot_d_dvdt(self, trace, show=True):
         """
@@ -375,7 +360,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                             " must be below 0 (found {})".format(self.thresh))
         self.num_points = num_points
         self.no_spike_reference = no_spike_reference
-        self.reference_loops = reference.v_dvdt_loops(
+        self.reference_loops = reference.spike_v_dvdt(
                                        self.num_points, self.dvdt2v_scale,
                                        self.interp_order, self.thresh[0],
                                        self.thresh[1])
@@ -392,10 +377,10 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
         signal = analysis.get_signal()
-        recorded_loops = signal.v_dvdt_loops(self.num_points,
-                                                          self.interp_order,
-                                                          self.thresh[0],
-                                                          self.thresh[1])
+        recorded_loops = signal.spike_v_dvdt(self.num_points,
+                                             interp_order=self.interp_order,
+                                             start_thresh=self.thresh[0],
+                                             stop_thresh=self.thresh[1])
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point
         if len(recorded_loops) == 0:

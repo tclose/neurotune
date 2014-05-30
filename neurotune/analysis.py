@@ -84,6 +84,20 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return tuple([val for _, val in sorted(kwargs.items(),
                                                    key=lambda item: item[0])])
 
+    @classmethod
+    def _interpolate_v_dvdt(cls, v, dvdt, dvdt2v_scale=0.25, order=3):
+        dv = numpy.diff(v)
+        d_dvdt = numpy.diff(dvdt)
+        interval_lengths = numpy.sqrt(numpy.asarray(dv) ** 2 +
+                                      (numpy.asarray(d_dvdt) *
+                                       dvdt2v_scale) ** 2)
+        # Calculate the "positions" of the samples in terms of the fraction
+        # of the length of the v-dv/dt path
+        s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
+        # Save the original (non-sparsified) value to be returned
+        return (InterpolatedUnivariateSpline(s, v, k=order),
+                InterpolatedUnivariateSpline(s, dvdt, k=order), s)
+
     def __new__(cls, signal):
         if not isinstance(signal, neo.core.AnalogSignal):
             raise Exception("Can only analyse neo.coreAnalogSignals (not {})"
@@ -232,43 +246,24 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return pq.Quantity(num_spikes / (self.t_stop - self.t_start),
                            units='Hz')
 
-    def v_dvdt_splines(self, dvdt2v_scale=0.25, order=3):
+    def evenly_sampled_v_dvdt(self, resample_length, dvdt2v_scale=0.25,
+                              interp_order=3):
         """
-        Gets interpolators as returned from scipy.interpolate.interp1d for v
-        and dV/dt as well as the length of the trace in the phase plane
+        Resamples traces at intervals along their path of length one taking
+        given the axes scaled by dvdt2v_scale
 
-        `dvdt2v_scale`   -- the scale used to compare the v and dV/dt traces.
-                            when calculating the length of a interval between
-                            samples. Eg. a dvdt scale of 0.25 scales
-                            the dV/dt axis down by 4 before calculating the
-                            sample lengths
-        `order`          -- the interpolation type used
-                              (see scipy.interpolate.interp1d) [str]
-        returns:
-                    a tuple containing scipy interpolators for v and
-                    dV/dt and the 's' positions of the original
-                    samples along the interpolated path.
+        `resample_length` -- the new length between the samples
         """
-        try:
-            return self._splines[order]
-        except KeyError:
-            dv = numpy.diff(self)
-            d_dvdt = numpy.diff(self.dvdt)
-            interval_lengths = numpy.sqrt(numpy.asarray(dv) ** 2 +
-                                          (numpy.asarray(d_dvdt) *
-                                           dvdt2v_scale) ** 2)
-            # Calculate the "positions" of the samples in terms of the fraction
-            # of the length of the v-dv/dt path
-            s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
-            # Save the original (non-sparsified) value to be returned
-            spln = (InterpolatedUnivariateSpline(s, self, k=order),
-                    InterpolatedUnivariateSpline(s, self.dvdt, k=order),
-                    s)
-            self._splines[order] = spln
-            return spln
+        v_spl, dvdt_spl, s = self._interpolate_v_dvdt(self, self.dvdt,
+                                                     dvdt2v_scale=dvdt2v_scale,
+                                                     order=interp_order)
+        # Get a regularly spaced array of new positions along the phase-plane
+        # path to interpolate to
+        new_s = numpy.arange(s[0], s[-1], resample_length)
+        return v_spl(new_s), dvdt_spl(new_s)
 
-    def v_dvdt_loops(self, num_samples, dvdt2v_scale=0.25, interp_order=3,
-                     start_thresh=10.0, stop_thresh=-10.0):
+    def spike_v_dvdt(self, num_samples, dvdt2v_scale=0.25, interp_order=3,
+                     start_thresh=10.0, stop_thresh=-10.0, index_buffer=10):
         """
         Cuts outs loops (either spikes or sub-threshold oscillations) from the
         v-dV/dt trace based on the provided threshold values a
@@ -276,44 +271,32 @@ class AnalysedSignal(neo.core.AnalogSignal):
         `num_samples`     -- the number of samples to place around the V-dV/dt
                              spike
         `interp_order`    -- the order of the spline interpolation used
-        `start_thresh` -- the start dV/dt threshold
-        `stop_thresh`  -- the stop dV/dt threshold
+        `start_thresh`    -- the start dV/dt threshold
+        `stop_thresh`     -- the stop dV/dt threshold
+        `index_buffer`    -- the number of indices either side of the spike
+                             period to include in the fitting of the spline
+                             to avoid boundary effects
         """
-        v_spline, dvdt_spline, s = self.v_dvdt_splines(
-                                            dvdt2v_scale=dvdt2v_scale,
-                                            order=interp_order)
-        def ensure_s_bound(index, thresh, direction):  # @IgnorePep8
-            """
-            A helper function to ensure that the start and end indices of the
-            loop fall exactly either side of the threshold and if not extend
-            the search interval for the indices that do
-            """
-            try:
-                while (direction * dvdt_spline(s[index]) <
-                       direction * thresh):
-                    index += direction
-                return s[index]
-            except IndexError:
-                raise Exception("Spline interpolation is not accurate enough "
-                                "to detect start of loop, consider using a "
-                                "smaller simulation timestep or greater loop "
-                                "threshold")
         # Cut up the traces in between where the interpolated curve exactly
         # crosses the start and end thresholds
         spikes = []
-        for start_i, stop_i in self._spike_period_indices(
-                                   threshold='dvdt', start=start_thresh,
-                                   stop=stop_thresh):
-            start_s = brentq(lambda s: (dvdt_spline(s) - start_thresh),
-                             ensure_s_bound(start_i - 1, start_thresh, -1),
-                             ensure_s_bound(start_i, start_thresh, 1))
-            end_s = brentq(lambda s: (dvdt_spline(s) - stop_thresh),
-                           ensure_s_bound(stop_i - 1, stop_thresh, -1),
-                           ensure_s_bound(stop_i, stop_thresh, 1))
+        for start_i, stop_i in self._spike_period_indices(threshold='dvdt',
+                                                          start=start_thresh,
+                                                          stop=stop_thresh):
+            start_i = max(start_i - index_buffer, 0)
+            stop_i = min(stop_i + index_buffer, len(self))
+            v_spl, dvdt_spl, s = self._interpolate_v_dvdt(
+                                    self[start_i:stop_i],
+                                    self.dvdt[start_i:stop_i],
+                                    dvdt2v_scale, interp_order)
+            start_s = brentq(lambda s: (dvdt_spl(s) - start_thresh),
+                             s[0], s[index_buffer * 2])
+            end_s = brentq(lambda s: (dvdt_spl(s) - stop_thresh),
+                           s[-index_buffer * 2], s[-1])
             # Over the loop length interpolate the splines at a fixed number of
             # points
             spike_s = numpy.linspace(start_s, end_s, num_samples)
-            spike = numpy.array((v_spline(spike_s), dvdt_spline(spike_s)))
+            spike = numpy.array((v_spl(spike_s), dvdt_spl(spike_s)))
             spikes.append(spike)
         return spikes
 
@@ -389,7 +372,7 @@ class AnalysedSignalSlice(AnalysedSignal):
     def _spike_period_indices(self, **kwargs):
         periods = self.whole._spike_period_indices(**kwargs)
         return periods[numpy.where((periods[:, 0] >= self._start_index) &
-                                   (periods[:, 1] >= self._stop_index))]
+                                   (periods[:, 1] <= self._stop_index))]
 
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self.whole.v_dvdt_splines(**kwargs)
