@@ -13,6 +13,8 @@ args = parser.parse_args()
 with open(args.exception_file, 'rb') as f:
     objective, candidate, analysis = pkl.load(f)
 
+print "Replaying objective fitness calculation for {}".format(candidate)
+
 if analysis is None:
     print ("Simulation failed for candidate ({}), cannot automatically replay"
            .format(candidate))

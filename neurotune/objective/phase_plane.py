@@ -3,8 +3,6 @@ from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 from numpy.linalg import norm
 import scipy.signal
-from scipy.interpolate import InterpolatedUnivariateSpline
-import scipy.optimize
 import quantities as pq
 import neo.io
 from . import Objective
@@ -22,7 +20,7 @@ class PhasePlaneObjective(Objective):
 
     def __init__(self, reference_trace, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms, record_variable=None,
-                 exp_conditions=None, dvdt_scale=0.25, interp_order=3):
+                 exp_conditions=None, dvdt2v_scale=0.25, interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
@@ -34,7 +32,7 @@ class PhasePlaneObjective(Objective):
         `exp_conditions`   -- the required experimental conditions (eg. initial
                               voltage, current clamps, etc...)
                               [neurotune.simulation.Conditions]
-        `dvdt_scale`       -- the scale used to compare the v and dV/dt traces.
+        `dvdt2v_scale`     -- the scale used to compare the v and dV/dt traces.
                               when calculating the length of a interval between
                               samples. Eg. a dvdt scale of 0.25 scales
                               the dV/dt axis down by 4 before calculating the
@@ -69,63 +67,7 @@ class PhasePlaneObjective(Objective):
         self.record_variable = record_variable
         self.exp_conditions = exp_conditions
         self.interp_order = interp_order
-        self.dvdt_scale = dvdt_scale
-
-    def _get_interpolators(self, v, dvdt, interp_order=None):
-        """
-        Gets interpolators as returned from scipy.interpolate.interp1d for v
-        and dV/dt as well as the length of the trace in the phase plane
-
-        `v`                -- voltage trace [numpy.array(float)]
-        `dvdt`             -- dV/dt trace [numpy.array(float)]
-        `interp_order`     -- the interpolation type used
-                              (see scipy.interpolate.interp1d) [str]
-        return             -- a tuple containing scipy interpolators for v and
-                              dV/dt and the positions of the original samples
-                              along the interpolated path.
-        """
-        if interp_order is None:
-            interp_order = self.interp_order
-        dv = numpy.diff(v)
-        d_dvdt = numpy.diff(dvdt)
-        interval_lengths = numpy.sqrt(numpy.asarray(dv) ** 2 +
-                                      (numpy.asarray(d_dvdt) *
-                                       self.dvdt_scale) ** 2)
-        # Calculate the "positions" of the samples in terms of the fraction of
-        # the length of the v-dv/dt path
-        s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
-        # Save the original (non-sparsified) value to be returned
-        return (InterpolatedUnivariateSpline(s, v, k=interp_order),
-                InterpolatedUnivariateSpline(s, dvdt, k=interp_order), s)
-
-    def plot_d_dvdt(self, trace, show=True):
-        """
-        Used in debugging to plot a histogram from a given trace
-
-        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
-        `show`  -- whether to call the matplotlib 'show' function
-                   (depends on whether there are subsequent plots to compare or
-                   not) [bool]
-        """
-        from matplotlib import pyplot as plt
-        # Temporarily switch of resampling to get original positions of v dvdt
-        # plot
-        resamp_v, resamp_dvdt = self._resample_traces(trace, trace.dvdt,
-                                                      self.resample_length)
-        if isinstance(show, str):
-            import cPickle as pickle
-            with open(show, 'w') as f:
-                pickle.dump(((trace, trace.dvdt), (resamp_v, resamp_dvdt)), f)
-        else:
-            # Plot original positions and interpolated traces
-            plt.figure()
-            plt.plot(trace, trace.dvdt, 'x')
-            plt.plot(resamp_v, resamp_dvdt)
-            plt.xlabel('v')
-            plt.ylabel('dv/dt')
-            plt.title('v-dv/dt plot of trace')
-            if show:
-                plt.show()
+        self.dvdt2v_scale = dvdt2v_scale
 
 
 class PhasePlaneHistObjective(PhasePlaneObjective):
@@ -258,9 +200,10 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
         returns 2D histogram
         """
-        v, dvdt = trace, trace.dvdt
         if self.resample_length:
-            v, dvdt = self._resample_traces(v, dvdt, self.resample_length)
+            v, dvdt = self._resample_traces(trace, self.resample_length)
+        else:
+            v, dvdt = trace, trace.dvdt
         hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
                                  range=self.bounds, normed=False)[0]
         if self.kernel is not None:
@@ -268,7 +211,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
         return hist
 
-    def _resample_traces(self, v, dvdt, resample_length):
+    def _resample_traces(self, trace, resample_length):
         """
         Resamples traces at intervals along their path of length one taking
         given the axes scaled by 'resample'
@@ -277,11 +220,42 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         `dvdt`            -- dV/dt trace [numpy.array(float)]
         `resample_length` -- the new length between the samples
         """
-        v_interp, dvdt_interp, s = self._get_interpolators(v, dvdt)
+        v_interp, dvdt_interp, s = trace.v_dvdt_splines(
+                                       dvdt2v_scale=self.dvdt2v_scale,
+                                       order=self.interp_order)
         # Get a regularly spaced array of new positions along the phase-plane
         # path to interpolate to
         new_s = numpy.arange(s[0], s[-1], resample_length)
         return v_interp(new_s), dvdt_interp(new_s)
+
+    def plot_d_dvdt(self, trace, show=True):
+        """
+        Used in debugging to plot a histogram from a given trace
+
+        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
+        `show`  -- whether to call the matplotlib 'show' function
+                   (depends on whether there are subsequent plots to compare or
+                   not) [bool]
+        """
+        from matplotlib import pyplot as plt
+        # Temporarily switch of resampling to get original positions of v dvdt
+        # plot
+        resamp_v, resamp_dvdt = self._resample_traces(trace,
+                                                      self.resample_length)
+        if isinstance(show, str):
+            import cPickle as pickle
+            with open(show, 'w') as f:
+                pickle.dump(((trace, trace.dvdt), (resamp_v, resamp_dvdt)), f)
+        else:
+            # Plot original positions and interpolated traces
+            plt.figure()
+            plt.plot(trace, trace.dvdt, 'x')
+            plt.plot(resamp_v, resamp_dvdt)
+            plt.xlabel('v')
+            plt.ylabel('dv/dt')
+            plt.title('v-dv/dt plot of trace')
+            if show:
+                plt.show()
 
     def plot_hist(self, trace_or_hist=None, min_max=None, diff=False,
                   show=True):
@@ -378,13 +352,13 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
-    def __init__(self, reference_trace, dvdt_thresholds, num_points,
+    def __init__(self, reference, dvdt_thresholds, num_points,
                  no_spike_reference=(-100, 0.0), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_trace`    -- traces (in Neo format) that are to be compared
+        `reference`    -- traces (in Neo format) that are to be compared
                                 against [list(neo.AnalogSignal)]
         `dvdt_thresholds`    -- the threshold above which the loop is
                                 considered to have ended [tuple[2](float)]
@@ -394,74 +368,19 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                                 the reference spikes to when there are no
                                 recorded spikes
         """
-        super(PhasePlanePointwiseObjective, self).__init__(reference_trace,
-                                                           **kwargs)
+        super(PhasePlanePointwiseObjective, self).__init__(reference, **kwargs)
         self.thresh = dvdt_thresholds
         if self.thresh[0] < 0.0 or self.thresh[1] > 0.0:
             raise Exception("Start threshold must be above 0 and end threshold"
                             " must be below 0 (found {})".format(self.thresh))
         self.num_points = num_points
         self.no_spike_reference = no_spike_reference
-        self.reference_loops = self._cut_out_loops(reference_trace)
+        self.reference_loops = reference.v_dvdt_loops(
+                                       self.num_points, self.dvdt2v_scale,
+                                       self.interp_order, self.thresh[0],
+                                       self.thresh[1])
         if len(self.reference_loops) == 0:
             raise Exception("No loops found in reference signal")
-
-    def _cut_out_loops(self, trace):
-        """
-        Cuts outs loops (either spikes or sub-threshold oscillations) from the
-        v-dV/dt trace based on the provided threshold values
-
-        `trace`  -- the voltage trace [numpy.array(float)]
-        """
-        # Get the v and dvdt and their spline interpolators
-        v, dvdt = trace, trace.dvdt
-        v_spline, dvdt_spline, s_positions = self._get_interpolators(v, dvdt)
-        # Find the indices where the v-dV/dt trace crosses the start and end
-        # thresholds respectively
-        loop_starts = numpy.where((dvdt[1:] >= self.thresh[0]) &
-                                  (dvdt[:-1] < self.thresh[0]))[0] + 1
-        loop_ends = numpy.where((dvdt[1:] >= self.thresh[1]) &
-                                (dvdt[:-1] < self.thresh[1]))[0] + 1
-        # Cut up the traces in between where the interpolated curve exactly
-        # crosses the start and end thresholds
-        loops = []
-
-        def ensure_s_bound(index, thresh, direction):
-            """
-            A helper function to ensure that the start and end indices of the
-            loop fall exactly either side of the threshold and if not extend
-            the search interval for the indices that do
-            """
-            try:
-                while (direction * dvdt_spline(s_positions[index]) <
-                       direction * thresh):
-                    index += direction
-                return s_positions[index]
-            except IndexError:
-                raise Exception("Spline interpolation is not accurate enough "
-                                "to detect start of loop, consider using a "
-                                "smaller simulation timestep or greater loop "
-                                "threshold")
-
-        for start_index, end_index in zip(loop_starts, loop_ends):
-            start_s = scipy.optimize.brentq(lambda s: (dvdt_spline(s) -
-                                                       self.thresh[0]),
-                                            ensure_s_bound(start_index - 1,
-                                                           self.thresh[0], -1),
-                                            ensure_s_bound(start_index,
-                                                           self.thresh[0], 1))
-            end_s = scipy.optimize.brentq(lambda s: (dvdt_spline(s) -
-                                                     self.thresh[1]),
-                                            ensure_s_bound(end_index - 1,
-                                                           self.thresh[1], -1),
-                                            ensure_s_bound(end_index,
-                                                           self.thresh[1], 1))
-            # Over the loop length interpolate the splines at a fixed number of
-            # points
-            s_range = numpy.linspace(start_s, end_s, self.num_points)
-            loops.append(numpy.array((v_spline(s_range),
-                                      dvdt_spline(s_range))))
-        return loops
 
     def fitness(self, analysis):
         """
@@ -473,7 +392,10 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
         signal = analysis.get_signal()
-        recorded_loops = self._cut_out_loops(signal)
+        recorded_loops = signal.v_dvdt_loops(self.num_points,
+                                                          self.interp_order,
+                                                          self.thresh[0],
+                                                          self.thresh[1])
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point
         if len(recorded_loops) == 0:
@@ -485,12 +407,13 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
         for row_i, rec_loop in enumerate(recorded_loops):
             for col_i, ref_loop in enumerate(self.reference_loops):
-                fit_mat[row_i, col_i] = numpy.sum((rec_loop - ref_loop) ** 2)
+                loop_squared_diff = numpy.sum((rec_loop - ref_loop) ** 2)
+                fit_mat[row_i, col_i] = loop_squared_diff
         # Get the minimum along every row and every colum and sum them together
         # for the nearest loop difference for every recorded loop to every
         # reference loop and vice-versa
-        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0) ** 2) +
-                    numpy.sum(numpy.amin(fit_mat, axis=1) ** 2)) /
+        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0)) ** 2 +
+                    numpy.sum(numpy.amin(fit_mat, axis=1))) ** 2 /
                    (fit_mat.shape[0] + fit_mat.shape[1]))
         if fitness > 5e+12:
             raise Exception("This is where the bad values are being generated")

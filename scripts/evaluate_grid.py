@@ -82,7 +82,7 @@ def run(parameters, args):
                                SpikeFrequencyObjective(sliced_reference.\
                                                        spike_frequency()),
                                SpikeTimesObjective(sliced_reference.\
-                                                   spike_times()))
+                                                   spikes()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,

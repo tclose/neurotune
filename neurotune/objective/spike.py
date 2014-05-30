@@ -63,7 +63,7 @@ class SpikeTimesObjective(Objective):
                       analysis of them [analysis.Analysis]
         """
         signal = analysis.get_signal()
-        spikes = signal.spike_times()
+        spikes = signal.spikes()
         # If no spikes were generated create a dummy spike that is guaranteed
         # to be further away from a reference spike than any within the time
         # window

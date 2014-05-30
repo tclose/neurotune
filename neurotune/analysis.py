@@ -6,7 +6,8 @@ AUTHOR: Mike Vella vellamike@gmail.com
 
 """
 import scipy.stats
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
+from scipy.optimize import brentq
 import numpy
 import math
 from copy import copy
@@ -92,8 +93,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # "Cast" the new AnalogSignal object to the AnalysedSignal derived
         # class
         obj.__class__ = AnalysedSignal
-        obj._spikes = {}
         obj._dvdt = None
+        obj._spike_periods = {}
+        obj._spikes = {}
+        obj._splines = {}
         return obj
 
     def __reduce__(self):
@@ -103,7 +106,8 @@ class AnalysedSignal(neo.core.AnalogSignal):
         '''
         # Pass the unpickling function along with the neo_signal and members
         return _unpickle_AnalysedSignal, (self.__class__, self._base(),
-                                          self._spikes, self._dvdt)
+                                          self._spikes, self._dvdt,
+                                          self._spike_periods, self._splines)
 
     def _base(self):
         """
@@ -130,7 +134,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
             dt = numpy.diff(self.times)
             # Get the dvdt at the intervals between the samples
             dvdt = dv / dt
-            # Linearly interpolate the dV/dt value back to the time points of
+            # Linearly interpolate the dV/dt values back to the time points of
             # the original time course.
             spline = UnivariateSpline(self.times[:-1] + dt / 2.0, dvdt, s=1)
             self._dvdt = numpy.hstack((dvdt[0],
@@ -138,14 +142,73 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                                   units=dvdt.units), dvdt[-1]))
         return self._dvdt
 
-    def spike_times(self, **kwargs):
+    def _spike_period_indices(self, threshold='dvdt', start=10.0, stop=-10.0):
+        """
+        Find sections of the trace where it crosses the given dvdt threshold
+        until it loops around and crosses the stop threshold in the positive
+        direction again
+
+        `threshold` -- can be either 'dvdt' or 'v', which determines the
+                            type of threshold used to classify the spike
+                            start/stop
+        `start`          -- the starting dV/dt or v threshold of the spike
+        `stop`           -- the stopping threshold, which needs to be crossed
+                            in the positive direction for dV/dt and negative
+                            for V
+        """
+        argkey = (threshold, start, stop)
+        try:
+            return self._spike_periods[argkey]
+        except KeyError:
+            if threshold not in ('dvdt', 'v'):
+                raise Exception("Unrecognised threshold type '{}'"
+                                    .format(threshold))
+            if threshold == 'dvdt':
+                if stop > start:
+                    raise Exception("Stop threshold ({}) must be lower than "
+                                    "start threshold ({}) for dV/dt threshold "
+                                    " crossing detection" .format(stop, start))
+                start_inds = numpy.where((self.dvdt[1:] >= start) &
+                                         (self.dvdt[:-1] < start))[0] + 1
+                stop_inds = numpy.where((self.dvdt[1:] > stop) &
+                                        (self.dvdt[:-1] <= stop))[0] + 1
+            else:
+                start_inds = numpy.where((self[1:] >= start)
+                                        & (self[:-1] < start))[0] + 1
+                stop_inds = numpy.where((self[1:] < stop)
+                                       & (self[:-1] >= stop))[0] + 1
+            if len(start_inds) == 0 or len(stop_inds) == 0:
+                periods = []
+            else:
+                # If the recording period begins or ends with a threshold
+                # crossing trim them from the crossing periods so the start and
+                # stop inds are the same length
+                if start_inds[-1] > stop_inds[-1]:
+                    start_inds = start_inds[:-1]
+                if stop_inds[0] < start_inds[0]:
+                    stop_inds = stop_inds[1:]
+                assert len(start_inds) == len(stop_inds)
+                assert all(stop_inds > start_inds)
+                periods = numpy.array((start_inds, stop_inds)).T
+            self._spike_periods[argkey] = periods
+            return periods
+
+    def spike_periods(self, **kwargs):
+        """
+        Returns the times associated with teh spike_period_indices
+        """
+        # TODO: Could interpolate to find the exact time of crossings if
+        #       required
+        return self.times[self._spike_period_indices(**kwargs)]
+
+    def spikes(self, **kwargs):
         # Get unique dictionary key from keyword arguments
         args_key = self._argkey(kwargs)
         try:
             return self._spikes[args_key]
         except KeyError:
-            spike_times = []
-            for start_i, end_i in self._spike_periods(**kwargs):
+            spikes = []
+            for start_i, end_i in self._spike_period_indices(**kwargs):
                 dvdt = self.dvdt[start_i:end_i]
                 times = self.times[start_i:end_i]
                 # Get the index before dV/dt crosses 0
@@ -158,85 +221,108 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 # Calculate the exact spike time by interpolating between
                 # the points straddling the zero crossing
                 spike_time = times[i] + (times[i + 1] - times[i]) * exact_cross
-                spike_times.append(spike_time)
-            spikes = neo.SpikeTrain(spike_times, self.t_stop,
+                spikes.append(spike_time)
+            spikes = neo.SpikeTrain(spikes, self.t_stop,
                                     units=self.times.units)
             self._spikes[args_key] = spikes
             return spikes
 
     def spike_frequency(self, **kwargs):
-        spike_times = self.spike_times(**kwargs)
-        return pq.Quantity(float(len(spike_times)) /
-                           (self.t_stop - self.t_start), units='Hz')
+        num_spikes = len(self.spikes(**kwargs))
+        return pq.Quantity(num_spikes / (self.t_stop - self.t_start),
+                           units='Hz')
 
-    def _spike_periods(self, thresh_type='dvdt', **kwargs):
-        if thresh_type == 'dvdt':
-            return self._dvdt_threshold_crossings(**kwargs)
-        elif thresh_type == 'v':
-            return self._v_threshold_crossings(**kwargs)
-        else:
-            raise Exception("Unrecognised threshold type '{}'"
-                            .format(thresh_type))
+    def v_dvdt_splines(self, dvdt2v_scale=0.25, order=3):
+        """
+        Gets interpolators as returned from scipy.interpolate.interp1d for v
+        and dV/dt as well as the length of the trace in the phase plane
 
-    def _dvdt_threshold_crossings(self, start_threshold=10.0,
-                                  stop_threshold=-10.0):
-        if stop_threshold > start_threshold:
-            raise Exception("Stop threshold ({}) must be lower than start "
-                            "threshold ({}) for dV/dt threshold crossing "
-                            "detection" .format(stop_threshold,
-                                                start_threshold))
-        start_indices = numpy.where((self.dvdt[1:] >= start_threshold) &
-                                    (self.dvdt[:-1] < start_threshold))[0] + 1
-        stop_indices = numpy.where((self.dvdt[1:] > stop_threshold) &
-                                  (self.dvdt[:-1] <= stop_threshold))[0] + 1
-        if len(start_indices) == 0 or len(stop_indices) == 0:
-            threshold_crosses = []
-        else:
-            # If the recording period begins or ends with a threshold crossing
-            # trim them from the crossing periods so the start and stop indices
-            # are the same length
-            if start_indices[-1] > stop_indices[-1]:
-                start_indices = start_indices[:-1]
-            if stop_indices[0] < start_indices[0]:
-                stop_indices = stop_indices[1:]
-            if len(start_indices) != len(stop_indices):
-                raise Exception("indices wrong lengths (start {}, end {})"
-                                .format(len(start_indices), len(stop_indices)))
-            assert len(start_indices) == len(stop_indices)
-            assert all(stop_indices > start_indices)
-            threshold_crosses = zip(start_indices, stop_indices)
-        return threshold_crosses
+        `dvdt2v_scale`   -- the scale used to compare the v and dV/dt traces.
+                            when calculating the length of a interval between
+                            samples. Eg. a dvdt scale of 0.25 scales
+                            the dV/dt axis down by 4 before calculating the
+                            sample lengths
+        `order`          -- the interpolation type used
+                              (see scipy.interpolate.interp1d) [str]
+        returns:
+                    a tuple containing scipy interpolators for v and
+                    dV/dt and the 's' positions of the original
+                    samples along the interpolated path.
+        """
+        try:
+            return self._splines[order]
+        except KeyError:
+            dv = numpy.diff(self)
+            d_dvdt = numpy.diff(self.dvdt)
+            interval_lengths = numpy.sqrt(numpy.asarray(dv) ** 2 +
+                                          (numpy.asarray(d_dvdt) *
+                                           dvdt2v_scale) ** 2)
+            # Calculate the "positions" of the samples in terms of the fraction
+            # of the length of the v-dv/dt path
+            s = numpy.concatenate(([0.0], numpy.cumsum(interval_lengths)))
+            # Save the original (non-sparsified) value to be returned
+            spln = (InterpolatedUnivariateSpline(s, self, k=order),
+                    InterpolatedUnivariateSpline(s, self.dvdt, k=order),
+                    s)
+            self._splines[order] = spln
+            return spln
 
-    def _v_threshold_crossings(self, threshold=0.0, hysteresis=0.0):
-        if hysteresis < 0.0:
-            raise Exception("hysteresis must be greater than or equal to 0.0 "
-                            "({})".format(hysteresis))
-        start_thresh = threshold + hysteresis / 2.0
-        stop_thresh = threshold - hysteresis / 2.0
-        start_indices = numpy.where((self[1:] >= start_thresh)
-                                    & (self[:-1] < start_thresh))[0] + 1
-        stop_indices = numpy.where((self[1:] < stop_thresh)
-                                   & (self[:-1] >= stop_thresh))[0] + 1
-        if len(start_indices) == 0 or len(stop_indices) == 0:
-            threshold_crosses = []
-        else:
-            # If the recording period begins or ends with a threshold crossing
-            # trim them from the crossing periods so the start and stop indices
-            # are the same length
-            if self[0] >= start_thresh:
-                stop_indices = stop_indices[1:]
-            if self[-1] >= stop_thresh:
-                start_indices = start_indices[:-1]
-            assert len(start_indices) == len(stop_indices)
-            assert all(stop_indices > start_indices)
-            threshold_crosses = zip(start_indices, stop_indices)
-        return threshold_crosses
+    def v_dvdt_loops(self, num_samples, dvdt2v_scale=0.25, interp_order=3,
+                     start_thresh=10.0, stop_thresh=-10.0):
+        """
+        Cuts outs loops (either spikes or sub-threshold oscillations) from the
+        v-dV/dt trace based on the provided threshold values a
+
+        `num_samples`     -- the number of samples to place around the V-dV/dt
+                             spike
+        `interp_order`    -- the order of the spline interpolation used
+        `start_thresh` -- the start dV/dt threshold
+        `stop_thresh`  -- the stop dV/dt threshold
+        """
+        v_spline, dvdt_spline, s = self.v_dvdt_splines(
+                                            dvdt2v_scale=dvdt2v_scale,
+                                            order=interp_order)
+        def ensure_s_bound(index, thresh, direction):  # @IgnorePep8
+            """
+            A helper function to ensure that the start and end indices of the
+            loop fall exactly either side of the threshold and if not extend
+            the search interval for the indices that do
+            """
+            try:
+                while (direction * dvdt_spline(s[index]) <
+                       direction * thresh):
+                    index += direction
+                return s[index]
+            except IndexError:
+                raise Exception("Spline interpolation is not accurate enough "
+                                "to detect start of loop, consider using a "
+                                "smaller simulation timestep or greater loop "
+                                "threshold")
+        # Cut up the traces in between where the interpolated curve exactly
+        # crosses the start and end thresholds
+        spikes = []
+        for start_i, stop_i in self._spike_period_indices(
+                                   threshold='dvdt', start=start_thresh,
+                                   stop=stop_thresh):
+            start_s = brentq(lambda s: (dvdt_spline(s) - start_thresh),
+                             ensure_s_bound(start_i - 1, start_thresh, -1),
+                             ensure_s_bound(start_i, start_thresh, 1))
+            end_s = brentq(lambda s: (dvdt_spline(s) - stop_thresh),
+                           ensure_s_bound(stop_i - 1, stop_thresh, -1),
+                           ensure_s_bound(stop_i, stop_thresh, 1))
+            # Over the loop length interpolate the splines at a fixed number of
+            # points
+            spike_s = numpy.linspace(start_s, end_s, num_samples)
+            spike = numpy.array((v_spline(spike_s), dvdt_spline(spike_s)))
+            spikes.append(spike)
+        return spikes
 
     def slice(self, t_start, t_stop):
         return AnalysedSignalSlice(self, t_start=t_start, t_stop=t_stop)
 
 
-def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
+def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt, spike_periods={},
+                             splines={}):
     '''
     A function to map BaseAnalogSignal.__new__ to function that
         does not do the unit checking. This is needed for pickle to work.
@@ -244,6 +330,8 @@ def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt):
     obj = cls(signal)
     obj._spikes = spikes
     obj._dvdt = dvdt
+    obj._spike_periods = spike_periods
+    obj._splines = splines
     return obj
 
 
@@ -270,9 +358,9 @@ class AnalysedSignalSlice(AnalysedSignal):
         end_index = indices[-1] + 1
         obj = AnalysedSignal.__new__(cls, signal[start_index:end_index])
         obj.__class__ = AnalysedSignalSlice
-        obj._parent = signal
+        obj.whole = signal
         obj._start_index = start_index
-        obj._end_index = end_index
+        obj._stop_index = end_index
         return obj
 
     def __eq__(self, other):
@@ -280,23 +368,32 @@ class AnalysedSignalSlice(AnalysedSignal):
         Equality test (==)
         '''
         return (super(AnalysedSignalSlice, self).__eq__(other) and
-                self._parent == other._parent and
+                self.whole == other.whole and
                 self._indices == other._indices)
 
     def __reduce__(self):
         '''
         Reduce the sliced analysedSignal for pickling
         '''
-        return self.__class__, (self._parent, self.t_start, self.t_stop)
+        return self.__class__, (self.whole, self.t_start, self.t_stop)
 
     @property
     def dvdt(self):
-        return self._parent.dvdt[self._start_index:self._end_index]
+        return self.whole.dvdt[self._start_index:self._stop_index]
 
-    def spike_times(self, **kwargs):
-        spikes = self._parent.spike_times(**kwargs)
+    def spikes(self, **kwargs):
+        spikes = self.whole.spikes(**kwargs)
         return spikes[numpy.where((spikes >= self.t_start) &
                                   (spikes <= self.t_stop))]
+
+    def _spike_period_indices(self, **kwargs):
+        periods = self.whole._spike_period_indices(**kwargs)
+        return periods[numpy.where((periods[:, 0] >= self._start_index) &
+                                   (periods[:, 1] >= self._stop_index))]
+
+    def v_dvdt_splines(self, **kwargs):
+        v, dvdt, s = self.whole.v_dvdt_splines(**kwargs)
+        return (v, dvdt, s[self._start_index:self._stop_index])
 
 
 def smooth(x, window_len=11, window='hanning'):
