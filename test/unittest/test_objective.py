@@ -222,12 +222,12 @@ if __name__ == '__main__':
 
     from neurotune.objective.multi import MultiObjective
     # Generate the reference trace from the original class
-    cell = NineCellMetaClass(nineml_file)()
-    cell.record('v')
-    simulation_controller.run(simulation_time=2000 * pq.ms,
-                              timestep=0.025)
-    reference = AnalysedSignal(cell.get_recording('v'))
-    sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
+#     cell = NineCellMetaClass(nineml_file)()
+#     cell.record('v')
+#     simulation_controller.run(simulation_time=2000 * pq.ms,
+#                               timestep=0.025)
+#     reference = AnalysedSignal(cell.get_recording('v'))
+#     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
 
     # Instantiate the multi-objective objective from 3 phase-plane objectives
     objective = MultiObjective(PhasePlaneHistObjective(reference),

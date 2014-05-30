@@ -160,7 +160,9 @@ class AnalysedSignal(neo.core.AnalogSignal):
         """
         Find sections of the trace where it crosses the given dvdt threshold
         until it loops around and crosses the stop threshold in the positive
-        direction again
+        direction again or alternatively if threshold=='v' when it crosses the
+        start threshold in the positive direction and crosses the stop 
+        threshold in the negative direction.
 
         `threshold` -- can be either 'dvdt' or 'v', which determines the
                             type of threshold used to classify the spike
@@ -283,15 +285,15 @@ class AnalysedSignal(neo.core.AnalogSignal):
         for start_i, stop_i in self._spike_period_indices(threshold='dvdt',
                                                           start=start_thresh,
                                                           stop=stop_thresh):
-            start_i = max(start_i - index_buffer, 0)
-            stop_i = min(stop_i + index_buffer, len(self))
+            buffer_start = max(start_i - index_buffer, 0)
+            buffer_stop = min(stop_i + index_buffer, len(self))
             v_spl, dvdt_spl, s = self._interpolate_v_dvdt(
-                                    self[start_i:stop_i],
-                                    self.dvdt[start_i:stop_i],
+                                    self[buffer_start:buffer_stop],
+                                    self.dvdt[buffer_start:buffer_stop],
                                     dvdt2v_scale, interp_order)
-            start_s = brentq(lambda s: (dvdt_spl(s) - start_thresh),
+            start_s = brentq(lambda x: (dvdt_spl(x) - start_thresh),
                              s[0], s[index_buffer * 2])
-            end_s = brentq(lambda s: (dvdt_spl(s) - stop_thresh),
+            end_s = brentq(lambda x: (dvdt_spl(x) - stop_thresh),
                            s[-index_buffer * 2], s[-1])
             # Over the loop length interpolate the splines at a fixed number of
             # points
@@ -302,6 +304,36 @@ class AnalysedSignal(neo.core.AnalogSignal):
 
     def slice(self, t_start, t_stop):
         return AnalysedSignalSlice(self, t_start=t_start, t_stop=t_stop)
+
+    def plot(self, show=True):
+        from matplotlib import pyplot as plt
+        plt.figure()
+        plt.plot(self.times, self)
+        plt.xlabel('time ({})'.format(self.times.units))
+        plt.ylabel('V ({})'.format(self.units))
+        plt.title('Voltage trace{}'.format('of ' + self.name
+                                          if self.name else ''))
+        if show:
+            plt.show()
+
+    def plot_d_dvdt(self, show=True):
+        """
+        Used in debugging to plot a histogram from a given trace
+
+        `show`  -- whether to call the matplotlib 'show' function
+                   (depends on whether there are subsequent plots to compare or
+                   not) [bool]
+        """
+        from matplotlib import pyplot as plt
+        # Plot original positions and interpolated traces
+        plt.figure()
+        plt.plot(self, self.dvdt)
+        plt.xlabel('v ({})'.format(self.units))
+        plt.ylabel('dv/dt ({})'.format(self.units / self.times.units))
+        plt.title('v-dv/dt{}'.format('of ' + self.name
+                                     if self.name else ''))
+        if show:
+            plt.show()
 
 
 def _unpickle_AnalysedSignal(cls, signal, spikes, dvdt, spike_periods={},
@@ -371,8 +403,9 @@ class AnalysedSignalSlice(AnalysedSignal):
 
     def _spike_period_indices(self, **kwargs):
         periods = self.whole._spike_period_indices(**kwargs)
-        return periods[numpy.where((periods[:, 0] >= self._start_index) &
-                                   (periods[:, 1] <= self._stop_index))]
+        return (periods[numpy.where((periods[:, 0] >= self._start_index) &
+                                    (periods[:, 1] <= self._stop_index))] -
+                self._start_index)
 
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self.whole.v_dvdt_splines(**kwargs)

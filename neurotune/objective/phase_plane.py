@@ -390,16 +390,13 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
         # Create matrix of sum-squared-differences between recorded to
         # reference loops
         fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
-        for row_i, rec_loop in enumerate(recorded_loops):
-            for col_i, ref_loop in enumerate(self.reference_loops):
-                loop_squared_diff = numpy.sum((rec_loop - ref_loop) ** 2)
-                fit_mat[row_i, col_i] = loop_squared_diff
+        for rec_loop, row in zip(recorded_loops, fit_mat):
+            for i, ref_loop in enumerate(self.reference_loops):
+                row[i] = numpy.sum((rec_loop - ref_loop) ** 2)
         # Get the minimum along every row and every colum and sum them together
         # for the nearest loop difference for every recorded loop to every
         # reference loop and vice-versa
-        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0)) ** 2 +
-                    numpy.sum(numpy.amin(fit_mat, axis=1))) ** 2 /
+        fitness = ((numpy.sum(numpy.amin(fit_mat, axis=0)) +
+                    numpy.sum(numpy.amin(fit_mat, axis=1))) /
                    (fit_mat.shape[0] + fit_mat.shape[1]))
-        if fitness > 5e+12:
-            raise Exception("This is where the bad values are being generated")
         return fitness
