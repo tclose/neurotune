@@ -198,9 +198,10 @@ def plot(grids, parameters, plot_type='image', trim_factor=None):
     plt.show()
 
 
-def prepare_work_dir(work_dir, args):
-    os.mkdir(os.path.join(work_dir, '9ml'))
-    copied_9ml = os.path.join(work_dir, '9ml', os.path.basename(args.cell_9ml))
+def prepare_work_dir(submitter, args):
+    os.mkdir(os.path.join(submitter.work_dir, '9ml'))
+    copied_9ml = os.path.join(submitter.work_dir, '9ml',
+                              os.path.basename(args.cell_9ml))
     shutil.copy(args.cell_9ml, copied_9ml)
     NineCellMetaClass(copied_9ml, build_mode='build_only')
     args.cell_9ml = copied_9ml
