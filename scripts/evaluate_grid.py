@@ -10,7 +10,7 @@ import cPickle as pkl
 import quantities as pq
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.hpc.arguments import inputpath, outputpath
+from nineline.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
