@@ -10,7 +10,7 @@ import cPickle as pkl
 import quantities as pq
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.hpc.sge import outputpath
+from nineline.hpc.arguments import inputpath, outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
@@ -27,8 +27,9 @@ except ImportError:
     from neurotune.tuner import Tuner  # @Reimport
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('cell_9ml', help="The path of the 9ml cell to test the "
-                    "objective function on")
+parser.add_argument('cell_9ml', type=str,
+                    help="The path of the 9ml cell to test the objective "
+                         "function on")
 parser.add_argument('--disable_mpi', action='store_true',
                     help="Disable MPI tuner and replace with basic tuner")
 parser.add_argument('--build', type=str, default='lazy',
