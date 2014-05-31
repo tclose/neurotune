@@ -70,6 +70,7 @@ class Tuner(object):
                 rec_prefix, rec_ext = os.path.splitext(rec_prefix)
                 if not rec_ext:
                     rec_ext = '.pkl'
+                    rec_prefix += '/'
             if rec_ext == '.pkl':
                 rec_io = neo.io.pickleio.PickleIO
             elif rec_ext == '.h5':
