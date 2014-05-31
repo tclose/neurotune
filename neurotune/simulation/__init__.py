@@ -181,7 +181,9 @@ class Simulation():
 
     def run_all(self, candidate):
         """
-        Runs all simulation reuquired by requested simulation setups
+        Runs all simulations reuquired by the requested simulation setups
+
+        `candidate`         -- a list of parameters [list(float)]
         """
         recordings_name = ','.join(['{}={}'.format(p.name, c)
                                     for p, c in zip(self.tune_parameters,
@@ -201,9 +203,9 @@ class Simulation():
         `setup`             -- a simulation setup [Setup]
 
         Returns:
-            A Neo block object with a segment for each Setup in
-            self._simulation_setups containing an analogsignal for each
-            requested recording
+            A Neo Segment containing an AnalogSignal object for each requested
+            recording in the passed setup given the experimental conditions
+            provided within the setup object
         """
         raise NotImplementedError("Derived Simulation class '{}' does not "
                                   "implement 'run(self, candidate, setup)' "

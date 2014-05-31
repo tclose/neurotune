@@ -37,7 +37,7 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
-from neurotune.algorithm import GridAlgorithm
+from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.analysis import AnalysedSignal, Analysis
 try:
@@ -189,11 +189,69 @@ class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
 
 if __name__ == '__main__':
 
-    for TestClass in [TestPhasePlaneHistObjective,
-                      TestPhasePlanePointwiseObjective,
-                      TestSpikeFrequencyObjective,
-                      TestSpikeTimesObjective]:
-        test = TestClass()
-        print TestClass.__name__ + ': ' + repr([test.objective.fitness(a)
-                                                for a in analyses])
-        test.plot()
+#     import cPickle as pkl
+#
+#     test = TestPhasePlanePointwiseObjective()
+#     ka_tests = ['0.00437931034483', '0.00486206896552', '0.00534482758621']
+#     sk2_tests = ['0.0447916666667', '0.0458333333333', '0.0489583333333']
+#
+    parameters = [Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False),
+                   Parameter('soma.SK2.gbar', 'nS', 0.001, 0.015, False)]
+#     simulation = NineLineSimulation(nineml_file)
+#     # Create a dummy tuner to generate the simulation 'setups'
+#     tuner = Tuner(parameters,
+#                   SpikeFrequencyObjective(1, time_start=time_start,
+#                                                 time_stop=time_stop),
+#                   GridAlgorithm(num_steps=[10, 10]),
+#                   simulation)
+#
+#     for ka_test in ka_tests:
+#         for sk2_test in sk2_tests:
+#             with open('/home/tclose/Data/NeuroTune/'
+#                       'evaluate_grid.2014-05-27-Tuesday_12-45-29.1'
+#                       '/recordings/recordingssoma.'
+#                       'KA.gbar={},soma.SK2.gbar={}.neo.pkl'
+#                       .format(ka_test, sk2_test)) as f:
+#                 data = pkl.load(f)
+#             sig = data.segments[0].analogsignals[0]
+# #             plt.plot(sig.times, sig)
+# #             plt.show()
+#             analysis = Analysis(data, simulation.setups)
+#             fitness = test.objective.fitness(analysis)
+#             print "ka {}, sk2 {}: {}".format(ka_test, sk2_test, fitness)
+
+    from neurotune.objective.multi import MultiObjective
+    # Generate the reference trace from the original class
+#     cell = NineCellMetaClass(nineml_file)()
+#     cell.record('v')
+#     simulation_controller.run(simulation_time=2000 * pq.ms,
+#                               timestep=0.025)
+#     reference = AnalysedSignal(cell.get_recording('v'))
+#     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
+
+    # Instantiate the multi-objective objective from 3 phase-plane objectives
+    objective = MultiObjective(PhasePlaneHistObjective(reference),
+                               PhasePlanePointwiseObjective(reference,
+                                                            (20, -20), 100),
+                               SpikeFrequencyObjective(reference.\
+                                                       spike_frequency()),
+                               SpikeTimesObjective(reference.spikes()))
+    simulation = NineLineSimulation(nineml_file)
+    # Instantiate the tuner
+    tuner = Tuner(parameters,
+                  objective,
+                  GridAlgorithm([10, 10]),
+                  simulation)
+
+    analysis = Analysis(simulation.run_all([0.00196552, 0.05024138]),
+                        simulation.setups)
+    objective.fitness(analysis)
+
+#     for TestClass in [TestPhasePlaneHistObjective,
+#                       TestPhasePlanePointwiseObjective,
+#                       TestSpikeFrequencyObjective,
+#                       TestSpikeTimesObjective]:
+#         test = TestClass()
+#         print TestClass.__name__ + ': ' + repr([test.objective.fitness(a)
+#                                                 for a in analyses])
+#         test.plot()

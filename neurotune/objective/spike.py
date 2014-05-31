@@ -36,22 +36,35 @@ class SpikeFrequencyObjective(Objective):
 
 class SpikeTimesObjective(Objective):
     """
-    A simple objective based on the squared difference spike times and the
+    The sum of squared time differences between all simulated spikes and the
     nearest spike in the reference set and vice versa.
     """
 
-    def __init__(self, spikes, time_start=500.0 * pq.ms,
-                 time_stop=2000.0 * pq.ms):
+    def __init__(self, reference, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms, time_buffer=250 * pq.ms):
         """
-        `spikes`    -- the reference spike train [neo.SpikeTrain]
-        `time_start` -- the time from which to start including spikes [float]
-        `time_stop` -- the length of time to run the simulation [float]
+        `reference`     -- reference spike train [neo.SpikeTrain]
+        `time_start` -- time from which to start including spikes [float]
+        `time_stop`  -- length of time to run the simulation [float]
+        `buffer`     -- time buffer either side of the "inner window"
+                        in which spikes in the inner window will be compared
+                        with but which won't be compared with the inner spikes
         """
         super(SpikeTimesObjective, self).__init__(time_start, time_stop)
-        if not isinstance(spikes, neo.core.SpikeTrain):
+        if time_stop - time_start - time_buffer * 2 <= 0:
+            raise Exception("Buffer time ({}) exceeds half of spike train "
+                            "time ({}) and therefore the inner window is "
+                            "empty".format(buffer, (time_stop - time_start)))
+        if not isinstance(reference, neo.core.SpikeTrain):
             raise Exception("Spikes must be a neo.core.SpikeTrain object not "
-                            "{}".format(type(spikes)))
-        self.reference_spikes = spikes
+                            "{}".format(type(reference)))
+        self.ref_spikes = reference
+        self.time_buffer = time_buffer
+        self.ref_inner = reference[numpy.where(
+                                    (reference >= (time_start + time_buffer)) &
+                                    (reference <= (time_stop - time_buffer)))]
+        if not len(self.ref_inner):
+            raise Exception("Inner window does not contain any spikes")
 
     def fitness(self, analysis):
         """
@@ -62,8 +75,10 @@ class SpikeTimesObjective(Objective):
         `analysis` -- The analysis object containing all recordings and
                       analysis of them [analysis.Analysis]
         """
-        signal = analysis.get_signal()
-        spikes = signal.spike_times()
+        spikes = analysis.get_signal().spikes()
+        inner = spikes[numpy.where(
+                             (spikes >= (self.time_start + self.time_buffer)) &
+                             (spikes <= (self.time_stop - self.time_buffer)))]
         # If no spikes were generated create a dummy spike that is guaranteed
         # to be further away from a reference spike than any within the time
         # window
@@ -71,8 +86,8 @@ class SpikeTimesObjective(Objective):
             spike_t = self.time_stop + self.time_start
             spikes = neo.SpikeTrain([spike_t], spike_t, units=spike_t.units)
         fitness = 0.0
-        for spike in spikes:
-            fitness += float(numpy.square(self.reference_spikes - spike).min())
-        for ref_spike in self.reference_spikes:
+        for spike in inner:
+            fitness += float(numpy.square(self.ref_spikes - spike).min())
+        for ref_spike in self.ref_inner:
             fitness += float(numpy.square(spikes - ref_spike).min())
         return fitness

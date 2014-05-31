@@ -10,6 +10,7 @@ import cPickle as pkl
 import quantities as pq
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
+from nineline.hpc.sge import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
@@ -17,7 +18,7 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
-from neurotune.algorithm import GridAlgorithm
+from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.analysis import AnalysedSignal
 try:
@@ -53,7 +54,7 @@ parser.add_argument('--plot_saved', nargs='*', default=[],
                     help="Plot a file that has been saved to file already")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Print out which candidates are being evaluated")
-parser.add_argument('--save_recordings', type=str, default=None,
+parser.add_argument('--save_recordings', type=outputpath, default=None,
                     metavar='DIRECTORY',
                     help="Save recordings to file")
 
@@ -81,7 +82,7 @@ def run(parameters, args):
                                SpikeFrequencyObjective(sliced_reference.\
                                                        spike_frequency()),
                                SpikeTimesObjective(sliced_reference.\
-                                                   spike_times()))
+                                                   spikes()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
