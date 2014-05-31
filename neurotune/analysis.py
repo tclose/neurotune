@@ -156,7 +156,8 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                                   units=dvdt.units), dvdt[-1]))
         return self._dvdt
 
-    def _spike_period_indices(self, threshold='dvdt', start=10.0, stop=-10.0):
+    def _spike_period_indices(self, threshold='dvdt', start=10.0, stop=-10.0,
+                              index_buffer=0):
         """
         Find sections of the trace where it crosses the given dvdt threshold
         until it loops around and crosses the stop threshold in the positive
@@ -171,8 +172,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
         `stop`           -- the stopping threshold, which needs to be crossed
                             in the positive direction for dV/dt and negative
                             for V
+        `index_buffer`   -- the number of indices to pad the periods out by on
+                            either side of the spike
         """
-        argkey = (threshold, start, stop)
+        argkey = (threshold, start, stop, index_buffer)
         try:
             return self._spike_periods[argkey]
         except KeyError:
@@ -206,6 +209,11 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 assert len(start_inds) == len(stop_inds)
                 assert all(stop_inds > start_inds)
                 periods = numpy.array((start_inds, stop_inds)).T
+                if index_buffer:
+                    periods[:, 0] -= index_buffer
+                    periods[:, 1] += index_buffer
+                    periods[numpy.where(periods < 0)] = 0
+                    periods[numpy.where(periods > len(self))] = len(self)
             self._spike_periods[argkey] = periods
             return periods
 
@@ -280,7 +288,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return v_spl(new_s), dvdt_spl(new_s)
 
     def spike_v_dvdt(self, num_samples, dvdt2v_scale=0.25, interp_order=3,
-                     start_thresh=10.0, stop_thresh=-10.0, index_buffer=10):
+                     start_thresh=10.0, stop_thresh=-10.0, index_buffer=5):
         """
         Cuts outs loops (either spikes or sub-threshold oscillations) from the
         v-dV/dt trace based on the provided threshold values a
@@ -297,15 +305,13 @@ class AnalysedSignal(neo.core.AnalogSignal):
         # Cut up the traces in between where the interpolated curve exactly
         # crosses the start and end thresholds
         spikes = []
-        for start_i, stop_i in self._spike_period_indices(threshold='dvdt',
-                                                          start=start_thresh,
-                                                          stop=stop_thresh):
-            buffer_start = max(start_i - index_buffer, 0)
-            buffer_stop = min(stop_i + index_buffer, len(self))
+        for start_i, stop_i in self._spike_period_indices(
+                                  threshold='dvdt', start=start_thresh,
+                                  stop=stop_thresh, index_buffer=index_buffer):
             v_spl, dvdt_spl, s = self._interpolate_v_dvdt(
-                                    self[buffer_start:buffer_stop],
-                                    self.dvdt[buffer_start:buffer_stop],
-                                    dvdt2v_scale, interp_order)
+                                                    self[start_i:stop_i],
+                                                    self.dvdt[start_i:stop_i],
+                                                    dvdt2v_scale, interp_order)
             start_s = brentq(lambda x: (dvdt_spl(x) - start_thresh),
                              s[0], s[index_buffer * 2])
             end_s = brentq(lambda x: (dvdt_spl(x) - stop_thresh),
