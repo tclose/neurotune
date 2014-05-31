@@ -18,14 +18,14 @@ class PhasePlaneObjective(Objective):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, reference_trace, time_start=500.0 * pq.ms,
+    def __init__(self, reference, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms, record_variable=None,
                  exp_conditions=None, dvdt2v_scale=0.25, interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_trace` -- traces (in Neo format) that are to be compared
+        `reference` -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         `time_stop`        -- the length of the recording [float]
         `record_variable`  -- the recording site [str]
@@ -44,25 +44,25 @@ class PhasePlaneObjective(Objective):
         super(PhasePlaneObjective, self).__init__(time_start, time_stop)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
-        if isinstance(reference_trace, str):
-            self.reference_trace_location = reference_trace
-            f = neo.io.PickleIO(reference_trace)
+        if isinstance(reference, str):
+            self.reference_location = reference
+            f = neo.io.PickleIO(reference)
             seg = f.read_segment()
             try:
-                reference_trace = AnalysedSignal(seg.analogsignals[0])
+                reference = AnalysedSignal(seg.analogsignals[0])
             except IndexError:
                 raise Exception("No analog signals were loaded from file '{}'"
-                                .format(reference_trace))
-        elif isinstance(reference_trace, neo.AnalogSignal):
-            reference_trace = AnalysedSignal(reference_trace)
-        elif not isinstance(reference_trace, AnalysedSignal):
+                                .format(reference))
+        elif isinstance(reference, neo.AnalogSignal):
+            reference = AnalysedSignal(reference)
+        elif not isinstance(reference, AnalysedSignal):
             raise Exception("Unrecognised format for reference trace ({}), "
                             "must be either path-to-file, neo.AnalogSignal or "
-                            "AnalysedSignal".format(type(reference_trace)))
-        if (time_start > reference_trace.t_start or
-            time_stop < reference_trace.t_stop):
-            reference_trace = reference_trace.slice(time_start, time_stop)
-        self.reference_trace = reference_trace
+                            "AnalysedSignal".format(type(reference)))
+        if (time_start > reference.t_start or
+            time_stop < reference.t_stop):
+            reference = reference.slice(time_start, time_stop)
+        self.reference = reference
         # Save members
         self.record_variable = record_variable
         self.exp_conditions = exp_conditions
@@ -78,7 +78,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
     BOUND_DEFAULT = 0.5
 
-    def __init__(self, reference_trace, num_bins=(150, 150),
+    def __init__(self, reference, num_bins=(150, 150),
                  v_bounds=(-100.0, 80.0), dvdt_bounds=(-300.0, 400.0),
                  resample_ratio=3.0, kernel_stdev=(10.0, 40.0),
                  kernel_cutoff=(3.5, 3.5), **kwargs):
@@ -86,7 +86,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference_trace` -- traces (in Neo format) that are to be compared
+        `reference`        -- traces (in Neo format) that are to be compared
                               against [list(neo.AnalogSignal)]
         `num_bins`         -- the number of bins to use for the histogram
                               [tuple[2](int)]
@@ -108,7 +108,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         `kernel_cutoff`    -- the number of standard deviations the Gaussian
                               kernel is truncated at
         """
-        super(PhasePlaneHistObjective, self).__init__(reference_trace,
+        super(PhasePlaneHistObjective, self).__init__(reference,
                                                       **kwargs)
         self.num_bins = numpy.asarray(num_bins, dtype=int)
         self._set_bounds(v_bounds, dvdt_bounds)
@@ -135,7 +135,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                             self.kernel_stdev[1]))
         # Generate the reference phase plane the simulated data will be
         # compared against
-        self.ref_hist = self._generate_hist(self.reference_trace)
+        self.ref_hist = self._generate_hist(self.reference)
 
     @property
     def range(self):
@@ -148,8 +148,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
     def fitness(self, analysis):
         signal = analysis.get_signal()
-        assert((signal.t_stop - signal.t_start) ==
-               (self.reference_trace.t_stop - self.reference_trace.t_start)), \
+        assert((signal.t_stop - signal.t_start) == (self.reference.t_stop -
+                                                    self.reference.t_start)), \
                "Attempting to compare traces of different lengths"
         phase_plane_hist = self._generate_hist(signal)
         # Get the root-mean-square difference between the reference and
@@ -177,8 +177,8 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
         # For both v and dV/dt bounds and see if any are None and therefore
         # require a default value to be calculated.
         self.bounds = []
-        for bounds, trace in ((v_bounds, self.reference_trace),
-                              (dvdt_bounds, self.reference_trace.dvdt)):
+        for bounds, trace in ((v_bounds, self.reference),
+                              (dvdt_bounds, self.reference.dvdt)):
             if bounds is None:
                 # Calculate the bounds of the reference traces
                 trace = numpy.array(trace)
@@ -212,35 +212,6 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
             # Convolve the histogram with the precalculated Gaussian kernel
             hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
         return hist
-
-    def plot_d_dvdt(self, trace, show=True):
-        """
-        Used in debugging to plot a histogram from a given trace
-
-        `trace` -- the trace to generate the histogram from [neo.AnalogSignal]
-        `show`  -- whether to call the matplotlib 'show' function
-                   (depends on whether there are subsequent plots to compare or
-                   not) [bool]
-        """
-        from matplotlib import pyplot as plt
-        # Temporarily switch of resampling to get original positions of v dvdt
-        # plot
-        resamp_v, resamp_dvdt = self._resample_traces(trace,
-                                                      self.resample_length)
-        if isinstance(show, str):
-            import cPickle as pickle
-            with open(show, 'w') as f:
-                pickle.dump(((trace, trace.dvdt), (resamp_v, resamp_dvdt)), f)
-        else:
-            # Plot original positions and interpolated traces
-            plt.figure()
-            plt.plot(trace, trace.dvdt, 'x')
-            plt.plot(resamp_v, resamp_dvdt)
-            plt.xlabel('v')
-            plt.ylabel('dv/dt')
-            plt.title('v-dv/dt plot of trace')
-            if show:
-                plt.show()
 
     def plot_hist(self, trace_or_hist=None, min_max=None, diff=False,
                   show=True):
@@ -337,13 +308,13 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
-    def __init__(self, reference, dvdt_thresholds, num_points,
+    def __init__(self, reference, dvdt_thresholds=(10, -10), num_points=100,
                  no_spike_reference=(-100, 0.0), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
 
-        `reference`    -- traces (in Neo format) that are to be compared
+        `reference`          -- traces (in Neo format) that are to be compared
                                 against [list(neo.AnalogSignal)]
         `dvdt_thresholds`    -- the threshold above which the loop is
                                 considered to have ended [tuple[2](float)]

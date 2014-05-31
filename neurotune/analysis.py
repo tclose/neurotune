@@ -161,7 +161,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
         Find sections of the trace where it crosses the given dvdt threshold
         until it loops around and crosses the stop threshold in the positive
         direction again or alternatively if threshold=='v' when it crosses the
-        start threshold in the positive direction and crosses the stop 
+        start threshold in the positive direction and crosses the stop
         threshold in the negative direction.
 
         `threshold` -- can be either 'dvdt' or 'v', which determines the
@@ -189,10 +189,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 stop_inds = numpy.where((self.dvdt[1:] > stop) &
                                         (self.dvdt[:-1] <= stop))[0] + 1
             else:
-                start_inds = numpy.where((self[1:] >= start)
-                                        & (self[:-1] < start))[0] + 1
-                stop_inds = numpy.where((self[1:] < stop)
-                                       & (self[:-1] >= stop))[0] + 1
+                start_inds = numpy.where((self[1:] >= start) &
+                                         (self[:-1] < start))[0] + 1
+                stop_inds = numpy.where((self[1:] < stop) &
+                                        (self[:-1] >= stop))[0] + 1
             if len(start_inds) == 0 or len(stop_inds) == 0:
                 periods = []
             else:
@@ -208,14 +208,6 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 periods = numpy.array((start_inds, stop_inds)).T
             self._spike_periods[argkey] = periods
             return periods
-
-    def spike_periods(self, **kwargs):
-        """
-        Returns the times associated with teh spike_period_indices
-        """
-        # TODO: Could interpolate to find the exact time of crossings if
-        #       required
-        return self.times[self._spike_period_indices(**kwargs)]
 
     def spikes(self, **kwargs):
         # Get unique dictionary key from keyword arguments
@@ -243,10 +235,33 @@ class AnalysedSignal(neo.core.AnalogSignal):
             self._spikes[args_key] = spikes
             return spikes
 
+    def spike_periods(self, **kwargs):
+        """
+        Returns the times associated with teh spike_period_indices
+        """
+        # TODO: Could interpolate to find the exact time of crossings if
+        #       required. Probably a bit OTT though
+        return self.times[self._spike_period_indices(**kwargs)]
+
+    def interspike_intervals(self, **kwargs):
+        periods = self.spike_periods(**kwargs)
+        return periods[:, 1] - periods[:, 0]
+
     def spike_frequency(self, **kwargs):
-        num_spikes = len(self.spikes(**kwargs))
-        return pq.Quantity(num_spikes / (self.t_stop - self.t_start),
-                           units='Hz')
+        """
+        The average interspike interval. This is done instead of the number of
+        spikes in the window divided by the interval width to stop incremental
+        jumps in spike frequency when a spike falls outside of the window
+        """
+        spikes = self.spikes(**kwargs)
+        num_spikes = len(spikes)
+        if num_spikes >= 2:
+            freq = (num_spikes - 1) / (spikes[-1] - spikes[0])
+        elif num_spikes == 1:
+            freq = 1 / (self.t_stop - self.t_start)
+        else:
+            freq = 0
+        return freq
 
     def evenly_sampled_v_dvdt(self, resample_length, dvdt2v_scale=0.25,
                               interp_order=3):
@@ -316,7 +331,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
         if show:
             plt.show()
 
-    def plot_d_dvdt(self, show=True):
+    def plot_v_dvdt(self, show=True):
         """
         Used in debugging to plot a histogram from a given trace
 
