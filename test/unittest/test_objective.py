@@ -245,7 +245,7 @@ if __name__ == '__main__':
 
     analysis = Analysis(simulation.run_all([0.00196552, 0.05024138]),
                         simulation.setups)
-    objective[1].fitness(analysis.objective_specific(objective[1]))
+    objective.fitness(analysis)
 
 #     for TestClass in [TestPhasePlaneHistObjective,
 #                       TestPhasePlanePointwiseObjective,

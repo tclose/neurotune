@@ -388,7 +388,7 @@ class AnalysedSignalSlice(AnalysedSignal):
         end_index = indices[-1] + 1
         obj = AnalysedSignal.__new__(cls, signal[start_index:end_index])
         obj.__class__ = AnalysedSignalSlice
-        obj.whole = signal
+        obj.parent = signal
         obj._start_index = start_index
         obj._stop_index = end_index
         return obj
@@ -398,32 +398,32 @@ class AnalysedSignalSlice(AnalysedSignal):
         Equality test (==)
         '''
         return (super(AnalysedSignalSlice, self).__eq__(other) and
-                self.whole == other.whole and
+                self.parent == other.parent and
                 self._indices == other._indices)
 
     def __reduce__(self):
         '''
         Reduce the sliced analysedSignal for pickling
         '''
-        return self.__class__, (self.whole, self.t_start, self.t_stop)
+        return self.__class__, (self.parent, self.t_start, self.t_stop)
 
     @property
     def dvdt(self):
-        return self.whole.dvdt[self._start_index:self._stop_index]
+        return self.parent.dvdt[self._start_index:self._stop_index]
 
     def spikes(self, **kwargs):
-        spikes = self.whole.spikes(**kwargs)
+        spikes = self.parent.spikes(**kwargs)
         return spikes[numpy.where((spikes >= self.t_start) &
                                   (spikes <= self.t_stop))]
 
     def _spike_period_indices(self, **kwargs):
-        periods = self.whole._spike_period_indices(**kwargs)
+        periods = self.parent._spike_period_indices(**kwargs)
         return (periods[numpy.where((periods[:, 0] >= self._start_index) &
                                     (periods[:, 1] <= self._stop_index))] -
                 self._start_index)
 
     def v_dvdt_splines(self, **kwargs):
-        v, dvdt, s = self.whole.v_dvdt_splines(**kwargs)
+        v, dvdt, s = self.parent.v_dvdt_splines(**kwargs)
         return (v, dvdt, s[self._start_index:self._stop_index])
 
 
