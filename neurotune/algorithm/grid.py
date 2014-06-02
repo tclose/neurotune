@@ -8,6 +8,8 @@ class GridAlgorithm(Algorithm):
     over the parameter bounds are evaluated and the minimum value returned
     """
 
+    BAD_FITNESS_VALUE = float('nan')
+
     def __init__(self, num_steps):
         self.num_steps = num_steps
 

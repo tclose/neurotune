@@ -8,6 +8,12 @@ from ..analysis import Analysis
 
 
 class EvaluationException(Exception):
+    """
+    This exception is thrown by the Tuner class when there is an unexpected
+    error in the evaluation of the candidate (an unhandled corner case),
+    which allows the tuning to fail gracefully and the case that cause the
+    exception to be examined
+    """
 
     def __init__(self, objective, candidate, analysis, tback=None):
         self.objective = objective
@@ -24,6 +30,17 @@ class EvaluationException(Exception):
             pkl.dump((self.objective, self.candidate, self.analysis), f)
         print ("Saving failed candidate along with objective and analysis "
                "to file at '{}'".format(filename))
+
+
+class BadCandidateException(Exception):
+    """
+    This exception is thrown when a candidate causes a known error (such as
+    simulation that doesn't converge) and which needs to be handled by the
+    algorithm
+    """
+
+    def __init__(self, candidate):
+        self.candidate = candidate
 
 
 class Tuner(object):
@@ -70,7 +87,8 @@ class Tuner(object):
                 rec_prefix, rec_ext = os.path.splitext(rec_prefix)
                 if not rec_ext:
                     rec_ext = '.pkl'
-                    rec_prefix += '/'
+                    rec_dir = os.path.join(rec_dir, rec_prefix)
+                    rec_prefix = ''
             if rec_ext == '.pkl':
                 rec_io = neo.io.pickleio.PickleIO
             elif rec_ext == '.h5':
@@ -102,7 +120,19 @@ class Tuner(object):
         Runs the optimisation algorithm and returns the final population and
         algorithm state
         """
-        return self.algorithm.optimize(self._evaluate_all_candidates, **kwargs)
+        return self.algorithm.optimize(self._evaluator, **kwargs)
+
+    def _evaluator(self, candidates, args=None):  # @UnusedVariable
+        """
+        Evaluate each candidate and return the evaluations in a numpy array. To
+        be passed to inspyred optimisation algorithm (overridden in MPI derived
+        class)
+
+        `candidates` -- a list of candidates (themselves an iterable of float
+                        parameters) [list(list(float))]
+        `args`       -- unused but provided to match inspyred API
+        """
+        return [self._evaluate_candidate(c) for c in candidates]
 
     def _evaluate_candidate(self, candidate):
         """
@@ -124,6 +154,11 @@ class Tuner(object):
                 self.save_recordings.io(fpath).write(recordings)
             analysis = Analysis(recordings, self.simulation.setups)
             fitness = self.objective.fitness(analysis)
+        except BadCandidateException:
+            print ("WARNING! Candidate {} caused a BadCandidateException. "
+                   "This typically means there was an instability in the "
+                   "simulation for these parameters".format(candidate))
+            fitness = self.algorithm.BAD_FITNESS_VALUE
         except Exception:
             # Check to see if using distributed processing, in which case
             # raise an EvaluationException (allows the MPI tuner to fail
@@ -136,19 +171,6 @@ class Tuner(object):
                 raise EvaluationException(self.objective, candidate,
                                           locals().get('analysis', None))
         return fitness
-
-    def _evaluate_all_candidates(self, candidates,
-                                 args=None):  # @UnusedVariable args
-        """
-        Evaluate each candidate and return the evaluations in a numpy array. To
-        be passed to inspyred optimisation algorithm (overridden in MPI derived
-        class)
-
-        `candidates` -- a list of candidates (themselves an iterable of float
-                        parameters) [list(list(float))]
-        `args`       -- unused but provided to match inspyred API
-        """
-        return [self._evaluate_candidate(c) for c in candidates]
 
     @classmethod
     def is_master(self):

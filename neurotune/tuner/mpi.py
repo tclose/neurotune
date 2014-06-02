@@ -27,7 +27,7 @@ class MPITuner(Tuner):
         else:
             self.evaluate_on_master = kwargs.pop('evaluate_on_master',
                                                  self.num_processes < 10)
-        self.mpi_verbose = kwargs.pop('verbose', False)
+        self.mpi_verbose = kwargs.pop('verbose', True)
         super(MPITuner, self).set(*args, **kwargs)
 
     @classmethod
@@ -55,8 +55,7 @@ class MPITuner(Tuner):
 
         if self.is_master():
             try:
-                result = self.algorithm.optimize(self._distribute_candidates,
-                                                 **kwargs)
+                result = self.algorithm.optimize(self._evaluator, **kwargs)
             finally:
                 self._release_slaves()
         else:
@@ -73,8 +72,7 @@ class MPITuner(Tuner):
         """
         MPI.Finalize()
 
-    def _distribute_candidates(self, candidates,
-                               args=None):  # @UnusedVariable args
+    def _evaluator(self, candidates, args=None):  # @UnusedVariable
         """
         Run on the master node, this method distributes candidates to to the
         slave nodes to be evaluated then collates their results into a single

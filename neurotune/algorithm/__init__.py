@@ -14,6 +14,11 @@ class Algorithm(object):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
+    # A value assigned to simulations that fail due to numerical instability
+    # caused by unrealistic parameters. Can be overridden by algorithms that
+    # can handle such values more gracefully (such as GridAlgorithm).
+    BAD_FITNESS_VALUE = 1e20
+
     def __init__(self, evaluator, mutation_rate, maximize, seeds,
                  population_size):
         self.evaluator = evaluator
