@@ -3,17 +3,22 @@
 Tunes a 9ml file against a 9ml reference simulation
 """
 import argparse
+import os.path
 import shutil
 import math
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
-# from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
-from neurotune.algorithm.inspyred import *  # @UnusedWildImport
-
+from neurotune.objective.multi import MultiObjective, WeightedSumObjective
+from neurotune.objective.spike import (SpikeFrequencyObjective,
+                                       SpikeTimesObjective)
+from neurotune.algorithm.inspyred import (GAAlgorithm, EDAAlgorithm,
+                                          ESAlgorithm, DEAAlgorithm,
+                                          SAAlgorithm, NSGA2Algorithm,
+                                          PAESAlgorithm, ec)
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -36,11 +41,6 @@ parser.add_argument('to_tune_9ml', type=str,
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before running (can "
                          "be one of {})".format(BUILD_MODE_OPTIONS))
-parser.add_argument('--no_resampling', action='store_true',
-                    help="Disables the resampling of the traces before the "
-                         "histograms are calcualted")
-parser.add_argument('--no_convolution', action='store_true',
-                    help="Disables the convolution of the histograms")
 parser.add_argument('--timestep', type=float, default=0.025,
                     help="The timestep used for the simulation "
                          "(default: %(default)s)")
@@ -50,18 +50,25 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
-parser.add_argument('--objective', type=str, default='histogram',
+parser.add_argument('-o', '--objective', type=str, nargs='+',
+                    default=[], action='append',
                     help="Selects which objective function to use "
-                         "('histogram', 'pointwise')")
-parser.add_argument('--parameter_set', type=str, default=['all-gmaxes', 3.0],
-                    nargs='+', help="Select which parameter set to tune from a"
-                                    " few descriptions")
+                         "out of 'histogram', 'pointwise', 'frequency', "
+                         "'spike_times' or a combination (potentially "
+                         "weighted) of them (default: 'pointwise')")
+parser.add_argument('-p', '--parameter', nargs=4, default=[], action='append',
+                    metavar=('NAME', 'LBOUND', 'UBOUND', 'LOG_SCALE'),
+                    help="Sets a parameter to tune and its lower and upper "
+                         "bounds")
+parser.add_argument('--parameter_set', type=str, default=[], nargs='+',
+                    help="Select which parameter set to tune from a few "
+                         "descriptions")
 parser.add_argument('--num_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the "
                          "algorithm for")
 parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
-parser.add_argument('--algorithm', type=str, default='evolution_strategy',
+parser.add_argument('--algorithm', type=str, default='eda',
                     help="The type of algorithm used for the tuning. Can be "
                          "one of '{}' (default: %(default)s)"
                          .format("', '". join(algorithm_types)))
@@ -75,6 +82,19 @@ parser.add_argument('--verbose', action='store_true', default=False,
                     help="Whether to print out which candidates are being "
                     "evaluated on which nodes")
 
+obj_dict = {'histogram': PhasePlaneHistObjective,
+            'pointwise': PhasePlanePointwiseObjective,
+            'frequency': SpikeFrequencyObjective,
+            'spike_times': SpikeTimesObjective}
+
+alg_dict = {'genetic': GAAlgorithm,
+            'eda': EDAAlgorithm,
+            'es': ESAlgorithm,
+            'diff': DEAAlgorithm,
+            'annealing': SAAlgorithm,
+            'nsga2': NSGA2Algorithm,
+            'pareto_archived': PAESAlgorithm}
+
 
 def _get_objective(args):
     # Generate the reference trace from the original class
@@ -82,39 +102,30 @@ def _get_objective(args):
     cell.record('v')
     simulation_controller.run(simulation_time=args.time,
                               timestep=args.timestep)
-    reference_trace = cell.get_recording('v')
-    if args.objective == 'histogram':
-        obj_kwargs = {}
-        if args.no_resampling:
-            obj_kwargs['resample_ratio'] = None
-        if args.no_convolution:
-            obj_kwargs['kernel_stdev'] = None
-        objective = PhasePlaneHistObjective(reference_trace, **obj_kwargs)
-    elif args.objective == 'pointwise':
-        objective = PhasePlanePointwiseObjective(reference_trace, (20, -20),
-                                                 100, **obj_kwargs)
-    else:
+    reference = cell.get_recording('v')
+    try:
+        if len(args.objective) > 1:
+            if args.algorithm in ('nsga2', 'pareto_archived'):
+                objective = MultiObjective(*[obj_dict[o[0]](reference)
+                                             for o in args.objective])
+            else:
+                objective = WeightedSumObjective(*[(float(o[1]),
+                                                    obj_dict[o[0]](reference))
+                                                   for o in args.objective])
+        elif args.objective:
+            objective = obj_dict[args.objective[0][0]](reference)
+        else:
+            objective = PhasePlanePointwiseObjective(reference)
+    except KeyError as e:
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
-                        "option".format(args.objective))
+                        "option".format(e))
     return objective
 
 
 def _get_algorithm(args):
-    if args.algorithm == 'genetic':
-        Algorithm = GAAlgorithm
-    elif args.algorithm == 'estimation_distr':
-        Algorithm = EDAAlgorithm
-    elif args.algorithm == 'evolution_strategy':
-        Algorithm = ESAlgorithm
-    elif args.algorithm == 'differential':
-        Algorithm = DEAAlgorithm
-    elif args.algorithm == 'simulated_annealing':
-        Algorithm = SAAlgorithm
-    elif args.algorithm == 'nsga2':
-        Algorithm = NSGA2Algorithm
-    elif args.algorithm == 'pareto_archived':
-        Algorithm = PAESAlgorithm
-    else:
+    try:
+        Algorithm = alg_dict[args.algorithm]
+    except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
@@ -128,10 +139,13 @@ def _get_algorithm(args):
 
 
 def _get_parameters(args):
+    if args.parameter and args.parameter_set:
+        raise Exception("Cannot use --parameter and --parameter_set options "
+                        "simulataneously")
+    if args.parameter:
+        parameters = [Parameter(p[0], 'S/cm^2', p[1], p[2], p[3])
+                      for p in args.parameter]
     # The parameters to be tuned by the tuner
-    if args.parameter_set[0] == 'original':
-        parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
-                      ]  # 1e-5, 3e-5)]
     elif args.parameter_set[0] == 'all-gmaxes':
         bound_range = float(args.parameter_set[1])
         from nineml.extensions.biophysics import parse
@@ -147,11 +161,13 @@ def _get_parameters(args):
                                             'S/cm^2', lbound, ubound,
                                             log_scale=True))
                 true_parameters.append(gbar)
-
-    else:
+    elif args.parameter_set:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' "
                         "option. Can be one of ('original', 'all-gmaxes')."
                         .format(args.parameter_set))
+    else:
+        raise Exception("No --parameter or --parameter set arguments passed "
+                        "to tuning script")
     return parameters
 
 
@@ -217,12 +233,12 @@ def plot(recordings_path):
     plt.show()
 
 
-def prepare_work_dir(work_dir, args):
-    os.mkdir(os.path.join(work_dir, '9ml'))
-    copied_reference = os.path.join(work_dir, '9ml',
+def prepare_work_dir(submitter, args):
+    os.mkdir(os.path.join(submitter.work_dir, '9ml'))
+    copied_reference = os.path.join(submitter.work_dir, '9ml',
                                     os.path.basename(args.reference_9ml))
     shutil.copy(args.reference_9ml, copied_reference)
-    copied_to_tune = os.path.join(work_dir, '9ml',
+    copied_to_tune = os.path.join(submitter.work_dir, '9ml',
                                   os.path.basename(args.to_tune_9ml))
     shutil.copy(args.to_tune_9ml, copied_to_tune)
     NineCellMetaClass(copied_reference, build_mode='build_only')

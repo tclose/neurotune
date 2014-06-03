@@ -2,6 +2,7 @@ from __future__ import absolute_import
 import numpy
 import quantities as pq
 import neo.core
+from ..analysis import AnalysedSignal
 from . import Objective
 
 
@@ -19,7 +20,10 @@ class SpikeFrequencyObjective(Objective):
         `time_stop`  -- the length of time to run the simulation
         """
         super(SpikeFrequencyObjective, self).__init__(time_start, time_stop)
-        self.frequency = pq.Quantity(frequency, units='Hz')
+        if isinstance(frequency, neo.core.AnalogSignal):
+            self.frequency = AnalysedSignal(frequency).spike_frequency()
+        else:
+            self.frequency = pq.Quantity(frequency, units='Hz')
 
     def fitness(self, analysis):
         """
@@ -43,7 +47,8 @@ class SpikeTimesObjective(Objective):
     def __init__(self, reference, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms, time_buffer=250 * pq.ms):
         """
-        `reference`     -- reference spike train [neo.SpikeTrain]
+        `reference`  -- reference signal or spike train
+                        [neo.AnalogSignal or neo.SpikeTrain]
         `time_start` -- time from which to start including spikes [float]
         `time_stop`  -- length of time to run the simulation [float]
         `buffer`     -- time buffer either side of the "inner window"
@@ -55,10 +60,13 @@ class SpikeTimesObjective(Objective):
             raise Exception("Buffer time ({}) exceeds half of spike train "
                             "time ({}) and therefore the inner window is "
                             "empty".format(buffer, (time_stop - time_start)))
-        if not isinstance(reference, neo.core.SpikeTrain):
+        if isinstance(reference, neo.core.SpikeTrain):
+            self.ref_spikes = reference
+        elif isinstance(reference, neo.core.AnalogSignal):
+            self.ref_spikes = AnalysedSignal(reference).spikes()
+        else:
             raise Exception("Spikes must be a neo.core.SpikeTrain object not "
                             "{}".format(type(reference)))
-        self.ref_spikes = reference
         self.time_buffer = time_buffer
         self.ref_inner = reference[numpy.where(
                                     (reference >= (time_start + time_buffer)) &

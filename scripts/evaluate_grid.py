@@ -78,8 +78,8 @@ def run(parameters, args):
     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
     # Instantiate the multi-objective objective from 3 phase-plane objectives
     objective = MultiObjective(PhasePlaneHistObjective(reference),
-                               PhasePlanePointwiseObjective(reference,
-                                                            (20, -20), 100),
+                               PhasePlanePointwiseObjective(reference, 100,
+                                                            (20, -20)),
                                SpikeFrequencyObjective(sliced_reference.\
                                                        spike_frequency()),
                                SpikeTimesObjective(sliced_reference.\
