@@ -99,7 +99,9 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 InterpolatedUnivariateSpline(s, dvdt, k=order), s)
 
     def __new__(cls, signal):
-        if not isinstance(signal, neo.core.AnalogSignal):
+        if isinstance(signal, AnalysedSignal):
+            return signal
+        elif not isinstance(signal, neo.core.AnalogSignal):
             raise Exception("Can only analyse neo.coreAnalogSignals (not {})"
                             .format(type(signal)))
         # Make a shallow copy of the original AnalogSignal object
@@ -197,7 +199,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
                 stop_inds = numpy.where((self[1:] < stop) &
                                         (self[:-1] >= stop))[0] + 1
             if len(start_inds) == 0 or len(stop_inds) == 0:
-                periods = []
+                periods = numpy.array([])
             else:
                 # If the recording period begins or ends with a threshold
                 # crossing trim them from the crossing periods so the start and
@@ -268,7 +270,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
         elif num_spikes == 1:
             freq = 1 / (self.t_stop - self.t_start)
         else:
-            freq = 0
+            freq = 0.0 * pq.Hz
         return freq
 
     def evenly_sampled_v_dvdt(self, resample_length, dvdt2v_scale=0.25,
@@ -424,9 +426,12 @@ class AnalysedSignalSlice(AnalysedSignal):
 
     def _spike_period_indices(self, **kwargs):
         periods = self.parent._spike_period_indices(**kwargs)
-        return (periods[numpy.where((periods[:, 0] >= self._start_index) &
-                                    (periods[:, 1] <= self._stop_index))] -
-                self._start_index)
+        if len(periods):
+            return (periods[numpy.where((periods[:, 0] >= self._start_index) &
+                                        (periods[:, 1] <= self._stop_index))] -
+                    self._start_index)
+        else:
+            return numpy.array([])
 
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self.parent.v_dvdt_splines(**kwargs)
