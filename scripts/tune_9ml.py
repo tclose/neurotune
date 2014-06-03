@@ -3,20 +3,22 @@
 Tunes a 9ml file against a 9ml reference simulation
 """
 import argparse
+import os.path
 import shutil
 import math
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
-# from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
 from neurotune.objective.multi import MultiObjective, WeightedSumObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
-from neurotune.algorithm.inspyred import *  # @UnusedWildImport
-
+from neurotune.algorithm.inspyred import (GAAlgorithm, EDAAlgorithm,
+                                          ESAlgorithm, DEAAlgorithm,
+                                          SAAlgorithm, NSGA2Algorithm,
+                                          PAESAlgorithm, ec)
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -48,13 +50,19 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
-parser.add_argument('--objective', type=str, nargs='+',
-                    default=[['phase_plane_pw']], action='append',
+parser.add_argument('-o', '--objective', type=str, nargs='+',
+                    default=[], action='append',
                     help="Selects which objective function to use "
-                         "('histogram', 'pointwise')")
-parser.add_argument('--parameter_set', type=str, default=['all-gmaxes', 3.0],
-                    nargs='+', help="Select which parameter set to tune from a"
-                                    " few descriptions")
+                         "out of 'histogram', 'pointwise', 'frequency', "
+                         "'spike_times' or a combination (potentially "
+                         "weighted) of them (default: 'pointwise')")
+parser.add_argument('-p', '--parameter', nargs=4, default=[], action='append',
+                    metavar=('NAME', 'LBOUND', 'UBOUND', 'LOG_SCALE'),
+                    help="Sets a parameter to tune and its lower and upper "
+                         "bounds")
+parser.add_argument('--parameter_set', type=str, default=[], nargs='+',
+                    help="Select which parameter set to tune from a few "
+                         "descriptions")
 parser.add_argument('--num_generations', type=int, default=100,
                     help="The number of generations (iterations) to run the "
                          "algorithm for")
@@ -75,15 +83,15 @@ parser.add_argument('--verbose', action='store_true', default=False,
                     "evaluated on which nodes")
 
 obj_dict = {'histogram': PhasePlaneHistObjective,
-            'phase_plane_pw': PhasePlanePointwiseObjective,
+            'pointwise': PhasePlanePointwiseObjective,
             'frequency': SpikeFrequencyObjective,
             'spike_times': SpikeTimesObjective}
 
 alg_dict = {'genetic': GAAlgorithm,
-            'estimation_distr': EDAAlgorithm,
-            'evolution_strategy': ESAlgorithm,
-            'differential': DEAAlgorithm,
-            'simulated_annealing': SAAlgorithm,
+            'eda': EDAAlgorithm,
+            'es': ESAlgorithm,
+            'diff': DEAAlgorithm,
+            'annealing': SAAlgorithm,
             'nsga2': NSGA2Algorithm,
             'pareto_archived': PAESAlgorithm}
 
@@ -96,7 +104,7 @@ def _get_objective(args):
                               timestep=args.timestep)
     reference = cell.get_recording('v')
     try:
-        if len(args) > 1:
+        if len(args.objective) > 1:
             if args.algorithm in ('nsga2', 'pareto_archived'):
                 objective = MultiObjective(*[obj_dict[o[0]](reference)
                                              for o in args.objective])
@@ -104,8 +112,10 @@ def _get_objective(args):
                 objective = WeightedSumObjective(*[(float(o[1]),
                                                     obj_dict[o[0]](reference))
                                                    for o in args.objective])
-        else:
+        elif args.objective:
             objective = obj_dict[args.objective[0][0]](reference)
+        else:
+            objective = PhasePlanePointwiseObjective(reference)
     except KeyError as e:
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
                         "option".format(e))
@@ -129,10 +139,12 @@ def _get_algorithm(args):
 
 
 def _get_parameters(args):
+    if args.parameter and args.parameter_set:
+        raise Exception("Cannot use --parameter and --parameter_set options "
+                        "simulataneously")
+    if args.parameter:
+        parameters = [Parameter(*p) for p in args.parameter]
     # The parameters to be tuned by the tuner
-    if args.parameter_set[0] == 'original':
-        parameters = [Parameter('soma.Lkg.gbar', 'S/cm^2', 20.0, 40.0),
-                      ]  # 1e-5, 3e-5)]
     elif args.parameter_set[0] == 'all-gmaxes':
         bound_range = float(args.parameter_set[1])
         from nineml.extensions.biophysics import parse
@@ -148,11 +160,13 @@ def _get_parameters(args):
                                             'S/cm^2', lbound, ubound,
                                             log_scale=True))
                 true_parameters.append(gbar)
-
-    else:
+    elif args.parameter_set:
         raise Exception("Unrecognised name '{}' passed to '--parameter_set' "
                         "option. Can be one of ('original', 'all-gmaxes')."
                         .format(args.parameter_set))
+    else:
+        raise Exception("No --parameter or --parameter set arguments passed "
+                        "to tuning script")
     return parameters
 
 
