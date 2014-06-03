@@ -308,7 +308,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
 
 class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
-    def __init__(self, reference, dvdt_thresholds=(10, -10), num_points=100,
+    def __init__(self, reference, num_points=100, dvdt_thresholds=(10, -10),
                  no_spike_reference=(-100, 0.0), **kwargs):
         """
         Creates a phase plane histogram from the reference traces and compares
@@ -316,10 +316,10 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
         `reference`          -- traces (in Neo format) that are to be compared
                                 against [list(neo.AnalogSignal)]
-        `dvdt_thresholds`    -- the threshold above which the loop is
-                                considered to have ended [tuple[2](float)]
         `num_points`         -- the number of sample points to interpolate
                                 between the loop start and end points
+        `dvdt_thresholds`    -- the threshold above which the loop is
+                                considered to have ended [tuple[2](float)]
         `no_spike_reference` -- the reference point which is used to compare
                                 the reference spikes to when there are no
                                 recorded spikes

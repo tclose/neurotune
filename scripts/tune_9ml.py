@@ -12,6 +12,9 @@ from neurotune.tuner import EvaluationException
 # from neurotune.objective.multi import MultiObjective
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
+from neurotune.objective.multi import MultiObjective, WeightedSumObjective
+from neurotune.objective.spike import (SpikeFrequencyObjective,
+                                       SpikeTimesObjective)
 from neurotune.algorithm.inspyred import *  # @UnusedWildImport
 
 from neurotune.simulation.nineline import NineLineSimulation
@@ -36,11 +39,6 @@ parser.add_argument('to_tune_9ml', type=str,
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before running (can "
                          "be one of {})".format(BUILD_MODE_OPTIONS))
-parser.add_argument('--no_resampling', action='store_true',
-                    help="Disables the resampling of the traces before the "
-                         "histograms are calcualted")
-parser.add_argument('--no_convolution', action='store_true',
-                    help="Disables the convolution of the histograms")
 parser.add_argument('--timestep', type=float, default=0.025,
                     help="The timestep used for the simulation "
                          "(default: %(default)s)")
@@ -50,7 +48,8 @@ parser.add_argument('--output', type=str,
                     default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
-parser.add_argument('--objective', type=str, default='histogram',
+parser.add_argument('--objective', type=str, nargs='+',
+                    default=[['phase_plane_pw']], action='append',
                     help="Selects which objective function to use "
                          "('histogram', 'pointwise')")
 parser.add_argument('--parameter_set', type=str, default=['all-gmaxes', 3.0],
@@ -75,6 +74,19 @@ parser.add_argument('--verbose', action='store_true', default=False,
                     help="Whether to print out which candidates are being "
                     "evaluated on which nodes")
 
+obj_dict = {'histogram': PhasePlaneHistObjective,
+            'phase_plane_pw': PhasePlanePointwiseObjective,
+            'frequency': SpikeFrequencyObjective,
+            'spike_times': SpikeTimesObjective}
+
+alg_dict = {'genetic': GAAlgorithm,
+            'estimation_distr': EDAAlgorithm,
+            'evolution_strategy': ESAlgorithm,
+            'differential': DEAAlgorithm,
+            'simulated_annealing': SAAlgorithm,
+            'nsga2': NSGA2Algorithm,
+            'pareto_archived': PAESAlgorithm}
+
 
 def _get_objective(args):
     # Generate the reference trace from the original class
@@ -82,39 +94,28 @@ def _get_objective(args):
     cell.record('v')
     simulation_controller.run(simulation_time=args.time,
                               timestep=args.timestep)
-    reference_trace = cell.get_recording('v')
-    if args.objective == 'histogram':
-        obj_kwargs = {}
-        if args.no_resampling:
-            obj_kwargs['resample_ratio'] = None
-        if args.no_convolution:
-            obj_kwargs['kernel_stdev'] = None
-        objective = PhasePlaneHistObjective(reference_trace, **obj_kwargs)
-    elif args.objective == 'pointwise':
-        objective = PhasePlanePointwiseObjective(reference_trace, (20, -20),
-                                                 100, **obj_kwargs)
-    else:
+    reference = cell.get_recording('v')
+    try:
+        if len(args) > 1:
+            if args.algorithm in ('nsga2', 'pareto_archived'):
+                objective = MultiObjective(*[obj_dict[o[0]](reference)
+                                             for o in args.objective])
+            else:
+                objective = WeightedSumObjective(*[(float(o[1]),
+                                                    obj_dict[o[0]](reference))
+                                                   for o in args.objective])
+        else:
+            objective = obj_dict[args.objective[0][0]](reference)
+    except KeyError as e:
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
-                        "option".format(args.objective))
+                        "option".format(e))
     return objective
 
 
 def _get_algorithm(args):
-    if args.algorithm == 'genetic':
-        Algorithm = GAAlgorithm
-    elif args.algorithm == 'estimation_distr':
-        Algorithm = EDAAlgorithm
-    elif args.algorithm == 'evolution_strategy':
-        Algorithm = ESAlgorithm
-    elif args.algorithm == 'differential':
-        Algorithm = DEAAlgorithm
-    elif args.algorithm == 'simulated_annealing':
-        Algorithm = SAAlgorithm
-    elif args.algorithm == 'nsga2':
-        Algorithm = NSGA2Algorithm
-    elif args.algorithm == 'pareto_archived':
-        Algorithm = PAESAlgorithm
-    else:
+    try:
+        Algorithm = alg_dict[args.algorithm]
+    except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
