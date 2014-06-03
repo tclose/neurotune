@@ -68,7 +68,7 @@ parser.add_argument('--num_generations', type=int, default=100,
                          "algorithm for")
 parser.add_argument('--population_size', type=int, default=100,
                     help="The number of genomes in a generation")
-parser.add_argument('--algorithm', type=str, default='evolution_strategy',
+parser.add_argument('--algorithm', type=str, default='eda',
                     help="The type of algorithm used for the tuning. Can be "
                          "one of '{}' (default: %(default)s)"
                          .format("', '". join(algorithm_types)))
@@ -143,7 +143,8 @@ def _get_parameters(args):
         raise Exception("Cannot use --parameter and --parameter_set options "
                         "simulataneously")
     if args.parameter:
-        parameters = [Parameter(*p) for p in args.parameter]
+        parameters = [Parameter(p[0], 'S/cm^2', p[1], p[2], p[3])
+                      for p in args.parameter]
     # The parameters to be tuned by the tuner
     elif args.parameter_set[0] == 'all-gmaxes':
         bound_range = float(args.parameter_set[1])
@@ -232,12 +233,12 @@ def plot(recordings_path):
     plt.show()
 
 
-def prepare_work_dir(work_dir, args):
-    os.mkdir(os.path.join(work_dir, '9ml'))
-    copied_reference = os.path.join(work_dir, '9ml',
+def prepare_work_dir(submitter, args):
+    os.mkdir(os.path.join(submitter.work_dir, '9ml'))
+    copied_reference = os.path.join(submitter.work_dir, '9ml',
                                     os.path.basename(args.reference_9ml))
     shutil.copy(args.reference_9ml, copied_reference)
-    copied_to_tune = os.path.join(work_dir, '9ml',
+    copied_to_tune = os.path.join(submitter.work_dir, '9ml',
                                   os.path.basename(args.to_tune_9ml))
     shutil.copy(args.to_tune_9ml, copied_to_tune)
     NineCellMetaClass(copied_reference, build_mode='build_only')
