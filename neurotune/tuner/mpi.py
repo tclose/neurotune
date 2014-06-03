@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import sys
 from collections import deque
+from itertools import chain
 from mpi4py import MPI
 from . import Tuner, EvaluationException
 
@@ -164,6 +165,8 @@ class MPITuner(Tuner):
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
         if self.mpi_verbose:
             print "Stopping listening on process {}".format(self.rank)
+        # Gather all bad candidates onto the master node object
+        self.comm.gather(self.bad_candidates, root=self.MASTER)
 
     def _release_slaves(self):
         """
@@ -171,3 +174,6 @@ class MPITuner(Tuner):
         """
         for processID in xrange(1, self.num_processes):
             self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)
+        # Gather all bad candidates onto the master node
+        bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
+        self.bad_candidates = list(chain.from_iterable(bad_list))
