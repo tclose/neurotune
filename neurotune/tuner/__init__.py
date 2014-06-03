@@ -77,6 +77,7 @@ class Tuner(object):
         self.algorithm = algorithm
         self.simulation = simulation
         self.verbose = verbose
+        self.bad_candidates = []
         if save_recordings:
             rec_dir = os.path.abspath(os.path.dirname(save_recordings))
             rec_prefix = os.path.basename(save_recordings)
@@ -158,7 +159,8 @@ class Tuner(object):
             print ("WARNING! Candidate {} caused a BadCandidateException. "
                    "This typically means there was an instability in the "
                    "simulation for these parameters".format(candidate))
-            fitness = self.algorithm.BAD_FITNESS_VALUE
+            fitness = float('inf')
+            self.bad_candidates.append(candidate)
         except Exception:
             # Check to see if using distributed processing, in which case
             # raise an EvaluationException (allows the MPI tuner to fail
