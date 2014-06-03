@@ -159,7 +159,7 @@ class Tuner(object):
             print ("WARNING! Candidate {} caused a BadCandidateException. "
                    "This typically means there was an instability in the "
                    "simulation for these parameters".format(candidate))
-            fitness = float('inf')
+            fitness = self.algorithm.BAD_FITNESS_VALUE
             self.bad_candidates.append(candidate)
         except Exception:
             # Check to see if using distributed processing, in which case
