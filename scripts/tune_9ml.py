@@ -8,6 +8,7 @@ import shutil
 import math
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
+from nineline.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
