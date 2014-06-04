@@ -46,7 +46,7 @@ parser.add_argument('--timestep', type=float, default=0.025,
                          "(default: %(default)s)")
 parser.add_argument('--time', type=float, default=2000.0,
                        help="Recording time")
-parser.add_argument('--output', type=str,
+parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
