@@ -30,7 +30,7 @@ class RecordingRequest(object):
         self.time_stop = time_stop
         self.record_variable = record_variable
         self.conditions = conditions
-
+        self.tuner = None
 
 RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
 

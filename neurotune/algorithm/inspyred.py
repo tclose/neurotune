@@ -64,6 +64,9 @@ class InspyredAlgorithm(Algorithm):
         self.set_seeds(seeds)
 
     def optimize(self, evaluator, overwrite_files=False, **kwargs):
+        if not self.tuner:
+            raise Exception("optimize method of algorithm must be called from "
+                            "within tuner")
         ea = self._InspyredClass(self._rng)
         for key, val in self.ea_attributes.iteritems():
             setattr(ea, key, val)
@@ -92,6 +95,10 @@ class InspyredAlgorithm(Algorithm):
             else:
                 raise Exception("Individuals file '{}' already exists"
                                 .format(stats_path))
+        print("Population statistics will be saved to '{}'"
+              .format(stats_path))
+        print("Population individuals will be saved to '{}'"
+              .format(indiv_path))
         with open(stats_path, 'w') as stats_f, open(indiv_path, 'w') as ind_f:
             pop = ea.evolve(generator=self.uniform_random_chromosome,
                             evaluator=evaluator,
