@@ -26,6 +26,7 @@ class Algorithm(object):
         self.maximize = maximize
         self.mutation_rate = mutation_rate
         self.seeds = seeds
+        self.tuner = None
 
     def optimize(self, evaluator):
         """

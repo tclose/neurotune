@@ -76,6 +76,9 @@ class Tuner(object):
         self.objective = objective
         self.algorithm = algorithm
         self.simulation = simulation
+        self.objective.tuner = self
+        self.algorithm.tuner = self
+        self.simulation.tuner = self
         self.verbose = verbose
         self.bad_candidates = []
         if save_recordings:

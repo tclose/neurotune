@@ -23,6 +23,7 @@ class Objective(object):
         self.time_stop = time_stop
         self.exp_conditions = exp_conditions
         self.record_sites = record_sites
+        self.tuner = None
 
     def fitness(self, recordings):
         """
