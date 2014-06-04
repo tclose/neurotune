@@ -3,7 +3,7 @@
 This module represents a thin wrapper around the evolutionary algorithms
 provided by the inspyred library (https://pypi.python.org/pypi/inspyred)
 """
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 import os.path
 from copy import copy
 from abc import ABCMeta  # Metaclass for abstract base classes
@@ -25,13 +25,12 @@ class InspyredAlgorithm(Algorithm):
                            'archiver', 'observer', 'terminator', 'logger']
 
     _ea_defaults = {'terminator': ec.terminators.generation_termination,
-                    'observer': [ec.observers.best_observer,
-                                ec.observers.file_observer],
+                    'observer': [ec.observers.best_observer],
                     'variator': [ec.variators.blend_crossover,
                                  ec.variators.gaussian_mutation]}
 
-    def __init__(self, pop_size, max_generations=100, seeds=None,
-                 random_seed=None, output_dir=None, **kwargs):
+    def __init__(self, pop_size, output_dir=os.getcwd(),
+                 max_generations=100, seeds=None, random_seed=None, **kwargs):
         """
         `pop_size`        -- the size of the population in each generation
         `max_generations` -- places a limit on the maximum number of
@@ -47,46 +46,62 @@ class InspyredAlgorithm(Algorithm):
         for key in self._ea_attribute_names:
             if key in kwargs:
                 self.ea_attributes[key] = kwargs.pop(key)
+        # Ensure file observer is part of observers
+        observers = self.ea_attributes['observer']
+        try:
+            if ec.observers.file_observer not in observers:
+                observers.append(ec.observers.file_observer)
+        except AttributeError:
+            if observers != ec.observers.file_observer:
+                self.ea_attributes['observer'] = [observers,
+                                                  ec.observers.file_observer]
         self.pop_size = pop_size
         self.evolve_args = kwargs
         self.evolve_args['max_generations'] = max_generations
         self._rng = Random()
-        if self._has_file_observer():
-            if output_dir is None:
-                output_dir = os.getcwd()
         self.output_dir = output_dir
         self.set_random_seed(random_seed)
         self.set_seeds(seeds)
 
-    def optimize(self, evaluator, **kwargs):
+    def optimize(self, evaluator, overwrite_files=False, **kwargs):
         ea = self._InspyredClass(self._rng)
         for key, val in self.ea_attributes.iteritems():
             setattr(ea, key, val)
+        # Combine the keyword arguments from the __init__ method and the
+        # optimise method
+        output_dir = kwargs.pop('output_dir', self.output_dir)
         evolve_kwargs = self.evolve_args
         evolve_kwargs.update(kwargs)
-        if self._has_file_observer():
-            if 'output_dir' in kwargs:
-                output_dir = kwargs.pop('output_dir')
-            else:
-                output_dir = self.output_dir
-            stats_path = os.path.join(output_dir, 'statistics.csv')
-            indiv_path = os.path.join(output_dir, 'individuals.csv')
-            if os.path.exists(stats_path):
+        # Get file paths for population and individual statistics
+        stats_path = os.path.join(output_dir, 'statistics.csv')
+        indiv_path = os.path.join(output_dir, 'individuals.csv')
+        # Ensure the files don't exist, deleting them if they do
+        if os.path.exists(stats_path):
+            if overwrite_files:
+                print("Warning! Overwriting statistics file '{}'"
+                      .format(stats_path))
                 os.remove(stats_path)
-            if os.path.exists(indiv_path):
+            else:
+                raise Exception("Statistics file '{}' already exists"
+                                .format(stats_path))
+        if os.path.exists(indiv_path):
+            if overwrite_files:
+                print("Warning! Overwriting individuals file '{}'"
+                      .format(indiv_path))
                 os.remove(indiv_path)
-            evolve_kwargs['statistics_file'] = open(stats_path, 'w')
-            evolve_kwargs['individuals_file'] = open(indiv_path, 'w')
-        pop = ea.evolve(generator=self.uniform_random_chromosome,
-                        evaluator=evaluator,
-                        pop_size=self.pop_size,
-                        bounder=ec.Bounder(*zip(*self.constraints)),
-                        maximize=False,
-                        seeds=self.seeds,
-                        **evolve_kwargs)
-        if self._has_file_observer():
-            evolve_kwargs['statistics_file'].close()
-            evolve_kwargs['individuals_file'].close()
+            else:
+                raise Exception("Individuals file '{}' already exists"
+                                .format(stats_path))
+        with open(stats_path, 'w') as stats_f, open(indiv_path, 'w') as ind_f:
+            pop = ea.evolve(generator=self.uniform_random_chromosome,
+                            evaluator=evaluator,
+                            pop_size=self.pop_size,
+                            bounder=ec.Bounder(*zip(*self.constraints)),
+                            maximize=False,
+                            seeds=self.seeds,
+                            statistics_file=stats_f,
+                            individual_file=ind_f,
+                            **evolve_kwargs)
         return pop, ea
 
     def set_random_seed(self, seed=None):
@@ -96,12 +111,6 @@ class InspyredAlgorithm(Algorithm):
 
     def set_seeds(self, seeds):
         self.seeds = seeds
-
-    def _has_file_observer(self):
-        observer = self.ea_attributes['observer']
-        return (observer is ec.observers.file_observer or
-                (isinstance(observer, list) and
-                 ec.observers.file_observer in observer))
 
 
 class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
