@@ -105,7 +105,7 @@ class InspyredAlgorithm(Algorithm):
                             maximize=False,
                             seeds=self.seeds,
                             statistics_file=stats_f,
-                            individual_file=ind_f,
+                            individuals_file=ind_f,
                             **evolve_kwargs)
         return pop, ea
 
