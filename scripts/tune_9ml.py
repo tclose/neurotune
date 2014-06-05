@@ -130,11 +130,7 @@ def _get_algorithm(args):
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
-                     terminator=ec.terminators.generation_termination,
-                     observer=[ec.observers.file_observer,
-                               ec.observers.population_observer],
-                     variator=[ec.variators.blend_crossover,
-                               ec.variators.gaussian_mutation],
+                     observer=[ec.observers.population_observer],
                      output_dir=os.path.dirname(args.output),
                      **dict(args.optimize_argument))
 

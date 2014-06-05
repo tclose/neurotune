@@ -25,9 +25,7 @@ class InspyredAlgorithm(Algorithm):
                            'archiver', 'observer', 'terminator', 'logger']
 
     _ea_defaults = {'terminator': ec.terminators.generation_termination,
-                    'observer': [ec.observers.best_observer],
-                    'variator': [ec.variators.blend_crossover,
-                                 ec.variators.gaussian_mutation]}
+                    'observer': [ec.observers.best_observer]}
 
     def __init__(self, pop_size, output_dir=os.getcwd(),
                  max_generations=100, seeds=None, random_seed=None, **kwargs):
@@ -63,7 +61,7 @@ class InspyredAlgorithm(Algorithm):
         self.set_random_seed(random_seed)
         self.set_seeds(seeds)
 
-    def optimize(self, evaluator, overwrite_files=False, **kwargs):
+    def optimize(self, evaluator, overwrite_files=True, **kwargs):
         if not self.tuner:
             raise Exception("optimize method of algorithm must be called from "
                             "within tuner")
