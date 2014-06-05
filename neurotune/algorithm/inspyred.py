@@ -61,7 +61,7 @@ class InspyredAlgorithm(Algorithm):
         self.set_random_seed(random_seed)
         self.set_seeds(seeds)
 
-    def optimize(self, evaluator, overwrite_files=True, **kwargs):
+    def optimize(self, evaluator, **kwargs):
         if not self.tuner:
             raise Exception("optimize method of algorithm must be called from "
                             "within tuner")
@@ -76,27 +76,17 @@ class InspyredAlgorithm(Algorithm):
         # Get file paths for population and individual statistics
         stats_path = os.path.join(output_dir, 'statistics.csv')
         indiv_path = os.path.join(output_dir, 'individuals.csv')
-        # Ensure the files don't exist, deleting them if they do
-        if os.path.exists(stats_path):
-            if overwrite_files:
-                print("Warning! Overwriting statistics file '{}'"
-                      .format(stats_path))
-                os.remove(stats_path)
-            else:
-                raise Exception("Statistics file '{}' already exists"
-                                .format(stats_path))
-        if os.path.exists(indiv_path):
-            if overwrite_files:
-                print("Warning! Overwriting individuals file '{}'"
-                      .format(indiv_path))
-                os.remove(indiv_path)
-            else:
-                raise Exception("Individuals file '{}' already exists"
-                                .format(stats_path))
         print("Population statistics will be saved to '{}'"
               .format(stats_path))
         print("Population individuals will be saved to '{}'"
               .format(indiv_path))
+        # Ensure the files don't exist, deleting them if they do
+        if os.path.exists(stats_path):
+            raise Exception("Statistics file '{}' already exists"
+                            .format(stats_path))
+        if os.path.exists(indiv_path):
+            raise Exception("Individuals file '{}' already exists"
+                            .format(stats_path))
         with open(stats_path, 'w') as stats_f, open(indiv_path, 'w') as ind_f:
             pop = ea.evolve(generator=self.uniform_random_chromosome,
                             evaluator=evaluator,
@@ -128,8 +118,10 @@ class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
         # required class after it is evaluated (this saves having to import the
         # inspyred module into objective.combined, an allows it to be more
         # general)
-        super(MultiObjectiveInspyredAlgorithm, self).optimize(
-                               lambda c: ec.emo.Pareto(evaluator(c)), **kwargs)
+        def pareto_evaluator(candidates, args):  # @UnusedVariable
+            return ec.emo.Pareto(evaluator(candidates))
+        super(MultiObjectiveInspyredAlgorithm, self).optimize(pareto_evaluator,
+                                                              **kwargs)
 
 
 class GAAlgorithm(InspyredAlgorithm):
