@@ -169,8 +169,10 @@ class EDAAlgorithm(InspyredAlgorithm):
 
     def __init__(self, pop_size,
                  terminator=ec.terminators.diversity_termination,
+                 replacer=ec.replacers.crowding_replacement,
                  min_diversity=0.0001, **kwargs):
         super(EDAAlgorithm, self).__init__(pop_size, terminator=terminator,
+                                           replacer=replacer,
                                            min_diversity=min_diversity,
                                            **kwargs)
 
@@ -266,6 +268,12 @@ class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):
     """
     _InspyredClass = ec.emo.NSGA2
 
+    def __init__(self, pop_size,
+                 variators=[ec.variators.blend_crossover,
+                            ec.variators.gaussian_mutation], **kwargs):
+        super(NSGA2Algorithm, self).__init__(pop_size, variators=variators,
+                                             **kwargs)
+
 
 class PAESAlgorithm(MultiObjectiveInspyredAlgorithm):
     """
@@ -277,3 +285,22 @@ class PAESAlgorithm(MultiObjectiveInspyredAlgorithm):
     archive that is used as a part of the replacement process.
     """
     _InspyredClass = ec.emo.PAES
+
+
+algorithm_types = {'genetic': GAAlgorithm,
+                   'eda': EDAAlgorithm,
+                   'es': ESAlgorithm,
+                   'diff': DEAAlgorithm,
+                   'annealing': SAAlgorithm,
+                   'nsga2': NSGA2Algorithm,
+                   'pareto_archived': PAESAlgorithm}
+
+replacer_types = {'truncation': ec.replacers.truncation_replacement,
+                  'steady_state': ec.replacers.steady_state_replacement,
+                  'generational': ec.replacers.generational_replacement,
+                  'random': ec.replacers.random_replacement,
+                  'plus': ec.replacers.plus_replacement,
+                  'comma': ec.replacers.comma_replacement,
+                  'crowding': ec.replacers.crowding_replacement,
+                  'simulated_annealing': ec.replacers.\
+                                               simulated_annealing_replacement}
