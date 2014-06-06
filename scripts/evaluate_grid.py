@@ -30,8 +30,6 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('cell_9ml', type=str,
                     help="The path of the 9ml cell to test the objective "
                          "function on")
-parser.add_argument('--disable_mpi', action='store_true',
-                    help="Disable MPI tuner and replace with basic tuner")
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before running (can "
                          "be one of {})".format(BUILD_MODE_OPTIONS))
@@ -49,10 +47,6 @@ parser.add_argument('-p', '--parameter', nargs=5, default=[], action='append',
                              'LOG_SCALE'),
                     help="Sets a parameter to tune and its lower and upper "
                          "bounds")
-parser.add_argument('--plot', action='store_true',
-                    help="Plot the grid on a 1-2d mesh")
-parser.add_argument('--plot_saved', nargs='*', default=[],
-                    help="Plot a file that has been saved to file already")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Print out which candidates are being evaluated")
 parser.add_argument('--save_recordings', type=outputpath, default=None,
@@ -68,7 +62,17 @@ objective_names = ['Phase-plane Histogram', 'Phase-plane Pointwise',
                    'Spike Frequency', 'Spike Times']
 
 
-def run(parameters, args):
+def get_parameters(args):
+    if not args.parameter:
+        raise Exception("At least one parameter argument '--parameter' needs "
+                        "to be supplied")
+    parameters = [Parameter(name, 'S/cm^2', lbound, ubound, log_scale)
+                  for name, lbound, ubound, _, log_scale in args.parameter]
+    return parameters
+
+
+def run(args):
+    parameters = get_parameters(args)
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.cell_9ml)()
     cell.record('v')
@@ -104,99 +108,13 @@ def run(parameters, args):
         # Save the grid to file
         with open(args.output, 'w') as f:
             pkl.dump(grid, f)
-        # Plot the grid if asked
-        if args.plot:
-            plot(grid)
-        else:
-            print ("Saved grid file '{out}' can be plotted using the command: "
-                   "\n {script_name} {cell9ml} {params} --plot_saved {out}"
-                   .format(cell9ml=args.cell_9ml,
-                           script_name=os.path.basename(__file__),
-                           params=' '.join(['-p ' + ' '.join(p)
-                                            for p in args.parameter]),
-                           out=args.output))
-
-
-def plot(grids, parameters, plot_type='image', trim_factor=None):
-    # Import the plotting modules here so they are not imported unless plotting
-    # is required
-    from mpl_toolkits.mplot3d import Axes3D  # @UnusedImport
-    from matplotlib import cm
-    from matplotlib.ticker import LinearLocator
-    import matplotlib.pyplot as plt
-    import matplotlib
-    # If using a non-multi-objective reshape the grid into a 1-?-? so it fits
-    # the looping structure
-    if grids.ndim == len(parameters):
-        grids = [grids]
-    # Loop through all grids and plot a surface mesh
-    for grid, title in zip(grids, objective_names):
-        fig = plt.figure()
-        if len(parameters) == 1:
-            x_range = numpy.linspace(parameters[0].lbound,
-                                     parameters[0].ubound,
-                                     grid.shape[0])
-            if parameters[0].log_scale:
-                x_range = 10 ** x_range
-            plt.plot(x_range, grid)
-            plt.xlabel('{} ({})'.format(parameters[0].name,
-                                        parameters[0].units))
-            plt.ylabel('Objective')
-        elif len(parameters) == 2:
-            x_range = numpy.linspace(parameters[0].lbound,
-                                     parameters[0].ubound,
-                                     grid.shape[0])
-            y_range = numpy.linspace(parameters[1].lbound,
-                                     parameters[1].ubound,
-                                     grid.shape[1])
-            if parameters[0].log_scale:
-                x_range = 10 ** x_range
-            if parameters[1].log_scale:
-                y_range = 10 ** y_range
-            kwargs = {}
-            max_under_trim = None
-            if trim_factor is not None:
-                trim_value = (float(trim_factor) *
-                              numpy.percentile(grid, 95))
-                if numpy.max(grid) > trim_value:
-                    over_trim = grid > trim_value
-                    max_under_trim = numpy.ma.masked_array(grid,
-                                                          mask=over_trim).max()
-            if plot_type == 'surf':
-                if max_under_trim is not None:
-                    grid[numpy.where(over_trim)] = float('nan')
-                    lev = numpy.linspace(0, max_under_trim, 1000)
-                    kwargs['norm'] = matplotlib.colors.BoundaryNorm(lev, 256)
-
-                ax = fig.gca(projection='3d')
-                X, Y = numpy.meshgrid(x_range, y_range)
-                surf = ax.plot_surface(X, Y, grid, rstride=1, cstride=1,
-                                       cmap=cm.jet, linewidth=0,
-                                       antialiased=False, **kwargs)
-                if max_under_trim is not None:
-                    ax.set_zlim(0, max_under_trim)
-                ax.zaxis.set_major_locator(LinearLocator(10))
-                fig.colorbar(surf, shrink=0.5, aspect=5)
-                ax.set_zlabel('Objective')
-            elif plot_type == 'image':
-                plt.imshow(grid, interpolation='nearest', vmax=max_under_trim,
-                           origin='lower', aspect='auto',
-                           extent=(parameters[0].lbound, parameters[0].ubound,
-                                   parameters[1].lbound, parameters[1].ubound))
-                plt.grid()
-                plt.colorbar()
-                plt.clim(0, max_under_trim)
-            else:
-                raise Exception("Unrecognised plot_type '{}'"
-                                .format(plot_type))
-            plt.xlabel('{} ({})'.format(parameters[0].name,
-                                        parameters[0].units))
-            plt.ylabel('{} ({})'.format(parameters[1].name,
-                                        parameters[1].units))
-        else:
-            raise Exception("Cannot plot grids with dimensions greater than 2")
-        plt.title('{} objective'.format(title))
-    plt.show()
+        print ("Saved grid file '{out}' can be plotted using the command: "
+               "\n {script_name} {cell9ml} {params} --plot_saved {out}"
+               .format(cell9ml=args.cell_9ml,
+                       script_name=os.path.basename(__file__),
+                       params=' '.join(['-p ' + ' '.join(p)
+                                        for p in args.parameter]),
+                       out=args.output))
 
 
 def prepare_work_dir(submitter, args):
@@ -210,13 +128,4 @@ def prepare_work_dir(submitter, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if not args.parameter:
-        raise Exception("At least one parameter argument '--parameter' needs "
-                        "to be supplied")
-    parameters = [Parameter(name, 'S/cm^2', lbound, ubound, False)
-                  for name, lbound, ubound, _, log_scale in args.parameter]
-    if args.plot_saved:
-        with open(args.plot_saved[0]) as f:
-            plot(pkl.load(f), parameters, *args.plot_saved[1:])
-    else:
-        run(parameters, args)
+    run(args)
