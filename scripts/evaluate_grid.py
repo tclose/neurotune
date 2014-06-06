@@ -4,7 +4,7 @@ Evaluates objective functions on a grid of positions in parameter space
 """
 import os.path
 import argparse
-import numpy.ma
+import sys
 import shutil
 import cPickle as pkl
 import quantities as pq
@@ -25,9 +25,14 @@ try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
     from neurotune.tuner import Tuner  # @Reimport
+# Import parser from evaluate_grid
+sys.path.insert(0, os.path.dirname(__file__))
+from tune_9ml import get_objective
+sys.path.pop(0)
+
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('cell_9ml', type=str,
+parser.add_argument('reference_9ml', type=str,
                     help="The path of the 9ml cell to test the objective "
                          "function on")
 parser.add_argument('--build', type=str, default='lazy',
@@ -47,6 +52,12 @@ parser.add_argument('-p', '--parameter', nargs=5, default=[], action='append',
                              'LOG_SCALE'),
                     help="Sets a parameter to tune and its lower and upper "
                          "bounds")
+parser.add_argument('-o', '--objective', type=str, nargs='+',
+                    default=[], action='append',
+                    help="Selects which objective function to use "
+                         "out of 'histogram', 'pointwise', 'frequency', "
+                         "'spike_times' or a combination (potentially "
+                         "weighted) of them (default: 'pointwise')")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Print out which candidates are being evaluated")
 parser.add_argument('--save_recordings', type=outputpath, default=None,
@@ -73,26 +84,27 @@ def get_parameters(args):
 
 def run(args):
     parameters = get_parameters(args)
+    objective = get_objective(args)
     # Generate the reference trace from the original class
-    cell = NineCellMetaClass(args.cell_9ml)()
-    cell.record('v')
-    simulation_controller.run(simulation_time=args.time,
-                              timestep=args.timestep)
-    reference = AnalysedSignal(cell.get_recording('v'))
-    sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
+#     cell = NineCellMetaClass(args.reference_9ml)()
+#     cell.record('v')
+#     simulation_controller.run(simulation_time=args.time,
+#                               timestep=args.timestep)
     # Instantiate the multi-objective objective from 3 phase-plane objectives
-    objective = MultiObjective(PhasePlaneHistObjective(reference),
-                               PhasePlanePointwiseObjective(reference, 100,
-                                                            (20, -20)),
-                               SpikeFrequencyObjective(sliced_reference.\
-                                                       spike_frequency()),
-                               SpikeTimesObjective(sliced_reference.\
-                                                   spikes()))
+#     reference = AnalysedSignal(cell.get_recording('v'))
+#     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
+#     objective = MultiObjective(PhasePlaneHistObjective(reference),
+#                                PhasePlanePointwiseObjective(reference, 100,
+#                                                             (20, -20)),
+#                                SpikeFrequencyObjective(sliced_reference.\
+#                                                        spike_frequency()),
+#                                SpikeTimesObjective(sliced_reference.\
+#                                                    spikes()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
                   GridAlgorithm(num_steps=[p[3] for p in args.parameter]),
-                  NineLineSimulation(args.cell_9ml),
+                  NineLineSimulation(args.reference_9ml),
                   verbose=args.verbose,
                   save_recordings=args.save_recordings)
     # Run the tuner
@@ -110,7 +122,7 @@ def run(args):
             pkl.dump(grid, f)
         print ("Saved grid file '{out}' can be plotted using the command: "
                "\n {script_name} {cell9ml} {params} --plot_saved {out}"
-               .format(cell9ml=args.cell_9ml,
+               .format(cell9ml=args.reference_9ml,
                        script_name=os.path.basename(__file__),
                        params=' '.join(['-p ' + ' '.join(p)
                                         for p in args.parameter]),
@@ -120,10 +132,10 @@ def run(args):
 def prepare_work_dir(submitter, args):
     os.mkdir(os.path.join(submitter.work_dir, '9ml'))
     copied_9ml = os.path.join(submitter.work_dir, '9ml',
-                              os.path.basename(args.cell_9ml))
-    shutil.copy(args.cell_9ml, copied_9ml)
+                              os.path.basename(args.reference_9ml))
+    shutil.copy(args.reference_9ml, copied_9ml)
     NineCellMetaClass(copied_9ml, build_mode='build_only')
-    args.cell_9ml = copied_9ml
+    args.reference_9ml = copied_9ml
 
 
 if __name__ == '__main__':

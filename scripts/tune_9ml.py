@@ -86,7 +86,7 @@ obj_dict = {'histogram': PhasePlaneHistObjective,
             'spike_times': SpikeTimesObjective}
 
 
-def _get_objective(args):
+def get_objective(args):
     # Generate the reference trace from the original class
     cell = NineCellMetaClass(args.reference_9ml, build_mode=args.build)()
     cell.record('v')
@@ -172,7 +172,7 @@ def run(args):
     # Instantiate the tuner
     parameters = _get_parameters(args)
     algorithm = _get_algorithm(args)
-    objective = _get_objective(args)
+    objective = get_objective(args)
     simulation = _get_simulation(args)
     tuner = Tuner(parameters,
                   objective,
@@ -203,7 +203,7 @@ def record_candidate(candidate_path, filepath, args):
     with open(candidate_path) as f:
         candidate, _, _ = pkl.load(f)
     parameters = _get_parameters(args)
-    objective = _get_objective(args)
+    objective = get_objective(args)
     simulation = _get_simulation(args, parameters=parameters,
                                  objective=objective)
     recordings = simulation.run_all(candidate[:len(parameters)])
