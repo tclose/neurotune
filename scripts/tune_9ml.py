@@ -16,20 +16,13 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
 from neurotune.objective.multi import MultiObjective, WeightedSumObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
-from neurotune.algorithm.inspyred import (GAAlgorithm, EDAAlgorithm,
-                                          ESAlgorithm, DEAAlgorithm,
-                                          SAAlgorithm, NSGA2Algorithm,
-                                          PAESAlgorithm, ec)
+from neurotune.algorithm.inspyred import ec, algorithm_types, replacer_types
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
     from neurotune.tuner import Tuner
 import cPickle as pkl
-
-algorithm_types = ['genetic', 'estimation_distr', 'evolution_strategy',
-                   'differential', 'simulated_annealing', 'nsga2',
-                   'pareto_archived']
 
 true_parameters = []
 
@@ -72,7 +65,7 @@ parser.add_argument('--population_size', type=int, default=100,
 parser.add_argument('--algorithm', type=str, default='eda',
                     help="The type of algorithm used for the tuning. Can be "
                          "one of '{}' (default: %(default)s)"
-                         .format("', '". join(algorithm_types)))
+                         .format("', '". join(algorithm_types.keys())))
 parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
                     default=[],
                     help="Extra arguments to be passed to the algorithm")
@@ -82,19 +75,15 @@ parser.add_argument('--action', type=str, nargs='+', default=['tune'],
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Whether to print out which candidates are being "
                     "evaluated on which nodes")
+parser.add_argument('--replacer', type=str, default=None,
+                    help="The replacement component of the evolutionary "
+                         "algorithm. Can be one of ('{}')"
+                         .format("', '". join(replacer_types.keys())))
 
 obj_dict = {'histogram': PhasePlaneHistObjective,
             'pointwise': PhasePlanePointwiseObjective,
             'frequency': SpikeFrequencyObjective,
             'spike_times': SpikeTimesObjective}
-
-alg_dict = {'genetic': GAAlgorithm,
-            'eda': EDAAlgorithm,
-            'es': ESAlgorithm,
-            'diff': DEAAlgorithm,
-            'annealing': SAAlgorithm,
-            'nsga2': NSGA2Algorithm,
-            'pareto_archived': PAESAlgorithm}
 
 
 def _get_objective(args):
@@ -125,14 +114,16 @@ def _get_objective(args):
 
 def _get_algorithm(args):
     try:
-        Algorithm = alg_dict[args.algorithm]
+        Algorithm = algorithm_types[args.algorithm]
     except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
+    kwargs = dict(args.optimize_argument)
+    if args.replacer:
+        kwargs['replacer'] = replacer_types[args.replacer]
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
                      observer=[ec.observers.population_observer],
-                     output_dir=os.path.dirname(args.output),
-                     **dict(args.optimize_argument))
+                     output_dir=os.path.dirname(args.output), **kwargs)
 
 
 def _get_parameters(args):
