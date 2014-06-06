@@ -167,6 +167,13 @@ class EDAAlgorithm(InspyredAlgorithm):
     """
     _InspyredClass = ec.EDA
 
+    def __init__(self, pop_size,
+                 terminator=ec.terminators.diversity_termination,
+                 min_diversity=0.0001, **kwargs):
+        super(EDAAlgorithm, self).__init__(pop_size, terminator=terminator,
+                                           min_diversity=min_diversity,
+                                           **kwargs)
+
 
 class ESAlgorithm(InspyredAlgorithm):
     """
