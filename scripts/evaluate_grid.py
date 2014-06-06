@@ -84,6 +84,7 @@ def get_parameters(args):
 
 def run(args):
     parameters = get_parameters(args)
+    args.algorithm = 'eda'
     objective = get_objective(args)
     # Generate the reference trace from the original class
 #     cell = NineCellMetaClass(args.reference_9ml)()
