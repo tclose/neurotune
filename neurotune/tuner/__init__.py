@@ -15,8 +15,8 @@ class EvaluationException(Exception):
     exception to be examined
     """
 
-    def __init__(self, objective, candidate, analysis, tback=None):
-        self.objective = objective
+    def __init__(self, tuner, candidate, analysis, tback=None):
+        self.tuner = tuner
         self.candidate = candidate
         self.analysis = analysis
         self.traceback = tback if tback is not None else traceback.format_exc()
@@ -27,8 +27,8 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.objective, self.candidate, self.analysis), f)
-        print ("Saving failed candidate along with objective and analysis "
+            pkl.dump((self.tuner, self.candidate, self.analysis), f)
+        print ("Saving failed candidate along with tuner object and analysis "
                "to file at '{}'".format(filename))
 
 
@@ -43,15 +43,18 @@ class BadCandidateException(Exception):
         self.candidate = candidate
 
 
+# This tuple collects all information needed to save the recordings into a
+# single tuple
+SaveRecordingsInfo = collections.namedtuple('SaveRecordingsInfo',
+                                            'dir prefix ext io')
+
+
 class Tuner(object):
     """
     Base Tuner object that contains the three components (objective function,
     algorithm and simulation objects) and runs the algorithm
     """
     num_processes = 1
-
-    SaveRecordingsInfo = collections.namedtuple('SaveRecordingsInfo',
-                                                'dir ext prefix io')
 
     def __init__(self, *args, **kwargs):
         self.set(*args, **kwargs)
@@ -100,9 +103,8 @@ class Tuner(object):
             else:
                 raise Exception("Unrecognised Neo extention '{}' for saving "
                                 "recordings".format(rec_ext))
-            self.save_recordings = self.SaveRecordingsInfo(rec_dir, '.neo' +
-                                                           rec_ext, rec_prefix,
-                                                           rec_io)
+            self.save_recordings = SaveRecordingsInfo(rec_dir, rec_prefix,
+                                                      '.neo' + rec_ext, rec_io)
             try:
                 os.makedirs(rec_dir)
             except OSError as e:

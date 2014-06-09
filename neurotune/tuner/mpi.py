@@ -156,7 +156,7 @@ class MPITuner(Tuner):
                     e.analysis = 'Too large to pass over MPI'
                 # This will tell the master node to raise an
                 # EvaluationException and release all slaves
-                self.comm.send((e.objective, e.candidate, e.analysis,
+                self.comm.send((e.tuner, e.candidate, e.analysis,
                                 e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
                 break
