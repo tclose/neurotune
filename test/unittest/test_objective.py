@@ -231,8 +231,8 @@ if __name__ == '__main__':
 
     # Instantiate the multi-objective objective from 3 phase-plane objectives
     objective = MultiObjective(PhasePlaneHistObjective(reference),
-                               PhasePlanePointwiseObjective(reference,
-                                                            (20, -20), 100),
+                               PhasePlanePointwiseObjective(reference, 100,
+                                                            (20, -20)),
                                SpikeFrequencyObjective(reference.\
                                                        spike_frequency()),
                                SpikeTimesObjective(reference.spikes()))
