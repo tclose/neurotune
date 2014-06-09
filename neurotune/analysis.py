@@ -201,16 +201,21 @@ class AnalysedSignal(neo.core.AnalogSignal):
             if len(start_inds) == 0 or len(stop_inds) == 0:
                 periods = numpy.array([])
             else:
-                # If the recording period begins or ends with a threshold
-                # crossing trim them from the crossing periods so the start and
-                # stop inds are the same length
-                if start_inds[-1] > stop_inds[-1]:
-                    start_inds = start_inds[:-1]
-                if stop_inds[0] < start_inds[0]:
-                    stop_inds = stop_inds[1:]
-                assert len(start_inds) == len(stop_inds)
-                assert all(stop_inds > start_inds)
-                periods = numpy.array((start_inds, stop_inds)).T
+                # Ensure the start and stop indices form regular pairs where
+                # every start has a stop that comes after directly after it
+                # (i.e. before another start) and vice-versa
+                periods = []
+                for start in start_inds:
+                    try:
+                        stop = stop_inds[numpy.where(stop_inds > start)][0]
+                    # If the end of the loop is outside the time window
+                    except IndexError:
+                        continue
+                    # Ensure that two spike periods don't overlap, which can
+                    # occasionally occur in spike doublets for dV/dt thresholds
+                    if (start >= numpy.array(periods)).all():
+                        periods.append((start, stop))
+                periods = numpy.array(periods)
                 if index_buffer:
                     periods[:, 0] -= index_buffer
                     periods[:, 1] += index_buffer
@@ -229,11 +234,11 @@ class AnalysedSignal(neo.core.AnalogSignal):
             for start_i, end_i in self._spike_period_indices(**kwargs):
                 dvdt = self.dvdt[start_i:end_i]
                 times = self.times[start_i:end_i]
-                # Get the index before dV/dt crosses 0
-                cross_index = numpy.where((dvdt[:-1] >= 0) & (dvdt[1:] < 0))[0]
-                assert(len(cross_index) == 1), "One dV/dt zero crossing " \
-                                               "expected in spike period"
-                i = cross_index[0]  # There should only be one zero crossing
+                # Get the indices before dV/dt zero crossings
+                cross_indices = numpy.where((dvdt[:-1] >= 0) &
+                                            (dvdt[1:] < 0))[0]
+                # Pick the highest voltage zero crossing
+                i = cross_indices[numpy.argmax(self[cross_indices])]
                 # Get the interpolated point where dV/dt crosses 0
                 exact_cross = dvdt[i] / (dvdt[i] - dvdt[i + 1])
                 # Calculate the exact spike time by interpolating between

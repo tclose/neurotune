@@ -19,4 +19,4 @@ print "Replaying evaluation exception for {}".format(candidate)
 if analysis is None:
     tuner.simulation.run_all(candidate)
 else:
-    print "fitness: {}".format(tuner.objective.fitness(analysis))
+    print "fitness: {}".format(tuner.fitness(analysis))
