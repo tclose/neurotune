@@ -19,6 +19,9 @@ class NineLineSimulation(Simulation):
         self.celltype = NineCellMetaClass(cell_9ml, build_mode=build_mode)
         self.default_seg = self.celltype().source_section.name
 
+    def __reduce__(self):
+        return self.__class__, (self.cell_9ml, 'lazy')
+
     def set_tune_parameters(self, tune_parameters):
         super(NineLineSimulation, self).set_tune_parameters(tune_parameters)
         self.genome_keys = []
