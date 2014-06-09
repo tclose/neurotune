@@ -18,6 +18,8 @@ class NineLineSimulation(Simulation):
         self.cell_9ml = cell_9ml
         self.celltype = NineCellMetaClass(cell_9ml, build_mode=build_mode)
         self.default_seg = self.celltype().source_section.name
+        self.genome_keys = []
+        self.log_scales = []
 
     def __reduce__(self):
         return self.__class__, (self.cell_9ml, 'lazy')
