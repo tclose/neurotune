@@ -168,12 +168,14 @@ class EDAAlgorithm(InspyredAlgorithm):
     _InspyredClass = ec.EDA
 
     def __init__(self, pop_size,
-                 terminator=ec.terminators.diversity_termination,
+                 terminator=[ec.terminators.diversity_termination,
+                             ec.terminators.generation_termination],
                  replacer=ec.replacers.crowding_replacement,
-                 min_diversity=0.01, **kwargs):
+                 min_diversity=0.01, max_generations=100, **kwargs):
         super(EDAAlgorithm, self).__init__(pop_size, terminator=terminator,
                                            replacer=replacer,
                                            min_diversity=min_diversity,
+                                           max_generations=max_generations,
                                            **kwargs)
 
 
@@ -187,7 +189,7 @@ class ESAlgorithm(InspyredAlgorithm):
     expected that each candidate solution is a Sequence of real values.
 
     The candidate solutions to an ES are augmented by strategy parameters of
-    the same length (using inspyred.ec.generators.strategize). These strategy
+    the same length (using ec.generators.strategize). These strategy
     parameters are evolved along with the candidates and are used as the
     mutation rates for each element of the candidates. The evaluator is
     modified internally to use only the actual candidate elements (rather than
