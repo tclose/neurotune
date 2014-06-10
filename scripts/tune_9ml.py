@@ -67,8 +67,13 @@ parser.add_argument('--algorithm', type=str, default='eda',
                          "one of '{}' (default: %(default)s)"
                          .format("', '". join(algorithm_types.keys())))
 parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
-                    default=[],
+                    default=[], metavar=('KEY', 'ARG'),
                     help="Extra arguments to be passed to the algorithm")
+parser.add_argument('-b', '--objective_argument', nargs=3, action='append',
+                    metavar=('KEY', 'ARG', 'OBJECTIVE_INDEX'), default=[],
+                    help="Extra keyword arguments to pass to the objective "
+                         "function (can specify which objective in a "
+                         "objective method by the third \"index\" argument")
 parser.add_argument('--action', type=str, nargs='+', default=['tune'],
                     help="The action used to run the script, can be 'tune', "
                          "'plot'")
@@ -93,19 +98,35 @@ def get_objective(args):
     simulation_controller.run(simulation_time=args.time,
                               timestep=args.timestep)
     reference = cell.get_recording('v')
+    # Distribute the objective arguments between the (possibly) multiple
+    # objectives
+    objective_args = [{} for _ in xrange(len(args.objective))]
+    for oa in args.objective_argument:
+        try:
+            index = oa[2]
+        except IndexError:
+            index = 0
+        objective_args[index][oa[0]] = oa[1]
     try:
+        # Use a mult-objective, or weighted sum objective depending on the
+        # algorithm selected
         if len(args.objective) > 1:
+            objs = [obj_dict[o[0]](reference, **kwargs)
+                    for (o, kwargs) in zip(args.objective, objective_args)]
             if args.algorithm in ('nsga2', 'pareto_archived'):
-                objective = MultiObjective(*[obj_dict[o[0]](reference)
-                                             for o in args.objective])
+                objective = MultiObjective(*objs)
             else:
-                objective = WeightedSumObjective(*[(float(o[1]),
-                                                    obj_dict[o[0]](reference))
-                                                   for o in args.objective])
+                weights = [float(o[1]) for o in args.objective]
+                objective = WeightedSumObjective(*zip(weights, objs))
+        # Use a single objective function
         elif args.objective:
-            objective = obj_dict[args.objective[0][0]](reference)
+            objective = obj_dict[args.objective[0][0]](reference,
+                                                       **objective_args[0])
+        # Use the default objective
         else:
-            objective = PhasePlanePointwiseObjective(reference)
+            objective = WeightedSumObjective(
+                                 (1.0, PhasePlanePointwiseObjective(reference),
+                                 (75.0, SpikeFrequencyObjective(reference))))
     except KeyError as e:
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
                         "option".format(e))
