@@ -45,7 +45,8 @@ parser.add_argument('--output', type=outputpath,
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
 parser.add_argument('-o', '--objective', type=str, nargs='+',
-                    default=[], action='append',
+                    default=[], action='append', 
+                    metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
                     help="Selects which objective function to use "
                          "out of 'histogram', 'pointwise', 'frequency', "
                          "'spike_times' or a combination (potentially "
@@ -55,6 +56,7 @@ parser.add_argument('-p', '--parameter', nargs=4, default=[], action='append',
                     help="Sets a parameter to tune and its lower and upper "
                          "bounds")
 parser.add_argument('--parameter_set', type=str, default=[], nargs='+',
+                    metavar=('SET_NAME', 'SET_ARGS'),
                     help="Select which parameter set to tune from a few "
                          "descriptions")
 parser.add_argument('--num_generations', type=int, default=100,
