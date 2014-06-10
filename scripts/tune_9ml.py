@@ -45,7 +45,7 @@ parser.add_argument('--output', type=outputpath,
                     help="The path to the output file where the grid will be "
                          "written (default: %(default)s)")
 parser.add_argument('-o', '--objective', type=str, nargs='+',
-                    default=[], action='append', 
+                    default=[], action='append',
                     metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
                     help="Selects which objective function to use "
                          "out of 'histogram', 'pointwise', 'frequency', "
@@ -76,9 +76,6 @@ parser.add_argument('-b', '--objective_argument', nargs=3, action='append',
                     help="Extra keyword arguments to pass to the objective "
                          "function (can specify which objective in a "
                          "objective method by the third \"index\" argument")
-parser.add_argument('--action', type=str, nargs='+', default=['tune'],
-                    help="The action used to run the script, can be 'tune', "
-                         "'plot'")
 parser.add_argument('--verbose', action='store_true', default=False,
                     help="Whether to print out which candidates are being "
                     "evaluated on which nodes")
@@ -127,8 +124,8 @@ def get_objective(args):
         # Use the default objective
         else:
             objective = WeightedSumObjective(
-                                 (1.0, PhasePlanePointwiseObjective(reference),
-                                 (75.0, SpikeFrequencyObjective(reference))))
+                                (1.0, PhasePlanePointwiseObjective(reference)),
+                                (75.0, SpikeFrequencyObjective(reference)))
     except KeyError as e:
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
                         "option".format(e))
@@ -157,25 +154,32 @@ def _get_parameters(args):
         parameters = [Parameter(p[0], 'S/cm^2', p[1], p[2], p[3])
                       for p in args.parameter]
     # The parameters to be tuned by the tuner
-    elif args.parameter_set[0] == 'all-gmaxes':
-        bound_range = float(args.parameter_set[1])
-        from nineml.extensions.biophysics import parse
-        bio_model = next(parse(args.reference_9ml).itervalues())
-        parameters = []
-        for comp in bio_model.components.itervalues():
-            if comp.type == 'ionic-current':
-                gbar = float(comp.parameters['g'].value)
-                gbar_log = math.log(gbar)
-                lbound = gbar_log - bound_range
-                ubound = gbar_log + bound_range
-                parameters.append(Parameter('soma.{}.gbar'.format(comp.name),
-                                            'S/cm^2', lbound, ubound,
-                                            log_scale=True))
-                true_parameters.append(gbar)
     elif args.parameter_set:
-        raise Exception("Unrecognised name '{}' passed to '--parameter_set' "
-                        "option. Can be one of ('original', 'all-gmaxes')."
-                        .format(args.parameter_set))
+        if args.parameter_set[0] == 'all-gmaxes':
+            if len(args.parameter_set) != 2:
+                raise Exception("Range of parameters from initial values needs"
+                                " to be provided for 'all-gmaxes' parameter "
+                                "set")
+            bound_range = float(args.parameter_set[1])
+            from nineml.extensions.biophysics import parse
+            bio_model = next(parse(args.to_tune_9ml).itervalues())
+            parameters = []
+            for comp in bio_model.components.itervalues():
+                if comp.type == 'ionic-current':
+                    gbar = float(comp.parameters['g'].value)
+                    gbar_log = math.log(gbar)
+                    lbound = gbar_log - bound_range
+                    ubound = gbar_log + bound_range
+                    parameters.append(Parameter('soma.{}.gbar'
+                                                .format(comp.name),
+                                                'S/cm^2', lbound, ubound,
+                                                log_scale=True))
+                    true_parameters.append(gbar)
+        elif args.parameter_set:
+            raise Exception("Unrecognised name '{}' passed to "
+                            "'--parameter_set' option. Can be one of "
+                            "('original', 'all-gmaxes')."
+                            .format(args.parameter_set))
     else:
         raise Exception("No --parameter or --parameter set arguments passed "
                         "to tuning script")
@@ -222,28 +226,6 @@ def run(args):
                       pop), f)
 
 
-def record_candidate(candidate_path, filepath, args):
-    with open(candidate_path) as f:
-        candidate, _, _ = pkl.load(f)
-    parameters = _get_parameters(args)
-    objective = get_objective(args)
-    simulation = _get_simulation(args, parameters=parameters,
-                                 objective=objective)
-    recordings = simulation.run_all(candidate[:len(parameters)])
-    with open(filepath, 'w') as f:
-        pkl.dump((recordings.segments[0].analogsignals[0], objective), f)
-
-
-def plot(recordings_path):
-    from matplotlib import pyplot as plt
-    with open(recordings_path) as f:
-        recording, objective = pkl.load(f)
-    plt.plot(recording)
-    plt.plot(objective.reference_traces[0])
-    objective.plot_hist(recording, diff=True, show=False)
-    plt.show()
-
-
 def prepare_work_dir(submitter, args):
     os.mkdir(os.path.join(submitter.work_dir, '9ml'))
     copied_reference = os.path.join(submitter.work_dir, '9ml',
@@ -265,9 +247,4 @@ if __name__ == '__main__':
         print ("Warning population size was automatically increased to {} in "
                "order to match the number of processes"
                .format(args.population_size))
-    if args.action[0] == 'plot':
-        plot(args.action[1])
-    elif args.action[0] == 'record':
-        record_candidate(args.action[1], args.action[2], args)
-    else:
-        run(args)
+    run(args)
