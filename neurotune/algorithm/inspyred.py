@@ -170,7 +170,7 @@ class EDAAlgorithm(InspyredAlgorithm):
     def __init__(self, pop_size,
                  terminator=ec.terminators.diversity_termination,
                  replacer=ec.replacers.crowding_replacement,
-                 min_diversity=0.0001, **kwargs):
+                 min_diversity=0.01, **kwargs):
         super(EDAAlgorithm, self).__init__(pop_size, terminator=terminator,
                                            replacer=replacer,
                                            min_diversity=min_diversity,
