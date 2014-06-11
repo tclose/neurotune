@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 """
-Tunes a 9ml file against a 9ml reference simulation
+Tunes a model against a reference trace or 9ml simulation
 """
 import argparse
 import os.path
 import shutil
 import math
+import neo
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.arguments import outputpath
+from nineline.arguments import inputpath, outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
@@ -27,11 +28,16 @@ import cPickle as pkl
 true_parameters = []
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('reference_9ml', type=str,
-                       help="The path of the 9ml cell model to be used as a "
-                            "reference")
-parser.add_argument('to_tune_9ml', type=str,
-                       help="The path of the 9ml cell to tune")
+parser.add_argument('reference', type=inputpath,
+                    help="Either a path to a analog signal trace in Neo "
+                         "format or a path to a 9ml cell model which will be "
+                         "simulated and the resulting trace will be used as a"
+                         "reference")
+parser.add_argument('model', type=inputpath,
+                    help="The path of the 9ml cell to tune")
+parser.add_argument('output', type=outputpath,
+                    help="The path to the output file where the grid will be "
+                         "written")
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before running (can "
                          "be one of {})".format(BUILD_MODE_OPTIONS))
@@ -40,10 +46,6 @@ parser.add_argument('--timestep', type=float, default=0.025,
                          "(default: %(default)s)")
 parser.add_argument('--time', type=float, default=2000.0,
                        help="Recording time")
-parser.add_argument('--output', type=outputpath,
-                    default=os.path.join(os.environ['HOME'], 'tuned.pkl'),
-                    help="The path to the output file where the grid will be "
-                         "written (default: %(default)s)")
 parser.add_argument('-o', '--objective', type=str, nargs='+',
                     default=[], action='append',
                     metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
@@ -90,13 +92,28 @@ obj_dict = {'histogram': PhasePlaneHistObjective,
             'spike_times': SpikeTimesObjective}
 
 
+def load_reference(args):
+    if args.reference.endswith('.9ml'):
+        # Generate the reference trace from the original class
+        cell = NineCellMetaClass(args.reference, build_mode=args.build)()
+        cell.record('v')
+        simulation_controller.run(simulation_time=args.time,
+                                  timestep=args.timestep)
+        reference = cell.get_recording('v')
+    else:
+        if args.reference.endswith('.neo.pkl'):
+            block = neo.PickleIO(args.reference).read()
+        elif args.reference.endswith('.neo.h5'):
+            block = neo.NeoHdf5IO(args.reference).read()
+        else:
+            raise Exception("Unrecognised extension of reference file '{}'"
+                            .format(args.reference))
+        reference = block.segments[0].analogsignals[0]
+    return reference
+
+
 def get_objective(args):
-    # Generate the reference trace from the original class
-    cell = NineCellMetaClass(args.reference_9ml, build_mode=args.build)()
-    cell.record('v')
-    simulation_controller.run(simulation_time=args.time,
-                              timestep=args.timestep)
-    reference = cell.get_recording('v')
+    reference = load_reference(args)
     # Distribute the objective arguments between the (possibly) multiple
     # objectives
     objective_args = [{} for _ in xrange(len(args.objective))]
@@ -132,7 +149,7 @@ def get_objective(args):
     return objective
 
 
-def _get_algorithm(args):
+def get_algorithm(args):
     try:
         Algorithm = algorithm_types[args.algorithm]
     except KeyError:
@@ -146,7 +163,7 @@ def _get_algorithm(args):
                      output_dir=os.path.dirname(args.output), **kwargs)
 
 
-def _get_parameters(args):
+def get_parameters(args):
     if args.parameter and args.parameter_set:
         raise Exception("Cannot use --parameter and --parameter_set options "
                         "simulataneously")
@@ -162,7 +179,7 @@ def _get_parameters(args):
                                 "set")
             bound_range = float(args.parameter_set[1])
             from nineml.extensions.biophysics import parse
-            bio_model = next(parse(args.to_tune_9ml).itervalues())
+            bio_model = next(parse(args.model).itervalues())
             parameters = []
             for comp in bio_model.components.itervalues():
                 if comp.type == 'ionic-current':
@@ -186,21 +203,25 @@ def _get_parameters(args):
     return parameters
 
 
-def _get_simulation(args, parameters=None, objective=None):
-    simulation = NineLineSimulation(args.to_tune_9ml, build_mode=args.build)
-    if parameters is not None:
-        simulation.set_tune_parameters(parameters)
-    if objective is not None:
-        simulation._process_requests(objective.get_recording_requests())
+def get_simulation(args):
+    if args.model.endswith('.9ml'):
+        simulation = NineLineSimulation(args.model, build_mode=args.build)
+    else:
+        raise Exception("Unrecognised model format '{}'".format(args.model))
     return simulation
 
 
-def run(args):
+def run(args, parameters=None, algorithm=None, objective=None,
+        simulation=None):
     # Instantiate the tuner
-    parameters = _get_parameters(args)
-    algorithm = _get_algorithm(args)
-    objective = get_objective(args)
-    simulation = _get_simulation(args)
+    if not parameters:
+        parameters = get_parameters(args)
+    if not algorithm:
+        algorithm = get_algorithm(args)
+    if not objective:
+        objective = get_objective(args)
+    if not simulation:
+        simulation = get_simulation(args)
     tuner = Tuner(parameters,
                   objective,
                   algorithm,
@@ -229,15 +250,15 @@ def run(args):
 def prepare_work_dir(submitter, args):
     os.mkdir(os.path.join(submitter.work_dir, '9ml'))
     copied_reference = os.path.join(submitter.work_dir, '9ml',
-                                    os.path.basename(args.reference_9ml))
-    shutil.copy(args.reference_9ml, copied_reference)
+                                    os.path.basename(args.reference))
+    shutil.copy(args.reference, copied_reference)
     copied_to_tune = os.path.join(submitter.work_dir, '9ml',
-                                  os.path.basename(args.to_tune_9ml))
-    shutil.copy(args.to_tune_9ml, copied_to_tune)
+                                  os.path.basename(args.model))
+    shutil.copy(args.model, copied_to_tune)
     NineCellMetaClass(copied_reference, build_mode='build_only')
     NineCellMetaClass(copied_to_tune, build_mode='build_only')
-    args.reference_9ml = copied_reference
-    args.to_tune_9ml = copied_to_tune
+    args.reference = copied_reference
+    args.model = copied_to_tune
 
 
 if __name__ == '__main__':
