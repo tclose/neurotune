@@ -82,11 +82,17 @@ class InspyredAlgorithm(Algorithm):
               .format(indiv_path))
         # Ensure the files don't exist, deleting them if they do
         if os.path.exists(stats_path):
-            raise Exception("Statistics file '{}' already exists"
-                            .format(stats_path))
+            if __debug__:
+                os.remove(stats_path)
+            else:
+                raise Exception("Statistics file '{}' already exists"
+                                .format(stats_path))
         if os.path.exists(indiv_path):
-            raise Exception("Individuals file '{}' already exists"
-                            .format(stats_path))
+            if __debug__:
+                os.remove(indiv_path)
+            else:
+                raise Exception("Individuals file '{}' already exists"
+                                .format(stats_path))
         with open(stats_path, 'w') as stats_f, open(indiv_path, 'w') as ind_f:
             pop = ea.evolve(generator=self.uniform_random_chromosome,
                             evaluator=evaluator,
@@ -120,8 +126,8 @@ class MultiObjectiveInspyredAlgorithm(InspyredAlgorithm):
         # general)
         def pareto_evaluator(candidates, args):  # @UnusedVariable
             return ec.emo.Pareto(evaluator(candidates))
-        super(MultiObjectiveInspyredAlgorithm, self).optimize(pareto_evaluator,
-                                                              **kwargs)
+        return super(MultiObjectiveInspyredAlgorithm, self).\
+                                           optimize(pareto_evaluator, **kwargs)
 
 
 class GAAlgorithm(InspyredAlgorithm):
