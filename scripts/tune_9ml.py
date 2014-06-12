@@ -28,14 +28,15 @@ import cPickle as pkl
 true_parameters = []
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('reference', type=inputpath,
+parser.add_argument('model', type=str,
+                    help="The path of the 9ml cell to tune")
+parser.add_argument('reference', type=str,
                     help="Either a path to a analog signal trace in Neo "
                          "format or a path to a 9ml cell model which will be "
                          "simulated and the resulting trace will be used as a"
                          "reference")
-parser.add_argument('model', type=inputpath,
-                    help="The path of the 9ml cell to tune")
-parser.add_argument('output', type=outputpath,
+parser.add_argument('--output', type=outputpath,
+                    default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will be "
                          "written")
 parser.add_argument('--build', type=str, default='lazy',
@@ -116,10 +117,10 @@ def get_objective(args):
     reference = load_reference(args)
     # Distribute the objective arguments between the (possibly) multiple
     # objectives
-    objective_args = [{} for _ in xrange(len(args.objective))]
+    objective_args = [{}] * (len(args.objective) if args.objective else 2)
     for oa in args.objective_argument:
         try:
-            index = oa[2]
+            index = int(oa[2])
         except IndexError:
             index = 0
         objective_args[index][oa[0]] = oa[1]
@@ -140,7 +141,12 @@ def get_objective(args):
                                                        **objective_args[0])
         # Use the default objective
         else:
-            objective = WeightedSumObjective(
+            if args.algorithm in ('nsga2', 'pareto_archived'):
+                objective = MultiObjective(
+                                       PhasePlanePointwiseObjective(reference),
+                                       SpikeFrequencyObjective(reference))
+            else:
+                objective = WeightedSumObjective(
                                 (1.0, PhasePlanePointwiseObjective(reference)),
                                 (75.0, SpikeFrequencyObjective(reference)))
     except KeyError as e:
