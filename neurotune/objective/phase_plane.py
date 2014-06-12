@@ -18,9 +18,9 @@ class PhasePlaneObjective(Objective):
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    def __init__(self, reference, time_start=500.0 * pq.ms,
-                 time_stop=2000.0 * pq.ms, record_variable=None,
-                 exp_conditions=None, dvdt2v_scale=0.25, interp_order=3):
+    def __init__(self, reference, time_start=None, time_stop=None,
+                 record_variable=None, exp_conditions=None, dvdt2v_scale=0.25,
+                 interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
         that with the histograms from the simulated traces
@@ -41,6 +41,10 @@ class PhasePlaneObjective(Objective):
                               traces (see scipy.interpolate.interp1d for list
                               of options) [str]
         """
+        if time_start is None:
+            time_start = (reference.t_stop - reference.t_start) / 4.0
+        if time_stop is None:
+            time_stop = reference.t_stop
         super(PhasePlaneObjective, self).__init__(time_start, time_stop)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
