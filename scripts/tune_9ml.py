@@ -9,7 +9,7 @@ import math
 import neo
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.arguments import inputpath, outputpath
+from nineline.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
@@ -27,65 +27,73 @@ import cPickle as pkl
 
 true_parameters = []
 
+
+def add_tune_arguments(parser):
+    parser.add_argument('-o', '--objective', type=str, nargs='+',
+                        default=[], action='append',
+                        metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
+                        help="Selects which objective function to use "
+                             "out of 'histogram', 'pointwise', 'frequency', "
+                             "'spike_times' or a combination (potentially "
+                             "weighted) of them (default: 'pointwise')")
+    parser.add_argument('-p', '--parameter', nargs=4, default=[],
+                        action='append',
+                        metavar=('NAME', 'LBOUND', 'UBOUND', 'LOG_SCALE'),
+                        help="Sets a parameter to tune and its lower and upper"
+                             " bounds")
+    parser.add_argument('--parameter_set', type=str, default=[], nargs='+',
+                        metavar=('SET_NAME', 'SET_ARGS'),
+                        help="Select which parameter set to tune from a few "
+                             "descriptions")
+    parser.add_argument('--num_generations', type=int, default=100,
+                        help="The number of generations (iterations) to run "
+                             "the algorithm for")
+    parser.add_argument('--population_size', type=int, default=100,
+                        help="The number of genomes in a generation")
+    parser.add_argument('--algorithm', type=str, default='eda',
+                        help="The type of algorithm used for the tuning. Can "
+                             " be one of '{}' (default: %(default)s)"
+                             .format("', '". join(algorithm_types.keys())))
+    parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
+                        default=[], metavar=('KEY', 'ARG'),
+                        help="Extra arguments to be passed to the algorithm")
+    parser.add_argument('-b', '--objective_argument', nargs=3, action='append',
+                        metavar=('KEY', 'ARG', 'OBJECTIVE_INDEX'), default=[],
+                        help="Extra keyword arguments to pass to the objective"
+                             "function (can specify which objective in a "
+                             "objective method by the third \"index\" "
+                             "argument")
+    parser.add_argument('--verbose', action='store_true', default=False,
+                        help="Whether to print out which candidates are being "
+                        "evaluated on which nodes")
+    parser.add_argument('--replacer', type=str, default=None,
+                        help="The replacement component of the evolutionary "
+                             "algorithm. Can be one of ('{}')"
+                             .format("', '". join(replacer_types.keys())))
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('model', type=str,
                     help="The path of the 9ml cell to tune")
 parser.add_argument('reference', type=str,
-                    help="Either a path to a analog signal trace in Neo "
-                         "format or a path to a 9ml cell model which will be "
-                         "simulated and the resulting trace will be used as a"
-                         "reference")
+                    help="Either a path to a analog signal trace in "
+                         "Neo format or a path to a 9ml cell model "
+                         "which will be simulated and the resulting "
+                         "trace will be used as a reference")
+parser.add_argument('--build', type=str, default='lazy',
+                    help="Option to build the NMODL files before "
+                         "running (can be one of {})"
+                         .format(BUILD_MODE_OPTIONS))
+parser.add_argument('--time', type=float, default=2000.0,
+                   help="Recording time")
 parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
-                    help="The path to the output file where the grid will be "
-                         "written")
-parser.add_argument('--build', type=str, default='lazy',
-                    help="Option to build the NMODL files before running (can "
-                         "be one of {})".format(BUILD_MODE_OPTIONS))
+                    help="The path to the output file where the grid will"
+                         "be written")
 parser.add_argument('--timestep', type=float, default=0.025,
                     help="The timestep used for the simulation "
                          "(default: %(default)s)")
-parser.add_argument('--time', type=float, default=2000.0,
-                       help="Recording time")
-parser.add_argument('-o', '--objective', type=str, nargs='+',
-                    default=[], action='append',
-                    metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
-                    help="Selects which objective function to use "
-                         "out of 'histogram', 'pointwise', 'frequency', "
-                         "'spike_times' or a combination (potentially "
-                         "weighted) of them (default: 'pointwise')")
-parser.add_argument('-p', '--parameter', nargs=4, default=[], action='append',
-                    metavar=('NAME', 'LBOUND', 'UBOUND', 'LOG_SCALE'),
-                    help="Sets a parameter to tune and its lower and upper "
-                         "bounds")
-parser.add_argument('--parameter_set', type=str, default=[], nargs='+',
-                    metavar=('SET_NAME', 'SET_ARGS'),
-                    help="Select which parameter set to tune from a few "
-                         "descriptions")
-parser.add_argument('--num_generations', type=int, default=100,
-                    help="The number of generations (iterations) to run the "
-                         "algorithm for")
-parser.add_argument('--population_size', type=int, default=100,
-                    help="The number of genomes in a generation")
-parser.add_argument('--algorithm', type=str, default='eda',
-                    help="The type of algorithm used for the tuning. Can be "
-                         "one of '{}' (default: %(default)s)"
-                         .format("', '". join(algorithm_types.keys())))
-parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
-                    default=[], metavar=('KEY', 'ARG'),
-                    help="Extra arguments to be passed to the algorithm")
-parser.add_argument('-b', '--objective_argument', nargs=3, action='append',
-                    metavar=('KEY', 'ARG', 'OBJECTIVE_INDEX'), default=[],
-                    help="Extra keyword arguments to pass to the objective "
-                         "function (can specify which objective in a "
-                         "objective method by the third \"index\" argument")
-parser.add_argument('--verbose', action='store_true', default=False,
-                    help="Whether to print out which candidates are being "
-                    "evaluated on which nodes")
-parser.add_argument('--replacer', type=str, default=None,
-                    help="The replacement component of the evolutionary "
-                         "algorithm. Can be one of ('{}')"
-                         .format("', '". join(replacer_types.keys())))
+add_tune_arguments(parser)
+
 
 obj_dict = {'histogram': PhasePlaneHistObjective,
             'pointwise': PhasePlanePointwiseObjective,
@@ -113,8 +121,9 @@ def load_reference(args):
     return reference
 
 
-def get_objective(args):
-    reference = load_reference(args)
+def get_objective(args, reference=None):
+    if reference is None:
+        reference = load_reference(args)
     # Distribute the objective arguments between the (possibly) multiple
     # objectives
     objective_args = [{}] * (len(args.objective) if args.objective else 2)

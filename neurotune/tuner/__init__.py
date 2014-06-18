@@ -185,3 +185,7 @@ class Tuner(object):
         Provided for convenient interoperability with the MPITuner class
         """
         return True
+
+    @property
+    def num_parameters(self):
+        return len(self.tune_parameters)

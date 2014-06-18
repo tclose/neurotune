@@ -19,15 +19,6 @@ class Algorithm(object):
     # can handle such values more gracefully (such as GridAlgorithm).
     BAD_FITNESS_VALUE = 1e20
 
-    def __init__(self, evaluator, mutation_rate, maximize, seeds,
-                 population_size):
-        self.evaluator = evaluator
-        self.population_size = population_size
-        self.maximize = maximize
-        self.mutation_rate = mutation_rate
-        self.seeds = seeds
-        self.tuner = None
-
     def optimize(self, evaluator):
         """
         The optimisation algorithm, which takes the tries to minimise the
