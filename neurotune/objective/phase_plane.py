@@ -3,7 +3,6 @@ from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 from numpy.linalg import norm
 import scipy.signal
-import quantities as pq
 import neo.io
 from . import Objective
 from ..analysis import AnalysedSignal
