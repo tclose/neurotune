@@ -103,7 +103,8 @@ class InspyredAlgorithm(Algorithm):
                             statistics_file=stats_f,
                             individuals_file=ind_f,
                             **evolve_kwargs)
-        return pop, ea
+        fittest = min(pop, key=lambda c: c.fitness)
+        return fittest.candidate, fittest.fitness, (pop, ea)
 
     def set_random_seed(self, seed=None):
         if seed is None:

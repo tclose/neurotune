@@ -61,7 +61,7 @@ class MPITuner(Tuner):
                 self._release_slaves()
         else:
             self._listen_for_candidates()
-            result = (None, None)
+            result = (None, None, None)  # To fit with return tuple on master
         return result
 
     def __del__(self):

@@ -60,7 +60,9 @@ class AmalgamAlgorithm(Algorithm):
         lbounds, ubounds = zip(*self.constraints)
         fitness, candidate = amalgam_full(evaluator, self.tuner.num_parameters,
                                           lbounds, ubounds, **self.kwargs)
-        return candidate, fitness
+        # The third value is provided to match other libraries, which might
+        # return other information about the tuning process
+        return candidate, fitness, None
 
 
 class FullAmalgamAlgorithm(AmalgamAlgorithm):

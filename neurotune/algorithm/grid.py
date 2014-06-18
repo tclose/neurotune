@@ -66,8 +66,10 @@ class GridAlgorithm(Algorithm):
                                          list(num_steps))
         else:
             # Get fittest candidate
-            fittest_candidate = candidates[fitnesses.argmin(), :]
+            fittest_fitness_i = fitnesses.argmin()
+            fittest_candidate = candidates[fittest_fitness_i, :]
+            fittest_fitness = fitnesses[fittest_fitness_i]
             fitness_grid = numpy.reshape(fitnesses, num_steps)
-        # return fittest candidate and grid of fitnesses (for plotting
-        # potentially)
-        return fittest_candidate, fitness_grid
+        # return fittest candidate, its fitness and grid of fitnesses (for
+        # plotting potentially)
+        return fittest_candidate, fittest_fitness, fitness_grid

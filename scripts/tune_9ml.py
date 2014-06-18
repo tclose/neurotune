@@ -245,21 +245,18 @@ def run(args, parameters=None, algorithm=None, objective=None,
     tuner.true_candidate = true_parameters
     # Run the tuner
     try:
-        pop, _ = tuner.tune()
+        candidate, fitness, _ = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output),
                             'evaluation_exception.pkl'))
         raise
     # Save the file if the tuner is the master
     if tuner.is_master():
-        fittest_individual = min(pop, key=lambda c: c.fitness)
         print ("Fittest candidate (fitness {}): {}"
-              .format(fittest_individual.fitness,
-                      fittest_individual.candidate))
+              .format(fitness, candidate))
         # Save the grid to file
         with open(args.output, 'w') as f:
-            pkl.dump((fittest_individual.candidate, fittest_individual.fitness,
-                      pop), f)
+            pkl.dump((candidate, fitness), f)
 
 
 def prepare_work_dir(submitter, args):

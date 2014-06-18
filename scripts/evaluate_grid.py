@@ -7,20 +7,13 @@ import argparse
 import sys
 import shutil
 import cPickle as pkl
-import quantities as pq
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller
+from nineline.cells.neuron import NineCellMetaClass
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
-from neurotune.objective.multi import MultiObjective
-from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
-                                             PhasePlanePointwiseObjective)
-from neurotune.objective.spike import (SpikeFrequencyObjective,
-                                       SpikeTimesObjective)
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.analysis import AnalysedSignal
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
@@ -64,11 +57,6 @@ parser.add_argument('--save_recordings', type=outputpath, default=None,
                     metavar='DIRECTORY',
                     help="Save recordings to file")
 
-# # The parameters to be tuned by the tuner
-# parameters = [Parameter('diam', 'um', 20.0, 40.0),
-#               Parameter('soma.Lkg.gbar', 'S/cm^2', -6, -4, /log_scale=True)]
-# 1e-5, 3e-5)]
-
 objective_names = ['Phase-plane Histogram', 'Phase-plane Pointwise',
                    'Spike Frequency', 'Spike Times']
 
@@ -87,20 +75,6 @@ def run(args):
     args.algorithm = 'eda'
     objective = get_objective(args)
     # Generate the reference trace from the original class
-#     cell = NineCellMetaClass(args.reference_9ml)()
-#     cell.record('v')
-#     simulation_controller.run(simulation_time=args.time,
-#                               timestep=args.timestep)
-    # Instantiate the multi-objective objective from 3 phase-plane objectives
-#     reference = AnalysedSignal(cell.get_recording('v'))
-#     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
-#     objective = MultiObjective(PhasePlaneHistObjective(reference),
-#                                PhasePlanePointwiseObjective(reference, 100,
-#                                                             (20, -20)),
-#                                SpikeFrequencyObjective(sliced_reference.\
-#                                                        spike_frequency()),
-#                                SpikeTimesObjective(sliced_reference.\
-#                                                    spikes()))
     # Instantiate the tuner
     tuner = Tuner(parameters,
                   objective,
@@ -110,14 +84,14 @@ def run(args):
                   save_recordings=args.save_recordings)
     # Run the tuner
     try:
-        pop, grid = tuner.tune()
+        candidate, fitness, grid = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output),
                             'evaluation_exception.pkl'))
         raise
     # Save the file if the tuner is the master
     if tuner.is_master():
-        print "Fittest candidate {}".format(pop)
+        print "Fittest candidate ({}) {}".format(fitness, candidate)
         # Save the grid to file
         with open(args.output, 'w') as f:
             pkl.dump(grid, f)
