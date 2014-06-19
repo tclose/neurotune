@@ -6,6 +6,7 @@ Algorithm (EDA) source code, which can be downloaded here
 http://homepages.cwi.nl/~bosman/source_code.php
 """
 from __future__ import absolute_import, print_function
+import os.path
 from abc import ABCMeta  # Metaclass for abstract base classes
 from . import Algorithm, add_factory_to_register
 from amalgam import amalgam_full
@@ -122,7 +123,7 @@ def algorithm_factory(args):
     except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     kwargs = dict(args.optimize_argument)
-    return Algorithm(**kwargs)
+    return Algorithm(output_dir=os.path.dirname(args.output), **kwargs)
 
 
 # Register algorithm loader with the short names for the algorithms
