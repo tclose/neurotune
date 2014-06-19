@@ -69,10 +69,12 @@ def add_option_adder_to_register(option_adder):
 
 # Import sub-modules who should then register a loader in the
 # algorithm register
-for modname in os.listdir(__file__):
-    if modname.endswith('.py'):
+for fname in os.listdir(os.path.dirname(__file__)):
+    if fname.endswith('.py') and not fname.startswith('_'):
+        modname = os.path.splitext(fname)[0]
         try:
             __import__(__name__ + '.' + modname)
         except ImportError:
             print ("Algorithm module '{}' is not installed or did not load "
                    "correctly".format(__name__ + '.' + modname))
+ 
