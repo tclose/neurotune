@@ -9,20 +9,22 @@ from .__init__ import Simulation
 class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
 
-    def __init__(self, cell_9ml, build_mode='lazy'):
+    def __init__(self, celltype, build_mode='lazy'):
         """
         `cell_9ml`    -- A 9ml file [str]
         """
         # Generate the NineLine class from the nineml file and initialise a
         # single cell from it
-        self.cell_9ml = cell_9ml
-        self.celltype = NineCellMetaClass(cell_9ml, build_mode=build_mode)
+        if isinstance(celltype, str):
+            self.celltype = NineCellMetaClass(celltype, build_mode=build_mode)
+        else:
+            self.celltype = celltype
         self.default_seg = self.celltype().source_section.name
         self.genome_keys = []
         self.log_scales = []
 
-    def __reduce__(self):
-        return self.__class__, (self.cell_9ml, 'lazy')
+    def __getinitargs__(self):
+        return (self.celltype, 'lazy')
 
     def set_tune_parameters(self, tune_parameters):
         super(NineLineSimulation, self).set_tune_parameters(tune_parameters)

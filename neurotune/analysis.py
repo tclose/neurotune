@@ -139,8 +139,12 @@ class AnalysedSignal(neo.core.AnalogSignal):
         '''
         Equality test (==).
         '''
-        return ((self._base() == other._base()).all() and
-                self._spikes == other._spikes and
+        base_test = self._base() == other._base()
+        try:
+            base_eq = base_test.all()
+        except AttributeError:
+            base_eq = False
+        return (base_eq and self._spikes == other._spikes and
                 self._dvdt == other._dvdt)
 
     @property
@@ -319,15 +323,20 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                                     self[start_i:stop_i],
                                                     self.dvdt[start_i:stop_i],
                                                     dvdt2v_scale, interp_order)
-            start_s = brentq(lambda x: (dvdt_spl(x) - start_thresh),
-                             s[0], s[index_buffer * 2])
-            end_s = brentq(lambda x: (dvdt_spl(x) - stop_thresh),
-                           s[-index_buffer * 2], s[-1])
-            # Over the loop length interpolate the splines at a fixed number of
-            # points
-            spike_s = numpy.linspace(start_s, end_s, num_samples)
-            spike = numpy.array((v_spl(spike_s), dvdt_spl(spike_s)))
-            spikes.append(spike)
+            try:
+                start_s = brentq(lambda x: (dvdt_spl(x) - start_thresh),
+                                 s[0], s[min(index_buffer * 2, len(s) - 1)])
+                end_s = brentq(lambda x: (dvdt_spl(x) - stop_thresh),
+                               s[max(-index_buffer * 2, 0)], s[-1])
+                # Over the loop length interpolate the splines at a fixed
+                # number of points
+                spike_s = numpy.linspace(start_s, end_s, num_samples)
+                spike = numpy.array((v_spl(spike_s), dvdt_spl(spike_s)))
+                spikes.append(spike)
+            except ValueError:
+                # If the integration got screwy at some point ignore this spike
+                if not (self.dvdt > 10 ** 4).any():
+                    raise
         return spikes
 
     def slice(self, t_start, t_stop):
@@ -404,6 +413,8 @@ class AnalysedSignalSlice(AnalysedSignal):
         obj.parent = signal
         obj._start_index = start_index
         obj._stop_index = end_index
+        obj._slce_start = t_start  # These values are saved for pickling
+        obj._slce_stop = t_stop  # These values are saved for pickling
         return obj
 
     def __eq__(self, other):
@@ -418,7 +429,7 @@ class AnalysedSignalSlice(AnalysedSignal):
         '''
         Reduce the sliced analysedSignal for pickling
         '''
-        return self.__class__, (self.parent, self.t_start, self.t_stop)
+        return self.__class__, (self.parent, self._slce_start, self._slce_stop)
 
     @property
     def dvdt(self):
