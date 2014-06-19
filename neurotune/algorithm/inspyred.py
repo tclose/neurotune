@@ -10,7 +10,7 @@ from abc import ABCMeta  # Metaclass for abstract base classes
 from time import time
 from random import Random
 from inspyred import ec
-from . import Algorithm
+from . import Algorithm, add_loader_to_register
 
 
 class InspyredAlgorithm(Algorithm):
@@ -313,3 +313,22 @@ replacer_types = {'truncation': ec.replacers.truncation_replacement,
                   'crowding': ec.replacers.crowding_replacement,
                   'simulated_annealing': ec.replacers.\
                                                simulated_annealing_replacement}
+
+
+def get_algorithm(args):
+    try:
+        Algorithm = algorithm_types[args.algorithm]
+    except KeyError:
+        raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
+    kwargs = dict(args.optimize_argument)
+    if args.replacer:
+        kwargs['replacer'] = replacer_types[args.replacer]
+    return Algorithm(args.population_size,
+                     max_generations=args.num_generations,
+                     observer=[ec.observers.population_observer],
+                     output_dir=os.path.dirname(args.output), **kwargs)
+
+
+# Register algorithm loader with the short names for the algorithms
+for key in algorithm_types.iterkeys():
+    add_loader_to_register(key, get_algorithm)

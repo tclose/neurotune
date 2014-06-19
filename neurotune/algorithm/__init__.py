@@ -5,6 +5,7 @@ optimisation libraries could be added as well.
 """
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
+import pkgutil
 
 
 class Algorithm(object):
@@ -39,3 +40,29 @@ class Algorithm(object):
 
     def uniform_random_chromosome(self, random, args):  # @UnusedVariable
         return [random.uniform(lo, hi) for lo, hi in self.constraints]
+
+
+def get_algorithm(args):
+    try:
+        return _register[args.algorithm](args)
+    except KeyError:
+        raise Exception("Unrecognised algorithm type '{}'. Valid options are "
+                        "'{}'. Make sure the module of the algorithm you wish "
+                        "to use can be imported successfully")
+
+
+def add_loader_to_register(key, loader):
+    if key in _register:
+        raise Exception("Attempted to add onflicting algorithm keys '{}' to"
+                        "loader")
+    _register[key] = loader
+
+
+# Import sub-modules who should then register a loader in the
+# algorithm register
+_register = {}
+for _, modname, _ in pkgutil.iter_modules(__path__):
+    try:
+        __import__(modname)
+    except:
+        pass

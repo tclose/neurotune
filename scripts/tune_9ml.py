@@ -18,6 +18,7 @@ from neurotune.objective.multi import MultiObjective, WeightedSumObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
 from neurotune.algorithm.inspyred import ec, algorithm_types, replacer_types
+from neurotune.algorithm import get_algorithm
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -162,20 +163,6 @@ def get_objective(args, reference=None):
         raise Exception("Unrecognised objective '{}' passed to '--objective' "
                         "option".format(e))
     return objective
-
-
-def get_algorithm(args):
-    try:
-        Algorithm = algorithm_types[args.algorithm]
-    except KeyError:
-        raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
-    kwargs = dict(args.optimize_argument)
-    if args.replacer:
-        kwargs['replacer'] = replacer_types[args.replacer]
-    return Algorithm(args.population_size,
-                     max_generations=args.num_generations,
-                     observer=[ec.observers.population_observer],
-                     output_dir=os.path.dirname(args.output), **kwargs)
 
 
 def get_parameters(args):

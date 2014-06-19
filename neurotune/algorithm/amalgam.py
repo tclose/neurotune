@@ -7,7 +7,7 @@ http://homepages.cwi.nl/~bosman/source_code.php
 """
 from __future__ import absolute_import, print_function
 from abc import ABCMeta  # Metaclass for abstract base classes
-from . import Algorithm
+from . import Algorithm, add_loader_to_register
 from amalgam import amalgam_full
 
 
@@ -113,3 +113,19 @@ class FullAmalgamAlgorithm(AmalgamAlgorithm):
         self.kwargs['st_dev_ratio_threshold'] = st_dev_ratio_threshold
         self.kwargs['maximum_no_improvement_stretch'] = max_no_improvement
         self.kwargs['output_dir'] = output_dir
+
+
+algorithm_types = {'amalgam-full': FullAmalgamAlgorithm}
+
+
+def get_algorithm(args):
+    try:
+        Algorithm = algorithm_types[args.algorithm]
+    except KeyError:
+        raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
+    return Algorithm()
+
+
+# Register algorithm loader with the short names for the algorithms
+for key in algorithm_types.iterkeys():
+    add_loader_to_register(key, get_algorithm)
