@@ -99,3 +99,11 @@ class SpikeTimesObjective(Objective):
         for ref_spike in self.ref_inner:
             fitness += float(numpy.square(spikes - ref_spike).min())
         return fitness
+
+
+class MinCurrentToSpikeObjective(Objective):
+
+    def __init__(self):
+        pass
+
+    
