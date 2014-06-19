@@ -77,4 +77,3 @@ for fname in os.listdir(os.path.dirname(__file__)):
         except ImportError:
             print ("Algorithm module '{}' is not installed or did not load "
                    "correctly".format(__name__ + '.' + modname))
- 
