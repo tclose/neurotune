@@ -2,6 +2,7 @@
 """
 Tunes a model against a reference trace or 9ml simulation
 """
+from __future__ import absolute_import
 import argparse
 import os.path
 import shutil
@@ -17,8 +18,7 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
 from neurotune.objective.multi import MultiObjective, WeightedSumObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective)
-from neurotune.algorithm.inspyred import ec, algorithm_types, replacer_types
-from neurotune.algorithm import get_algorithm
+from neurotune.algorithm import algorithm_factory, available_algorithms
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -54,7 +54,7 @@ def add_tune_arguments(parser):
     parser.add_argument('--algorithm', type=str, default='eda',
                         help="The type of algorithm used for the tuning. Can "
                              " be one of '{}' (default: %(default)s)"
-                             .format("', '". join(algorithm_types.keys())))
+                             .format("', '". join(available_algorithms.keys())))
     parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
                         default=[], metavar=('KEY', 'ARG'),
                         help="Extra arguments to be passed to the algorithm")
@@ -67,10 +67,6 @@ def add_tune_arguments(parser):
     parser.add_argument('--verbose', action='store_true', default=False,
                         help="Whether to print out which candidates are being "
                         "evaluated on which nodes")
-    parser.add_argument('--replacer', type=str, default=None,
-                        help="The replacement component of the evolutionary "
-                             "algorithm. Can be one of ('{}')"
-                             .format("', '". join(replacer_types.keys())))
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('model', type=str,
@@ -219,7 +215,7 @@ def run(args, parameters=None, algorithm=None, objective=None,
     if not parameters:
         parameters = get_parameters(args)
     if not algorithm:
-        algorithm = get_algorithm(args)
+        algorithm = algorithm_factory(args)
     if not objective:
         objective = get_objective(args)
     if not simulation:

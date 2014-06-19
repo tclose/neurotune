@@ -7,7 +7,7 @@ http://homepages.cwi.nl/~bosman/source_code.php
 """
 from __future__ import absolute_import, print_function
 from abc import ABCMeta  # Metaclass for abstract base classes
-from . import Algorithm, add_loader_to_register
+from . import Algorithm, add_factory_to_register
 from amalgam import amalgam_full
 
 
@@ -102,30 +102,29 @@ class FullAmalgamAlgorithm(AmalgamAlgorithm):
                                     generations without an improvement while
                                     the distribution multiplier is <= 1.0.
         """
-        self.kwargs['rotation_angle'] = rotation_angle
-        self.kwargs['number_of_populations'] = num_populations
-        self.kwargs['maximum_number_of_evaluations'] = max_evaluations
-        self.kwargs['vtr'] = value_to_reach
-        self.kwargs['fitness_variance_tolerance'] = fitness_variance_tol
-        self.kwargs['tau'] = tau
-        self.kwargs['population_size'] = population_size
-        self.kwargs['distribution_multiplier_decrease'] = distr_mult_decrease
-        self.kwargs['st_dev_ratio_threshold'] = st_dev_ratio_threshold
-        self.kwargs['maximum_no_improvement_stretch'] = max_no_improvement
-        self.kwargs['output_dir'] = output_dir
-
+        self.kwargs = {'rotation_angle': rotation_angle,
+                       'number_of_populations': num_populations,
+                       'maximum_number_of_evaluations': max_evaluations,
+                       'vtr': value_to_reach,
+                       'fitness_variance_tolerance': fitness_variance_tol,
+                       'tau': tau, 'population_size': population_size,
+                       'distribution_multiplier_decrease': distr_mult_decrease,
+                       'st_dev_ratio_threshold': st_dev_ratio_threshold,
+                       'maximum_no_improvement_stretch': max_no_improvement,
+                       'output_dir': output_dir}
 
 algorithm_types = {'amalgam-full': FullAmalgamAlgorithm}
 
 
-def get_algorithm(args):
+def algorithm_factory(args):
     try:
         Algorithm = algorithm_types[args.algorithm]
     except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
-    return Algorithm()
+    kwargs = dict(args.optimize_argument)
+    return Algorithm(**kwargs)
 
 
 # Register algorithm loader with the short names for the algorithms
 for key in algorithm_types.iterkeys():
-    add_loader_to_register(key, get_algorithm)
+    add_factory_to_register(key, algorithm_factory)

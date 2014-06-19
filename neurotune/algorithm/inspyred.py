@@ -9,8 +9,8 @@ from copy import copy
 from abc import ABCMeta  # Metaclass for abstract base classes
 from time import time
 from random import Random
+from . import Algorithm, add_factory_to_register, add_option_adder_to_register
 from inspyred import ec
-from . import Algorithm, add_loader_to_register
 
 
 class InspyredAlgorithm(Algorithm):
@@ -315,7 +315,7 @@ replacer_types = {'truncation': ec.replacers.truncation_replacement,
                                                simulated_annealing_replacement}
 
 
-def get_algorithm(args):
+def algorithm_factory(args):
     try:
         Algorithm = algorithm_types[args.algorithm]
     except KeyError:
@@ -329,6 +329,15 @@ def get_algorithm(args):
                      output_dir=os.path.dirname(args.output), **kwargs)
 
 
+def add_options(parser):
+    parser.add_argument('--replacer', type=str, default=None,
+                        help="The replacement component of the evolutionary "
+                             "algorithm. Can be one of ('{}')"
+                             .format("', '". join(replacer_types.keys())))
+
+
 # Register algorithm loader with the short names for the algorithms
 for key in algorithm_types.iterkeys():
-    add_loader_to_register(key, get_algorithm)
+    add_factory_to_register(key, algorithm_factory)
+
+add_option_adder_to_register(add_options)

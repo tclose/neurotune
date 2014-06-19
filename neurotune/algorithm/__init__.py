@@ -42,27 +42,35 @@ class Algorithm(object):
         return [random.uniform(lo, hi) for lo, hi in self.constraints]
 
 
-def get_algorithm(args):
+def algorithm_factory(args):
     try:
-        return _register[args.algorithm](args)
+        return available_algorithms[args.algorithm](args)
     except KeyError:
         raise Exception("Unrecognised algorithm type '{}'. Valid options are "
                         "'{}'. Make sure the module of the algorithm you wish "
                         "to use can be imported successfully")
 
+# TODO: These variables should be enclosed in a singleton 'Factory' class
+available_algorithms = {}
+script_options = []
 
-def add_loader_to_register(key, loader):
-    if key in _register:
+
+def add_factory_to_register(key, loader):
+    if key in available_algorithms:
         raise Exception("Attempted to add onflicting algorithm keys '{}' to"
                         "loader")
-    _register[key] = loader
+    available_algorithms[key] = loader
+
+
+def add_option_adder_to_register(option_adder):
+    script_options.append(option_adder)
 
 
 # Import sub-modules who should then register a loader in the
 # algorithm register
-_register = {}
-for _, modname, _ in pkgutil.iter_modules(__path__):
+for _, modname, _ in pkgutil.iter_modules(__path__, prefix=__name__ + '.'):
     try:
         __import__(modname)
-    except:
-        pass
+    except ImportError:
+        print ("Algorithm module '{}' is not installed or did not load "
+               "correctly".format(modname))
