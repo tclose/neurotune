@@ -5,6 +5,7 @@ optimisation libraries could be added as well.
 """
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
+import os
 import pkgutil
 
 
@@ -68,9 +69,10 @@ def add_option_adder_to_register(option_adder):
 
 # Import sub-modules who should then register a loader in the
 # algorithm register
-for _, modname, _ in pkgutil.iter_modules(__path__, prefix=__name__ + '.'):
-    try:
-        __import__(modname)
-    except ImportError:
-        print ("Algorithm module '{}' is not installed or did not load "
-               "correctly".format(modname))
+for modname in os.listdir(__file__):
+    if modname.endswith('.py'):
+        try:
+            __import__(__name__ + '.' + modname)
+        except ImportError:
+            print ("Algorithm module '{}' is not installed or did not load "
+                   "correctly".format(__name__ + '.' + modname))
