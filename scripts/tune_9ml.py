@@ -188,7 +188,8 @@ def get_parameters(args):
                     parameters.append(Parameter('soma.{}.gbar'
                                                 .format(comp.name),
                                                 'S/cm^2', lbound, ubound,
-                                                log_scale=True))
+                                                log_scale=True,
+                                                initial_value=gbar_log))
                     true_parameters.append(gbar)
         elif args.parameter_set:
             raise Exception("Unrecognised name '{}' passed to "
@@ -220,6 +221,9 @@ def run(args, parameters=None, algorithm=None, objective=None,
         objective = get_objective(args)
     if not simulation:
         simulation = get_simulation(args)
+    if args.model == args.reference:  # For testing purposes
+        print ("Target parameters:\n{}"
+               .format(', '.join([str(p.initial_value) for p in parameters])))
     tuner = Tuner(parameters,
                   objective,
                   algorithm,

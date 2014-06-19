@@ -324,10 +324,11 @@ class AnalysedSignal(neo.core.AnalogSignal):
                                                     self.dvdt[start_i:stop_i],
                                                     dvdt2v_scale, interp_order)
             try:
+                buff = min(index_buffer * 2, len(s) - 1)
                 start_s = brentq(lambda x: (dvdt_spl(x) - start_thresh),
-                                 s[0], s[min(index_buffer * 2, len(s) - 1)])
+                                 s[0], s[buff])
                 end_s = brentq(lambda x: (dvdt_spl(x) - stop_thresh),
-                               s[max(-index_buffer * 2, 0)], s[-1])
+                               s[-buff], s[-1])
                 # Over the loop length interpolate the splines at a fixed
                 # number of points
                 spike_s = numpy.linspace(start_s, end_s, num_samples)
