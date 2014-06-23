@@ -64,6 +64,7 @@ class GridAlgorithm(Algorithm):
             fitness_grid = numpy.reshape(fitnesses.T,
                                          [fitnesses.shape[1]] +
                                          list(num_steps))
+            fittest_fitness = [f.min() for f in fitnesses.T]
         else:
             # Get fittest candidate
             fittest_fitness_i = fitnesses.argmin()
