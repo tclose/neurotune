@@ -171,6 +171,7 @@ def get_parameters(args):
     # The parameters to be tuned by the tuner
     elif args.parameter_set:
         if args.parameter_set[0] == 'all-gmaxes':
+            parameter_string = ''
             if len(args.parameter_set) != 2:
                 raise Exception("Range of parameters from initial values needs"
                                 " to be provided for 'all-gmaxes' parameter "
@@ -185,12 +186,16 @@ def get_parameters(args):
                     gbar_log = math.log(gbar)
                     lbound = gbar_log - bound_range
                     ubound = gbar_log + bound_range
+                    parameter_string += ("-p soma.{}.gbar {} {} 1 "
+                                         .format(comp.name, lbound, ubound))
                     parameters.append(Parameter('soma.{}.gbar'
                                                 .format(comp.name),
                                                 'S/cm^2', lbound, ubound,
                                                 log_scale=True,
                                                 initial_value=gbar_log))
                     true_parameters.append(gbar)
+            print parameter_string
+            exit()
         elif args.parameter_set:
             raise Exception("Unrecognised name '{}' passed to "
                             "'--parameter_set' option. Can be one of "
@@ -230,6 +235,12 @@ def run(args, parameters=None, algorithm=None, objective=None,
                   simulation,
                   verbose=args.verbose)
     tuner.true_candidate = true_parameters
+    simulation.run_all([-5.199236929692766,
+                    -9.734713131325083, -6.517896559495652, -10.32312547197271,
+                    -3.9638404422839857, -10.743183231386714, -7.654729606825525,
+                    -7.219115355894807, -9.374607276349776, -3.4975809085719023,
+                    -7.197497836385793, -8.107863700022332])
+    print "simulation ran fine"
     # Run the tuner
     try:
         candidate, fitness, _ = tuner.tune()
@@ -262,9 +273,4 @@ def prepare_work_dir(submitter, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    if (Tuner.num_processes - 1) > args.population_size:
-        args.population_size = Tuner.num_processes - 1
-        print ("Warning population size was automatically increased to {} in "
-               "order to match the number of processes"
-               .format(args.population_size))
     run(args)
