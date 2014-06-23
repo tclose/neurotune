@@ -233,12 +233,6 @@ def run(args, parameters=None, algorithm=None, objective=None,
                   simulation,
                   verbose=args.verbose)
     tuner.true_candidate = true_parameters
-    simulation.run_all([-5.199236929692766,
-                    -9.734713131325083, -6.517896559495652, -10.32312547197271,
-                    -3.9638404422839857, -10.743183231386714, -7.654729606825525,
-                    -7.219115355894807, -9.374607276349776, -3.4975809085719023,
-                    -7.197497836385793, -8.107863700022332])
-    print "simulation ran fine"
     # Run the tuner
     try:
         candidate, fitness, _ = tuner.tune()
