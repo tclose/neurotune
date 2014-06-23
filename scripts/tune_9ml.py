@@ -194,8 +194,6 @@ def get_parameters(args):
                                                 log_scale=True,
                                                 initial_value=gbar_log))
                     true_parameters.append(gbar)
-            print parameter_string
-            exit()
         elif args.parameter_set:
             raise Exception("Unrecognised name '{}' passed to "
                             "'--parameter_set' option. Can be one of "
