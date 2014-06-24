@@ -17,7 +17,8 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
 from neurotune.objective.multi import MultiObjective, WeightedSumObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
-                                       SpikeTimesObjective)
+                                       SpikeTimesObjective,
+                                       MinCurrentToSpikeObjective)
 from neurotune.algorithm import algorithm_factory, available_algorithms
 from neurotune.simulation.nineline import NineLineSimulation
 try:
@@ -95,7 +96,8 @@ add_tune_arguments(parser)
 obj_dict = {'histogram': PhasePlaneHistObjective,
             'pointwise': PhasePlanePointwiseObjective,
             'frequency': SpikeFrequencyObjective,
-            'spike_times': SpikeTimesObjective}
+            'spike_times': SpikeTimesObjective,
+            'min_curr2spike': MinCurrentToSpikeObjective}
 
 multi_objective_algorithms = ('nsga2', 'pareto_archived', 'multi-grid')
 
