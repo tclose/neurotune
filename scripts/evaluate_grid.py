@@ -56,7 +56,10 @@ parser.add_argument('--verbose', action='store_true', default=False,
 parser.add_argument('--save_recordings', type=outputpath, default=None,
                     metavar='DIRECTORY',
                     help="Save recordings to file")
-
+parser.add_argument('--algorithm', type=str, default='grid',
+                    help="Can be either 'grid' for all in one grid or"
+                         "'multi-grid' for separate grids for each "
+                         "objective function")
 objective_names = ['Phase-plane Histogram', 'Phase-plane Pointwise',
                    'Spike Frequency', 'Spike Times']
 
