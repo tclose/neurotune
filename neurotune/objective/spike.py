@@ -104,8 +104,9 @@ class SpikeTimesObjective(Objective):
 
 class MinCurrentToSpikeObjective(Objective):
 
-    def __init__(self, time_start=500 * pq.ms, time_stop=2000.0 * pq.ms,
-                 wait_period=500 * pq.ms, max_current=100 * pq.nA, dt=pq.ms):
+    def __init__(self, reference, time_start=500 * pq.ms,  # @UnusedVariable
+                 time_stop=2000.0 * pq.ms, wait_period=500 * pq.ms,
+                 max_current=100 * pq.nA, dt=pq.ms):
         super(MinCurrentToSpikeObjective, self).__init__(time_start, time_stop)
         self.current_start = time_start + wait_period
         if self.current_start > time_stop:
