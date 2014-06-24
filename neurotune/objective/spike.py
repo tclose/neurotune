@@ -104,8 +104,8 @@ class SpikeTimesObjective(Objective):
 
 class MinCurrentToSpikeObjective(Objective):
 
-    def __init__(self, time_start, time_stop, wait_period,
-                 max_current=10 * pq.nA, dt=pq.ms):
+    def __init__(self, time_start=500 * pq.ms, time_stop=2000.0 * pq.ms,
+                 wait_period=500 * pq.ms, max_current=100 * pq.nA, dt=pq.ms):
         super(MinCurrentToSpikeObjective, self).__init__(time_start, time_stop)
         self.current_start = time_start + wait_period
         if self.current_start > time_stop:
@@ -119,11 +119,14 @@ class MinCurrentToSpikeObjective(Objective):
         # starting from time_start + wait_period until time_stop and inject it
         # into the soma
         no_current = numpy.zeros(int(numpy.ceil(self.current_start / dt)))
-        with_current = numpy.arange(0.0, max_current,
-                                   max_current * (time_start - time_stop) / dt)
-        current = numpy.hstack(no_current, with_current, [0.0])
+        current_step = float(pq.Quantity(max_current *
+                                         (time_start - time_stop) / dt, 'nA'))
+        current_ramp = numpy.arange(0.0, float(pq.Quantity(max_current, 'nA')),
+                                    current_step)
+        current = numpy.hstack((no_current, current_ramp, [0.0]))
         self.conditions = ExperimentalConditions(injected_currents={'soma':
-                                neo.AnalogSignal(current, sampling_period=dt)})
+                                neo.AnalogSignal(current, sampling_period=dt,
+                                                 units='nA')})
 
     def get_recording_requests(self):
         """
