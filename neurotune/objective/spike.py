@@ -141,7 +141,8 @@ class MinCurrentToSpikeObjective(Objective):
                                        record_variable=None)}
 
     def fitness(self, analysis):
-        spikes = analysis.get_signal().spikes()
+        spikes = analysis.get_signal().spikes(threshold='v', start=-20.0,
+                                              stop=-20.0)
         if len(spikes):
             fitness = self.max_current * ((spikes[0] - self.current_start) /
                                          (self.time_stop - self.current_start))
