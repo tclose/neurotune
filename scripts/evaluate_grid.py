@@ -115,4 +115,5 @@ def prepare_work_dir(submitter, args):
 
 if __name__ == '__main__':
     args = parser.parse_args()
+    args.algorithm = 'mult-grid'
     run(args)

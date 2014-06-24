@@ -3,7 +3,8 @@ import quantities as pq
 import neo.core
 from nineline.cells.neuron import NineCellMetaClass, \
                                   simulation_controller as nineline_controller
-from .__init__ import Simulation
+from neuron import h
+from . import Simulation
 
 
 class NineLineSimulation(Simulation):
@@ -98,7 +99,7 @@ class NineLineSimulation(Simulation):
         seg.analogsignals.extend(recordings)
         return seg
 
-    def _prepare(self, simulation_setup):
+    def _prepare(self, setup):
         """
         Initialises cell and sets recording sites. Record sites are delimited
         by '.'s into segment names, component names and variable names.
@@ -108,13 +109,28 @@ class NineLineSimulation(Simulation):
         states you must also provide the segment name to disambiguate it from
         the segment name - property case.
 
-        `simulation_setup` -- A set of simulation setup instructions
-                              [Simulation.SimulationSetup]
+        `setup` -- A set of simulation setup instructions [Simulation.Setup]
         """
         # Initialise cell
         self.cell = self.celltype()
-        for rec in simulation_setup.record_variables:
+        for rec in setup.record_variables:
             self.cell.record(*rec)
+        for location, current in setup.conditions.injected_currents:
+            # Insert iclamp into cell
+            # TODO: This should probably go into NineLine instead
+            seg = getattr(self.cell, location)
+            seg.iclamp = h.IClamp(0.5, sec=seg)
+            seg.iclamp_amps = h.Vector(current)
+            seg.iclamp_times = h.Vector(current.times)
+            seg.iclamp_amps.play(seg.iclamp._ref_amp, seg.iclamp_times)
+        for location, clamp in setup.conditions.voltage_clamps:
+            # Insert iclamp into cell
+            # TODO: This should probably go into NineLine instead
+            seg = getattr(self.cell, location)
+            seg.seclamp = h.SEClamp(0.5, sec=seg)
+            seg.seclamp_amps = h.Vector(clamp)
+            seg.seclamp_times = h.Vector(clamp.times)
+            seg.seclamp_amps.play(seg.seclamp._ref_amp, seg.seclamp_times)
 
     def _set_candidate_params(self, candidate):
         """

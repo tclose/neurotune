@@ -4,6 +4,7 @@ import quantities as pq
 import neo.core
 from ..analysis import AnalysedSignal
 from . import Objective
+from ..simulation import RecordingRequest, ExperimentalConditions
 
 
 class SpikeFrequencyObjective(Objective):
@@ -103,7 +104,45 @@ class SpikeTimesObjective(Objective):
 
 class MinCurrentToSpikeObjective(Objective):
 
-    def __init__(self):
-        pass
+    def __init__(self, time_start, time_stop, wait_period,
+                 max_current=10 * pq.nA, dt=pq.ms):
+        super(MinCurrentToSpikeObjective, self).__init__(time_start, time_stop)
+        self.current_start = time_start + wait_period
+        if self.current_start > time_stop:
+            raise Exception("time_start + wait_period ({}) needs to be less "
+                            "then time_stop ({})".format(self.current_start,
+                                                         time_stop))
+        self.wait_period = wait_period
+        self.max_current = max_current
+        self.dt = dt
+        # Generate a linear ramp in current values from 0 to max_current
+        # starting from time_start + wait_period until time_stop and inject it
+        # into the soma
+        no_current = numpy.zeros(int(numpy.ceil(self.current_start / dt)))
+        with_current = numpy.arange(0.0, max_current,
+                                   max_current * (time_start - time_stop) / dt)
+        current = numpy.hstack(no_current, with_current, [0.0])
+        self.conditions = ExperimentalConditions(injected_currents={'soma':
+                                neo.AnalogSignal(current, sampling_period=dt)})
 
-    
+    def get_recording_requests(self):
+        """
+        Returns a RecordingRequest object or a dictionary of RecordingRequest
+        objects with unique keys representing the recordings that are required
+        from the simulation controller
+        """
+        return {None: RecordingRequest(time_start=self.time_start,
+                                       time_stop=self.time_stop,
+                                       conditions=self.exp_conditions,
+                                       record_variable=None)}
+
+    def fitness(self, analysis):
+        spikes = analysis.get_signal().spikes()
+        if len(spikes):
+            fitness = self.max_current * ((spikes[0] - self.current_start) /
+                                         (self.time_stop - self.current_start))
+            if fitness < 0.0:
+                fitness = 0.0
+        else:
+            fitness = self.max_current
+        return fitness

@@ -97,6 +97,8 @@ obj_dict = {'histogram': PhasePlaneHistObjective,
             'frequency': SpikeFrequencyObjective,
             'spike_times': SpikeTimesObjective}
 
+multi_objective_algorithms = ('nsga2', 'pareto_archived', 'multi-grid')
+
 
 def load_reference(args):
     if args.reference.endswith('.9ml'):
@@ -136,7 +138,7 @@ def get_objective(args, reference=None):
         if len(args.objective) > 1:
             objs = [obj_dict[o[0]](reference, **kwargs)
                     for (o, kwargs) in zip(args.objective, objective_args)]
-            if args.algorithm in ('nsga2', 'pareto_archived'):
+            if args.algorithm in multi_objective_algorithms:
                 objective = MultiObjective(*objs)
             else:
                 weights = [float(o[1]) for o in args.objective]
@@ -147,7 +149,7 @@ def get_objective(args, reference=None):
                                                        **objective_args[0])
         # Use the default objective
         else:
-            if args.algorithm in ('nsga2', 'pareto_archived'):
+            if args.algorithm in multi_objective_algorithms:
                 objective = MultiObjective(
                                        PhasePlanePointwiseObjective(reference),
                                        SpikeFrequencyObjective(reference))

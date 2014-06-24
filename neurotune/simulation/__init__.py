@@ -57,27 +57,21 @@ class ExperimentalConditions(object):
     custom ones
     """
 
-    def __init__(self, initial_v=None, clamps=[]):
+    def __init__(self, initial_v={}, injected_currents={}, voltage_clamps={},
+                 synaptic_input={}):
         """
         `initial_v` -- the initial voltage of the membrane
         """
         self.initial_v = initial_v
-        self.clamps = set(clamps)
+        self.injected_currents = injected_currents
+        self.voltage_clamps = voltage_clamps
+        self.synaptic_input = synaptic_input
 
     def __eq__(self, other):
         return (self.initial_v == other.initial_v and
-                self.clamps == other.clamps)
-
-
-class StepCurrentSource(object):
-
-    def __init__(self, amplitudes, times):
-        self.amplitudes = amplitudes
-        self.times = times
-
-    def __eq__(self, other):
-        return (self.amplitudes == other.amplitudes and
-                self.times == other.times)
+                self.injected_currents == other.injected_currents and
+                self.voltage_clamps == other.voltage_clamps and
+                self.synaptic_input == other.synaptic_input)
 
 
 class Simulation():
