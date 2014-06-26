@@ -98,6 +98,10 @@ class AnalysedSignal(neo.core.AnalogSignal):
         return (InterpolatedUnivariateSpline(s, v, k=order),
                 InterpolatedUnivariateSpline(s, dvdt, k=order), s)
 
+    def smooth(self, order=3, smoothing_factor=None):
+        self[:] = UnivariateSpline(self.times, self, k=order,
+                                   s=smoothing_factor)
+
     def __new__(cls, signal):
         if isinstance(signal, AnalysedSignal):
             return signal
