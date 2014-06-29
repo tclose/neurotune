@@ -8,6 +8,7 @@ from __future__ import division
 
 import os
 import pickle
+import quantities as pq
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.objective.spike import MinCurrentToSpikeObjective
 from neurotune.algorithm import Algorithm
@@ -51,10 +52,14 @@ class TestNineLineSimulationConditions(unittest.TestCase):
     def test_injected_currents(self):
         simulation = NineLineSimulation(inactive_nineml_file)
         tuner = Tuner([Parameter('test', 'mS', 0.0, 1.0, False)],  # @UnusedVariable @IgnorePep8
-                      MinCurrentToSpikeObjective(),
+                      MinCurrentToSpikeObjective(max_current=100 * pq.mA),
                       DummyAlgorithm(),
                       simulation)
         recordings = simulation.run_all([0.5])
+        sig = recordings.segments[0].analogsignals[0]
+        from matplotlib import pyplot as plt
+        plt.plot(sig.times, sig)
+        plt.show()
         print recordings
 
 

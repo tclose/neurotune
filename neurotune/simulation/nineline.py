@@ -119,22 +119,10 @@ class NineLineSimulation(Simulation):
             self.cell.record(*rec)
         if 'injected_currents' in setup.conditions:
             for loc, current in setup.conditions['injected_currents'].items():
-                # Insert iclamp into cell
-                # TODO: This should probably go into NineLine instead
-                seg = getattr(self.cell, loc)
-                seg.iclamp = h.IClamp(0.5, sec=seg)
-                seg.iclamp_amps = h.Vector(current)
-                seg.iclamp_times = h.Vector(current.times)
-                seg.iclamp_amps.play(seg.iclamp._ref_amp, seg.iclamp_times)
+                getattr(self.cell, loc).inject_current(current)
         if 'voltage_clamps' in setup.conditions:
-            for loc, clamp in setup.conditions['voltage_clamps'].items():
-                # Insert iclamp into cell
-                # TODO: This should probably go into NineLine instead
-                seg = getattr(self.cell, loc)
-                seg.seclamp = h.SEClamp(0.5, sec=seg)
-                seg.seclamp_amps = h.Vector(clamp)
-                seg.seclamp_times = h.Vector(clamp.times)
-                seg.seclamp_amps.play(seg.seclamp._ref_amp, seg.seclamp_times)
+            for loc, voltages in setup.conditions['voltage_clamps'].items():
+                getattr(self.cell, loc).voltage_clamp(voltages)
 
     def _set_candidate_params(self, candidate):
         """
