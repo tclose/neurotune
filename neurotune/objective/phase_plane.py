@@ -18,7 +18,7 @@ class PhasePlaneObjective(Objective):
     __metaclass__ = ABCMeta
 
     def __init__(self, reference, time_start=None, time_stop=None,
-                 record_variable=None, conditions=None, dvdt2v_scale=0.25,
+                 record_variable=None, conditions={}, dvdt2v_scale=0.25,
                  interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
