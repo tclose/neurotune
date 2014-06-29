@@ -125,9 +125,9 @@ class MinCurrentToSpikeObjective(Objective):
         current_ramp = numpy.arange(0.0, float(pq.Quantity(max_current, 'nA')),
                                     current_step)
         current = numpy.hstack((no_current, current_ramp, [0.0]))
-        self.conditions = ExperimentalConditions(injected_currents={'soma':
-                                neo.AnalogSignal(current, sampling_period=dt,
-                                                 units='nA')})
+        self.exp_conditions = ExperimentalConditions(injected_currents={'soma':
+                                  neo.AnalogSignal(current, sampling_period=dt,
+                                                   units='nA')})
 
     def get_recording_requests(self):
         """

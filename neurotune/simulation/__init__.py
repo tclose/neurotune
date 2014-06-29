@@ -9,46 +9,6 @@ import neo
 import quantities as pq
 
 
-class RecordingRequest(object):
-    """"
-    RecordingRequests are raised by objective functions and are passed to
-    Simulation objects so they can set up the required simulation conditions
-    (eg IClamp, VClamp, spike input) and recorders
-    """
-
-    def __init__(self, time_start=0.0, time_stop=2000.0, record_variable=None,
-                 conditions=None):
-        """
-        `time_stop`     -- the length of the recording required by the
-                             simulation
-        `record_variable` -- the name of the section/synapse/current
-                             to record from (simulation specific)
-        `conditions`      -- the experimental conditions
-                             required (eg. initial voltage, current clamp)
-        """
-        self.time_start = time_start
-        self.time_stop = time_stop
-        self.record_variable = record_variable
-        self.conditions = conditions
-        self.tuner = None
-
-RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
-
-
-class Setup(object):
-    """
-    Groups together all the simulation set-up information to interface to and
-    from a requested simulation
-    """
-
-    def __init__(self, record_time, conditions, record_variables,
-                 var_request_refs):
-        self.record_time = record_time
-        self.conditions = conditions
-        self.record_variables = record_variables
-        self.var_request_refs = var_request_refs
-
-
 class ExperimentalConditions(object):
     """
     Defines the experimental conditions an objective function requires to make
@@ -74,13 +34,56 @@ class ExperimentalConditions(object):
                 self.synaptic_input == other.synaptic_input)
 
 
+class RecordingRequest(object):
+    """"
+    RecordingRequests are raised by objective functions and are passed to
+    Simulation objects so they can set up the required simulation conditions
+    (eg IClamp, VClamp, spike input) and recorders
+    """
+
+    def __init__(self, time_start=0.0, time_stop=2000.0, record_variable=None,
+                 conditions={}):
+        """
+        `time_stop`     -- the length of the recording required by the
+                             simulation
+        `record_variable` -- the name of the section/synapse/current
+                             to record from (simulation specific)
+        `conditions`      -- the experimental conditions required in a
+                             dictionary (eg. initial voltage, current clamp)
+        """
+        self.time_start = time_start
+        self.time_stop = time_stop
+        self.record_variable = record_variable
+        self.conditions = conditions
+        self.tuner = None
+
+
+# Only used within simulation.Setup class (would make it a class method but had
+# issues with pickling.
+RequestRef = namedtuple('RequestRef', 'key time_start time_stop')
+
+
+class Setup(object):
+    """
+    Groups together all the simulation set-up information to interface to and
+    from a requested simulation
+    """
+
+    def __init__(self, record_time, conditions, record_variables,
+                 var_request_refs):
+        self.record_time = record_time
+        self.conditions = conditions
+        self.record_variables = record_variables
+        self.var_request_refs = var_request_refs
+
+
 class Simulation():
     "Base class of Simulation objects"
 
     # Declare this class abstract to avoid accidental construction
     __metaclass__ = ABCMeta
 
-    supported_clamp_types = []
+    supported_conditions = []
 
     def _process_requests(self, recording_requests):
         """
@@ -101,12 +104,11 @@ class Simulation():
         # Merge the common requests into simulation setups
         self._simulation_setups = []
         for conditions, requests_iter in common_conditions:
-            if conditions is not None:
-                for c in conditions.clamps:
-                    if type(c) not in self.supported_clamp_types:
-                        raise Exception("Condition of type {} is not supported"
-                                        " by this Simulation class ({})"
-                                        .format(type(c), self.__class__))
+            for key in conditions.keys():
+                if key not in self.supported_conditions:
+                    raise Exception("Condition of type {} is not supported"
+                                    " by this Simulation class ({})"
+                                    .format(key, self.__class__))
             requests = list(requests_iter)
             # Get the maxium record time in the group
             record_time = max([r[1].time_stop for r in requests])

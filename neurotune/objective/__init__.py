@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 import quantities as pq
-from ..simulation.__init__ import RecordingRequest
+from ..simulation import RecordingRequest
 
 
 class Objective(object):

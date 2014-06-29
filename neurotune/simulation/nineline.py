@@ -10,6 +10,8 @@ from . import Simulation
 class NineLineSimulation(Simulation):
     "A simulation class for 9ml descriptions"
 
+    supported_conditions = ['injected_currents', 'voltage_clamps']
+
     def __init__(self, celltype, build_mode='lazy'):
         """
         `cell_9ml`    -- A 9ml file [str]
@@ -116,18 +118,18 @@ class NineLineSimulation(Simulation):
         for rec in setup.record_variables:
             self.cell.record(*rec)
         if setup.conditions:
-            for location, current in setup.conditions.injected_currents:
+            for loc, current in setup.conditions.injected_currents.iteritems():
                 # Insert iclamp into cell
                 # TODO: This should probably go into NineLine instead
-                seg = getattr(self.cell, location)
+                seg = getattr(self.cell, loc)
                 seg.iclamp = h.IClamp(0.5, sec=seg)
                 seg.iclamp_amps = h.Vector(current)
                 seg.iclamp_times = h.Vector(current.times)
                 seg.iclamp_amps.play(seg.iclamp._ref_amp, seg.iclamp_times)
-            for location, clamp in setup.conditions.voltage_clamps:
+            for loc, clamp in setup.conditions.voltage_clamps.iteritems():
                 # Insert iclamp into cell
                 # TODO: This should probably go into NineLine instead
-                seg = getattr(self.cell, location)
+                seg = getattr(self.cell, loc)
                 seg.seclamp = h.SEClamp(0.5, sec=seg)
                 seg.seclamp_amps = h.Vector(clamp)
                 seg.seclamp_times = h.Vector(clamp.times)

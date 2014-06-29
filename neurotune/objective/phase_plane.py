@@ -339,7 +339,8 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                                            self.interp_order, self.thresh[0],
                                            self.thresh[1])
         if len(self.reference_loops) == 0:
-            raise Exception("No loops found in reference signal")
+            self.reference_loops = [numpy.zeros((2, num_points))]
+#            raise Exception("No loops found in reference signal")
 
     def fitness(self, analysis):
         """
@@ -363,7 +364,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
             recorded_loops[0][1, :] = self.no_spike_reference[1]
         # Create matrix of sum-squared-differences between recorded to
         # reference loops
-        fit_mat = numpy.empty((len(recorded_loops), len(self.reference_loops)))
+        fit_mat = numpy.zeros((len(recorded_loops), len(self.reference_loops)))
         for rec_loop, row in zip(recorded_loops, fit_mat):
             for i, ref_loop in enumerate(self.reference_loops):
                 row[i] = numpy.sum((rec_loop - ref_loop) ** 2)
