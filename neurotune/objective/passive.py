@@ -3,8 +3,7 @@ from abc import ABCMeta  # Metaclass for abstract base classes
 import quantities as pq
 import neo.io
 from .__init__ import Objective
-from ..simulation import RecordingRequest, ExperimentalConditions, \
-                         StepCurrentSource
+from ..simulation import RecordingRequest
 
 
 class PassivePropertiesObjective(Objective):
@@ -26,9 +25,9 @@ class PassivePropertiesObjective(Objective):
         # Save members
         self.record_variable = record_variable
         self.injected_current = injected_current
-        step_source = StepCurrentSource([0, injected_current],
-                                        [0.0, time_start])
-        self.exp_conditions = ExperimentalConditions(clamps=step_source)
+        step_source = neo.AnalogSignal([0, injected_current],
+                                       [0.0, time_start])
+        self.exp_conditions = {'injected_currents': step_source}
 
     def get_recording_requests(self):
         """

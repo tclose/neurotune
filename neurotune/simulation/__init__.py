@@ -9,31 +9,6 @@ import neo
 import quantities as pq
 
 
-class ExperimentalConditions(object):
-    """
-    Defines the experimental conditions an objective function requires to make
-    its evaluation. Can be extended for specific conditions required by novel
-    objective functions but may not be supported by all simulations, especially
-    custom ones
-    """
-
-    def __init__(self, initial_v={}, injected_currents={}, voltage_clamps={},
-                 synaptic_input={}):
-        """
-        `initial_v` -- the initial voltage of the membrane
-        """
-        self.initial_v = initial_v
-        self.injected_currents = injected_currents
-        self.voltage_clamps = voltage_clamps
-        self.synaptic_input = synaptic_input
-
-    def __eq__(self, other):
-        return (self.initial_v == other.initial_v and
-                self.injected_currents == other.injected_currents and
-                self.voltage_clamps == other.voltage_clamps and
-                self.synaptic_input == other.synaptic_input)
-
-
 class RecordingRequest(object):
     """"
     RecordingRequests are raised by objective functions and are passed to
