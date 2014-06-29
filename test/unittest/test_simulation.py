@@ -38,7 +38,7 @@ else:
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                         '..', 'data', '9ml'))
 nineml_file = os.path.join(data_dir, 'Golgi_Solinas08.9ml')
-inactive_nineml_file = os.path.join(data_dir, 'Passive.9ml')
+inactive_nineml_file = os.path.join(data_dir, 'Granule_DeSouza10.9ml')
 
 
 # Create a non-abstract version of the base algorithm to initialise a Tuner
@@ -52,7 +52,7 @@ class TestNineLineSimulationConditions(unittest.TestCase):
     def test_injected_currents(self):
         simulation = NineLineSimulation(inactive_nineml_file)
         tuner = Tuner([Parameter('test', 'mS', 0.0, 1.0, False)],  # @UnusedVariable @IgnorePep8
-                      MinCurrentToSpikeObjective(max_current=100 * pq.mA),
+                      MinCurrentToSpikeObjective(),
                       DummyAlgorithm(),
                       simulation)
         recordings = simulation.run_all([0.5])

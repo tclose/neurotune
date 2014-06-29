@@ -105,30 +105,30 @@ class SpikeTimesObjective(Objective):
 class MinCurrentToSpikeObjective(Objective):
 
     def __init__(self, reference=None, time_start=500 * pq.ms,  # @UnusedVariable @IgnorePep8
-                 time_stop=2000.0 * pq.ms, wait_period=500 * pq.ms,
-                 max_current=100 * pq.nA, dt=pq.ms):
+                 time_stop=2500.0 * pq.ms, num_steps=20,
+                 max_current=20 * pq.pA):
         super(MinCurrentToSpikeObjective, self).__init__(time_start, time_stop)
-        self.current_start = time_start + wait_period
+        self.current_start = time_start
         if self.current_start > time_stop:
             raise Exception("time_start + wait_period ({}) needs to be less "
                             "then time_stop ({})".format(self.current_start,
                                                          time_stop))
-        self.wait_period = wait_period
         self.max_current = max_current
-        self.dt = dt
+        self.num_steps = num_steps
         # Generate a linear ramp in current values from 0 to max_current
         # starting from time_start + wait_period until time_stop and inject it
         # into the soma
-        no_current = numpy.zeros(int(numpy.ceil(self.current_start / dt)))
-        ramp_duration = time_stop - time_start - wait_period
-        current_step = float(pq.Quantity(max_current * dt / ramp_duration,
-                                         'nA'))
-        current_ramp = numpy.arange(0.0, float(pq.Quantity(max_current, 'nA')),
-                                    current_step)
-        current = numpy.hstack((no_current, current_ramp, [0.0]))
-        ramp_current = neo.AnalogSignal(current, sampling_period=dt,
-                                        units='nA')
-        self.exp_conditions = {'injected_currents': {'soma': ramp_current}}
+        steps = numpy.linspace(0.0, float(pq.Quantity(max_current, 'nA')),
+                               num_steps)
+        # Alternate between step and a zero current block
+        steps = numpy.vstack((steps, numpy.zeros(num_steps))).T.ravel()
+        # Prepend 0 nA current to steps
+        pulse_length = (time_stop - time_start) / (num_steps * 2.0)
+        initial_zeros = numpy.zeros(int(round(time_start / pulse_length)))
+        steps = numpy.hstack((initial_zeros, steps))
+        current = neo.AnalogSignal(steps, sampling_period=pulse_length,
+                                   units='nA')
+        self.exp_conditions = {'injected_currents': {'soma': current}}
 
     def get_recording_requests(self):
         """

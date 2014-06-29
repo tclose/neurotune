@@ -1,0 +1,1159 @@
+<NineML xmlns="http://nineml.org/9ML/0.1">
+    <ComponentClass name="Granule_DeSouza10" xmlns="http://www.nineml.org/BiophysicalCells">
+        <Parameter name="leakReversal">
+            <Component>Lkg1</Component>
+            <Reference>e_rev</Reference>
+            <Segments classification="BasicAnatomy">
+                <Class>Soma</Class>
+            </Segments>
+        </Parameter>
+        <Parameter name="somaDiameter">
+            <Reference>Diameter</Reference>
+            <Segments classification="BasicAnatomy">
+                <Class>Soma</Class>
+            </Segments>
+        </Parameter>
+        <Parameter name="initialVoltage" type="initialState">
+            <Reference>Voltage</Reference>
+            <Segments classification="BasicAnatomy">
+                <Class>Soma</Class>
+            </Segments>
+        </Parameter>
+        <Mapping name="AllComponents">
+            <Biophysics>
+                <Component>AMPA</Component>
+                <Component>GABA</Component>
+                <Component>NMDA</Component>
+                <Component>ca</Component>
+                <Component>CaHVA</Component>
+                <Component>KA</Component>
+                <Component>KCa</Component>
+                <Component>Kir</Component>
+                <Component>KM</Component>
+                <Component>KV</Component>
+                <Component>Na</Component>
+                <Component>Lkg1</Component>
+                <Component>Lkg2</Component>
+            </Biophysics>
+            <Segments classification="BasicAnatomy">
+                <Class>Soma</Class>
+            </Segments>
+        </Mapping>
+        <M:morphology name="SingleCompartment" xmlns:M="http://www.nineml.org/Morphology">
+            <M:segment name="soma">
+                <M:proximal x="0" y="0" z="0" diameter="11.8" />
+                <M:distal x="11.8" y="0" z="0" diameter="11.8" />
+            </M:segment>
+            <M:classification name="BasicAnatomy">
+                <M:class name="Soma">
+                    <M:member>soma</M:member>
+                </M:class>
+            </M:classification>
+        </M:morphology>
+        <B:Biophysics xmlns:B="http://www.nineml.org/Biophysics" name="Granule_DeSouza10">
+            <B:AnalogPort mode='receive' name="v" unit="mV" />
+            <B:AnalogPort mode='receive' name="celsius" unit="degC" />
+            <B:Parameter name="F">
+                <B:value>96485.3</B:value>
+            </B:Parameter>
+            <B:Parameter name="R">
+                <B:value>8.31342</B:value>
+            </B:Parameter>
+            <B:Component type="defaults">
+                <B:Parameter name="V_t">
+                    <B:value>-35</B:value>
+                </B:Parameter>
+                <B:Parameter name="Ra">
+                    <B:value>100</B:value>
+                    <B:unit>ohm.cm</B:unit>
+                </B:Parameter>
+                <B:Parameter name="celsius">
+                    <B:value>30</B:value>
+                </B:Parameter>
+                <B:Parameter name="C_m">
+                    <B:value>(1)</B:value>
+                    <B:unit>uf/cm2</B:unit>
+                </B:Parameter>
+                <B:AnalogPort mode='send' name="celsius" />
+                <B:AnalogPort mode='send' name="V_t" />
+                <B:AnalogPort mode='send' name="C_m" />
+            </B:Component>
+            <B:Component type="geometry" name="soma">
+                <B:Parameter name="L">
+                    <B:value>11.8</B:value>
+                </B:Parameter>
+                <B:Parameter name="diam">
+                    <B:value>11.8</B:value>
+                </B:Parameter>
+                <B:AnalogPort mode='send' name="L" />
+                <B:AnalogPort mode='send' name="diam" />
+            </B:Component>
+            <B:ComponentClass type="post-synaptic-conductance" name="AMPAdef">
+                <B:Interface>
+                    <B:Parameter name="tauA" />
+                    <B:Parameter name="tauB" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="w" from="event" unit="uS" />
+                <B:Parameter name="tau1">
+                    <B:value>(if ((tauA / tauB) &gt; 0.9999) then (0.9999 * tauB) else tauA)
+                    </B:value>
+                </B:Parameter>
+                <B:Parameter name="tau2">
+                    <B:value>tauB</B:value>
+                </B:Parameter>
+                <B:Parameter name="tp">
+                    <B:value>((tau1 * tau2) / (tau2 - tau1) * ln (tau2 / tau1))</B:value>
+                </B:Parameter>
+                <B:Parameter name="scale_factor">
+                    <B:value>(1 / (neg (exp (neg (tp) / tau1)) + exp (neg (tp) / tau2)))</B:value>
+                </B:Parameter>
+                <B:Transient variable="A">
+                    <B:rhs>(neg (A) / tau1)</B:rhs>
+                    <B:onevent>(A + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Transient variable="B">
+                    <B:rhs>(neg (B) / tau2)</B:rhs>
+                    <B:onevent>(B + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Assignment name="g">
+                    <B:rhs>(B - A)</B:rhs>
+                </B:Assignment>
+                <B:AnalogPort mode='send' name="g" />
+                <B:AnalogPort mode='send' name="e" />
+                <B:AnalogPort mode='send' name="scale_factor" />
+            </B:ComponentClass>
+            <B:ComponentClass type="post-synaptic-conductance" name="GABAdef">
+                <B:Interface>
+                    <B:Parameter name="tauA" />
+                    <B:Parameter name="tauB" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="w" from="event" unit="uS" />
+                <B:Parameter name="tau1">
+                    <B:value>(if ((tauA / tauB) &gt; 0.9999) then (0.9999 * tauB) else tauA)
+                    </B:value>
+                </B:Parameter>
+                <B:Parameter name="tau2">
+                    <B:value>tauB</B:value>
+                </B:Parameter>
+                <B:Parameter name="tp">
+                    <B:value>((tau1 * tau2) / (tau2 - tau1) * ln (tau2 / tau1))</B:value>
+                </B:Parameter>
+                <B:Parameter name="scale_factor">
+                    <B:value>(1 / (neg (exp (neg (tp) / tau1)) + exp (neg (tp) / tau2)))</B:value>
+                </B:Parameter>
+                <B:Transient variable="A">
+                    <B:rhs>(neg (A) / tau1)</B:rhs>
+                    <B:onevent>(A + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Transient variable="B">
+                    <B:rhs>(neg (B) / tau2)</B:rhs>
+                    <B:onevent>(B + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Assignment name="g">
+                    <B:rhs>(B - A)</B:rhs>
+                </B:Assignment>
+                <B:AnalogPort mode='send' name="g" />
+                <B:AnalogPort mode='send' name="e" />
+                <B:AnalogPort mode='send' name="scale_factor" />
+            </B:ComponentClass>
+            <B:ComponentClass type="post-synaptic-conductance" name="NMDAdef">
+                <B:Interface>
+                    <B:Parameter name="tauA" />
+                    <B:Parameter name="tauB" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="w" from="event" unit="uS" />
+                <B:Parameter name="tau1">
+                    <B:value>(if ((tauA / tauB) &gt; 0.9999) then (0.9999 * tauB) else tauA)
+                    </B:value>
+                </B:Parameter>
+                <B:Parameter name="tau2">
+                    <B:value>tauB</B:value>
+                </B:Parameter>
+                <B:Parameter name="tp">
+                    <B:value>((tau1 * tau2) / (tau2 - tau1) * ln (tau2 / tau1))</B:value>
+                </B:Parameter>
+                <B:Parameter name="scale_factor">
+                    <B:value>(1 / (neg (exp (neg (tp) / tau1)) + exp (neg (tp) / tau2)))</B:value>
+                </B:Parameter>
+                <B:Transient variable="A">
+                    <B:rhs>(neg (A) / tau1)</B:rhs>
+                    <B:onevent>(A + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Transient variable="B">
+                    <B:rhs>(neg (B) / tau2)</B:rhs>
+                    <B:onevent>(B + (w * scale_factor))</B:onevent>
+                    <B:initial>0</B:initial>
+                </B:Transient>
+                <B:Assignment name="g">
+                    <B:rhs>(B - A)</B:rhs>
+                </B:Assignment>
+                <B:AnalogPort mode='send' name="g" />
+                <B:AnalogPort mode='send' name="e" />
+                <B:AnalogPort mode='send' name="scale_factor" />
+            </B:ComponentClass>
+            <B:ComponentClass type="decaying-pool" name="cadef">
+                <B:Interface>
+                    <B:Parameter name="d" />
+                    <B:Parameter name="cao" />
+                    <B:Parameter name="cai0" />
+                    <B:Parameter name="beta" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="cai" from="ion-pools" />
+                <B:AnalogPort mode='receive' name="ica" from="ion-currents" />
+                <B:TimeDerivative variable="ca">
+                    <B:rhs>((neg (ica) / (2 * F * d)) * 10000.0 - (beta * ((if (ca &lt; cai0) then
+                        cai0 else ca) - cai0)))</B:rhs>
+                    <B:initial>cai0</B:initial>
+                </B:TimeDerivative>
+                <B:AnalogPort mode='send' name="ca" />
+                <B:AnalogPort mode='send' name="cao" />
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="CaHVAdef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_s" />
+                    <B:Parameter name="Kalpha_s" />
+                    <B:Parameter name="V0alpha_s" />
+                    <B:Parameter name="Abeta_s" />
+                    <B:Parameter name="Kbeta_s" />
+                    <B:Parameter name="V0beta_s" />
+                    <B:Parameter name="Aalpha_u" />
+                    <B:Parameter name="Kalpha_u" />
+                    <B:Parameter name="V0alpha_u" />
+                    <B:Parameter name="Abeta_u" />
+                    <B:Parameter name="Kbeta_u" />
+                    <B:Parameter name="V0beta_u" />
+                    <B:Parameter name="g" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="cai" from="ion-pools" />
+                <B:AnalogPort mode='receive' name="cao" from="ion-pools" />
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 20) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_s" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_s * exp ((v - V0alpha_s) / Kalpha_s))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_s" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_s * exp ((v - V0beta_s) / Kbeta_s))</B:body>
+                    </B:Alias>
+                    <B:Alias name="alpha_u" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_u * exp ((v - V0alpha_u) / Kalpha_u))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_u" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_u * exp ((v - V0beta_u) / Kbeta_u))</B:body>
+                    </B:Alias>
+                    <B:Assignment name="s_inf">
+                        <B:rhs>((alpha_s (v Q10)) / (alpha_s (v Q10) + beta_s (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_s">
+                        <B:rhs>(1 / (alpha_s (v Q10) + beta_s (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="u_inf">
+                        <B:rhs>((alpha_u (v Q10)) / (alpha_u (v Q10) + beta_u (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_u">
+                        <B:rhs>(1 / (alpha_u (v Q10) + beta_u (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:hh_ionic_gate name="CaHVA">
+                        <B:initial_m>s_inf</B:initial_m>
+                        <B:initial_h>u_inf</B:initial_h>
+                        <B:m_power>2</B:m_power>
+                        <B:h_power>1</B:h_power>
+                        <B:m_inf>s_inf</B:m_inf>
+                        <B:m_tau>tau_s</B:m_tau>
+                        <B:h_inf>u_inf</B:h_inf>
+                        <B:h_tau>tau_u</B:h_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="ca">
+                    <B:Assignment name="e">
+                        <B:rhs>((1000.0) * (R * (celsius + 273.15)) / (2 * F) * ln (cao / cai))
+                        </B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="e" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="KAdef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_a" />
+                    <B:Parameter name="Kalpha_a" />
+                    <B:Parameter name="V0alpha_a" />
+                    <B:Parameter name="Abeta_a" />
+                    <B:Parameter name="Kbeta_a" />
+                    <B:Parameter name="V0beta_a" />
+                    <B:Parameter name="Aalpha_b" />
+                    <B:Parameter name="Kalpha_b" />
+                    <B:Parameter name="V0alpha_b" />
+                    <B:Parameter name="Abeta_b" />
+                    <B:Parameter name="Kbeta_b" />
+                    <B:Parameter name="V0beta_b" />
+                    <B:Parameter name="V0_ainf" />
+                    <B:Parameter name="K_ainf" />
+                    <B:Parameter name="V0_binf" />
+                    <B:Parameter name="K_binf" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Alias name="sigm" arguments="x,y">
+                    <B:body>(1 / (exp (x / y) + 1))</B:body>
+                </B:Alias>
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 25.5) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_a" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_a * sigm ((v - V0alpha_a) Kalpha_a))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_a" arguments="v,Q10">
+                        <B:body>(Q10 * (Abeta_a / exp ((v - V0beta_a) / Kbeta_a)))</B:body>
+                    </B:Alias>
+                    <B:Alias name="alpha_b" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_b * sigm ((v - V0alpha_b) Kalpha_b))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_b" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_b * sigm ((v - V0beta_b) Kbeta_b))</B:body>
+                    </B:Alias>
+                    <B:Assignment name="a_inf">
+                        <B:rhs>(1 / (1 + exp ((v - V0_ainf) / K_ainf)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_a">
+                        <B:rhs>(1 / (alpha_a (v Q10) + beta_a (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="b_inf">
+                        <B:rhs>(1 / (1 + exp ((v - V0_binf) / K_binf)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_b">
+                        <B:rhs>(1 / (alpha_b (v Q10) + beta_b (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:hh_ionic_gate name="KA">
+                        <B:initial_m>(1 / (1 + exp ((v - V0_ainf) / K_ainf)))</B:initial_m>
+                        <B:initial_h>(1 / (1 + exp ((v - V0_binf) / K_binf)))</B:initial_h>
+                        <B:m_power>3</B:m_power>
+                        <B:h_power>1</B:h_power>
+                        <B:m_inf>a_inf</B:m_inf>
+                        <B:m_tau>tau_a</B:m_tau>
+                        <B:h_inf>b_inf</B:h_inf>
+                        <B:h_tau>tau_b</B:h_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="k">
+                    <B:Assignment name="erev">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="KCadef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_c" />
+                    <B:Parameter name="Balpha_c" />
+                    <B:Parameter name="Kalpha_c" />
+                    <B:Parameter name="Abeta_c" />
+                    <B:Parameter name="Bbeta_c" />
+                    <B:Parameter name="Kbeta_c" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:AnalogPort mode='receive' name="cai" from="ion-pools" />
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 30) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="cai1">
+                        <B:rhs>(if (cai &lt; 0.0001) then 0.0001 else cai)</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_c" arguments="v,cai,Q10">
+                        <B:body>(Q10 * Aalpha_c / (1 + (Balpha_c * exp (v / Kalpha_c) / cai)))
+                        </B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_c" arguments="v,cai,Q10">
+                        <B:body>(Q10 * Abeta_c / (1 + (cai / (Bbeta_c * exp (v / Kbeta_c)))))
+                        </B:body>
+                    </B:Alias>
+                    <B:Assignment name="c_inf">
+                        <B:rhs>((alpha_c (v cai Q10)) / (alpha_c (v cai Q10) + beta_c (v cai Q10)))
+                        </B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_c">
+                        <B:rhs>(1 / (alpha_c (v cai Q10) + beta_c (v cai Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:hh_ionic_gate name="KCa">
+                        <B:initial_m>c_inf</B:initial_m>
+                        <B:m_power>1</B:m_power>
+                        <B:h_power>0</B:h_power>
+                        <B:m_inf>c_inf</B:m_inf>
+                        <B:m_tau>tau_c</B:m_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Parameter name="gbar">
+                        <B:value>g</B:value>
+                    </B:Parameter>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="k">
+                    <B:Assignment name="erev">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+                <B:Component type="modulating-ion" name="ca">
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="Kirdef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_d" />
+                    <B:Parameter name="Kalpha_d" />
+                    <B:Parameter name="V0alpha_d" />
+                    <B:Parameter name="Abeta_d" />
+                    <B:Parameter name="Kbeta_d" />
+                    <B:Parameter name="V0beta_d" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 20) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_d" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_d * exp ((v - V0alpha_d) / Kalpha_d))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_d" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_d * exp ((v - V0beta_d) / Kbeta_d))</B:body>
+                    </B:Alias>
+                    <B:Assignment name="d_inf">
+                        <B:rhs>((alpha_d (v Q10)) / (alpha_d (v Q10) + beta_d (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_d">
+                        <B:rhs>(1 / (alpha_d (v Q10) + beta_d (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:hh_ionic_gate name="Kir">
+                        <B:initial_m>d_inf</B:initial_m>
+                        <B:m_power>1</B:m_power>
+                        <B:h_power>0</B:h_power>
+                        <B:m_inf>(d_inf)</B:m_inf>
+                        <B:m_tau>(tau_d)</B:m_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="k">
+                    <B:Assignment name="erev">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="KMdef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_n" />
+                    <B:Parameter name="Kalpha_n" />
+                    <B:Parameter name="V0alpha_n" />
+                    <B:Parameter name="Abeta_n" />
+                    <B:Parameter name="Kbeta_n" />
+                    <B:Parameter name="V0beta_n" />
+                    <B:Parameter name="V0_ninf" />
+                    <B:Parameter name="B_ninf" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 22) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_n" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_n * exp ((v - V0alpha_n) / Kalpha_n))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_n" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_n * exp ((v - V0beta_n) / Kbeta_n))</B:body>
+                    </B:Alias>
+                    <B:hh_ionic_gate name="KM">
+                        <B:initial_m>(1 / (1 + exp ((neg (v - V0_ninf)) / B_ninf)))</B:initial_m>
+                        <B:m_power>1</B:m_power>
+                        <B:h_power>0</B:h_power>
+                        <B:m_inf>(1 / (1 + exp ((neg (v - V0_ninf)) / B_ninf)))</B:m_inf>
+                        <B:m_tau>(1 / (alpha_n (v Q10) + beta_n (v Q10)))</B:m_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="k">
+                    <B:Assignment name="erev">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="KVdef">
+                <B:Interface>
+                    <B:Parameter name="Aalpha_n" />
+                    <B:Parameter name="Kalpha_n" />
+                    <B:Parameter name="V0alpha_n" />
+                    <B:Parameter name="Abeta_n" />
+                    <B:Parameter name="Kbeta_n" />
+                    <B:Parameter name="V0beta_n" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Alias name="linoid" arguments="x,y">
+                    <B:body>(if ((abs (x / y)) &lt; 1e-06) then (y * (1 - ((x / y) / 2))) else (x /
+                        (exp (x / y) - 1)))</B:body>
+                </B:Alias>
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 6.3) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alpha_n" arguments="v,Q10">
+                        <B:body>(Q10 * Aalpha_n * linoid ((v - V0alpha_n) Kalpha_n))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta_n" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta_n * exp ((v - V0beta_n) / Kbeta_n))</B:body>
+                    </B:Alias>
+                    <B:Assignment name="n_inf">
+                        <B:rhs>((alpha_n (v Q10)) / (alpha_n (v Q10) + beta_n (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="tau_n">
+                        <B:rhs>(1 / (alpha_n (v Q10) + beta_n (v Q10)))</B:rhs>
+                    </B:Assignment>
+                    <B:hh_ionic_gate name="KV">
+                        <B:initial_m>n_inf</B:initial_m>
+                        <B:m_power>4</B:m_power>
+                        <B:h_power>0</B:h_power>
+                        <B:m_inf>(n_inf)</B:m_inf>
+                        <B:m_tau>(tau_n)</B:m_tau>
+                    </B:hh_ionic_gate>
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="k">
+                    <B:Parameter name="erev">
+                        <B:value>e</B:value>
+                    </B:Parameter>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="Nadef">
+                <B:Interface>
+                    <B:Parameter name="Aalfa" />
+                    <B:Parameter name="Valfa" />
+                    <B:Parameter name="Abeta" />
+                    <B:Parameter name="Vbeta" />
+                    <B:Parameter name="Agamma" />
+                    <B:Parameter name="Adelta" />
+                    <B:Parameter name="Aepsilon" />
+                    <B:Parameter name="Ateta" />
+                    <B:Parameter name="Vteta" />
+                    <B:Parameter name="ACon" />
+                    <B:Parameter name="ACoff" />
+                    <B:Parameter name="AOon" />
+                    <B:Parameter name="AOoff" />
+                    <B:Parameter name="n1" />
+                    <B:Parameter name="n2" />
+                    <B:Parameter name="n3" />
+                    <B:Parameter name="n4" />
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Component type="gate">
+                    <B:Assignment name="Q10">
+                        <B:rhs>(pow (3 ((celsius - 20) / 10)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="gamma">
+                        <B:rhs>(Q10 * Agamma)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="delta">
+                        <B:rhs>(Q10 * Adelta)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="epsilon">
+                        <B:rhs>(Q10 * Aepsilon)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="Con">
+                        <B:rhs>(Q10 * ACon)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="Coff">
+                        <B:rhs>(Q10 * ACoff)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="Oon">
+                        <B:rhs>(Q10 * AOon)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="Ooff">
+                        <B:rhs>(Q10 * AOoff)</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="a">
+                        <B:rhs>(pow ((Oon / Con) (1.0 / 4.0)))</B:rhs>
+                    </B:Assignment>
+                    <B:Assignment name="b">
+                        <B:rhs>(pow ((Ooff / Coff) (1.0 / 4.0)))</B:rhs>
+                    </B:Assignment>
+                    <B:Alias name="alfa" arguments="v,Q10">
+                        <B:body>(Q10 * Aalfa * exp (v / Valfa))</B:body>
+                    </B:Alias>
+                    <B:Alias name="beta" arguments="v,Q10">
+                        <B:body>(Q10 * Abeta * exp (neg (v) / Vbeta))</B:body>
+                    </B:Alias>
+                    <B:Alias name="teta" arguments="v,Q10">
+                        <B:body>(Q10 * Ateta * exp (neg (v) / Vteta))</B:body>
+                    </B:Alias>
+                    <B:Reaction variable="Na_z">
+                        <B:open>O</B:open>
+                        <B:power>1</B:power>
+                        <B:conserve val="1"> (C1 + C2 + C3 + C4 + C5 + O + B + I1 + I2 + I3 +
+                            I4 + I5 + I6)
+                        </B:conserve>
+                        <B:transitions>
+                            <B:transition src="C1" dst="C2">
+                                <B:rate>(n1 * alfa (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C2" dst="C1">
+                                <B:rate>(n4 * beta (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C2" dst="C3">
+                                <B:rate>(n2 * alfa (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C3" dst="C2">
+                                <B:rate>(n3 * beta (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C3" dst="C4">
+                                <B:rate>(n3 * alfa (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C4" dst="C3">
+                                <B:rate>(n2 * beta (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C4" dst="C5">
+                                <B:rate>(n4 * alfa (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C5" dst="C4">
+                                <B:rate>(n1 * beta (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="C5" dst="O">
+                                <B:rate>gamma</B:rate>
+                            </B:transition>
+                            <B:transition src="O" dst="C5">
+                                <B:rate>delta</B:rate>
+                            </B:transition>
+                            <B:transition src="O" dst="B">
+                                <B:rate>epsilon</B:rate>
+                            </B:transition>
+                            <B:transition src="B" dst="O">
+                                <B:rate>(teta (v Q10))</B:rate>
+                            </B:transition>
+                            <B:transition src="I1" dst="I2">
+                                <B:rate>(n1 * alfa (v Q10) * a)</B:rate>
+                            </B:transition>
+                            <B:transition src="I2" dst="I1">
+                                <B:rate>(n4 * beta (v Q10) * b)</B:rate>
+                            </B:transition>
+                            <B:transition src="I2" dst="I3">
+                                <B:rate>(n2 * alfa (v Q10) * a)</B:rate>
+                            </B:transition>
+                            <B:transition src="I3" dst="I2">
+                                <B:rate>(n3 * beta (v Q10) * b)</B:rate>
+                            </B:transition>
+                            <B:transition src="I3" dst="I4">
+                                <B:rate>(n3 * alfa (v Q10) * a)</B:rate>
+                            </B:transition>
+                            <B:transition src="I4" dst="I3">
+                                <B:rate>(n2 * beta (v Q10) * b)</B:rate>
+                            </B:transition>
+                            <B:transition src="I4" dst="I5">
+                                <B:rate>(n4 * alfa (v Q10) * a)</B:rate>
+                            </B:transition>
+                            <B:transition src="I5" dst="I4">
+                                <B:rate>(n1 * beta (v Q10) * b)</B:rate>
+                            </B:transition>
+                            <B:transition src="I5" dst="I6">
+                                <B:rate>gamma</B:rate>
+                            </B:transition>
+                            <B:transition src="I6" dst="I5">
+                                <B:rate>delta</B:rate>
+                            </B:transition>
+                            <B:transition src="C1" dst="I1">
+                                <B:rate>Con</B:rate>
+                            </B:transition>
+                            <B:transition src="I1" dst="C1">
+                                <B:rate>Coff</B:rate>
+                            </B:transition>
+                            <B:transition src="C2" dst="I2">
+                                <B:rate>(Con * a)</B:rate>
+                            </B:transition>
+                            <B:transition src="I2" dst="C2">
+                                <B:rate>(Coff * b)</B:rate>
+                            </B:transition>
+                            <B:transition src="C3" dst="I3">
+                                <B:rate>(Con * pow (a 2))</B:rate>
+                            </B:transition>
+                            <B:transition src="I3" dst="C3">
+                                <B:rate>(Coff * pow (b 2))</B:rate>
+                            </B:transition>
+                            <B:transition src="C4" dst="I4">
+                                <B:rate>(Con * pow (a 3))</B:rate>
+                            </B:transition>
+                            <B:transition src="I4" dst="C4">
+                                <B:rate>(Coff * pow (b 3))</B:rate>
+                            </B:transition>
+                            <B:transition src="C5" dst="I5">
+                                <B:rate>(Con * pow (a 4))</B:rate>
+                            </B:transition>
+                            <B:transition src="I5" dst="C5">
+                                <B:rate>(Coff * pow (b 4))</B:rate>
+                            </B:transition>
+                            <B:transition src="O" dst="I6">
+                                <B:rate>Oon</B:rate>
+                            </B:transition>
+                            <B:transition src="I6" dst="O">
+                                <B:rate>Ooff</B:rate>
+                            </B:transition>
+                        </B:transitions>
+                    </B:Reaction>
+                    <B:AnalogPort mode='send' name="Na_z" />
+                </B:Component>
+                <B:Component type="pore">
+                    <B:Assignment name="gbar">
+                        <B:rhs>g</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="na">
+                    <B:Assignment name="erev">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="Lkg1def">
+                <B:Interface>
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e_rev" />
+                </B:Interface>
+                <B:Component type="pore">
+                    <B:Parameter name="gbar">
+                        <B:value>g</B:value>
+                    </B:Parameter>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="non-specific">
+                    <B:Assignment name="erev">
+                        <B:rhs>e_rev</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:ComponentClass type="ionic-current" name="Lkg2def">
+                <B:Interface>
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e" />
+                </B:Interface>
+                <B:Component type="pore">
+                    <B:Parameter name="ggaba">
+                        <B:value>g</B:value>
+                    </B:Parameter>
+                    <B:AnalogPort mode='send' name="ggaba" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="non-specific">
+                    <B:Assignment name="egaba">
+                        <B:rhs>e</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="egaba" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:Component name="AMPA" definition="AMPAdef">
+                <B:properties>
+                    <B:Parameter name="tauA">
+                        <B:value>0.03</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="tauB">
+                        <B:value>0.5</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>0</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="GABA" definition="GABAdef">
+                <B:properties>
+                    <B:Parameter name="tauA">
+                        <B:value>0.31</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="tauB">
+                        <B:value>8.8</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-75</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="NMDA" definition="NMDAdef">
+                <B:properties>
+                    <B:Parameter name="tauA">
+                        <B:value>1</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="tauB">
+                        <B:value>13.3</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>0</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="ca" definition="cadef">
+                <B:properties>
+                    <B:Parameter name="d">
+                        <B:value>0.2</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="cao">
+                        <B:value>2.0</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="cai0">
+                        <B:value>0.0001</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="beta">
+                        <B:value>1.5</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="CaHVA" definition="CaHVAdef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_s">
+                        <B:value>0.04944</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_s">
+                        <B:value>15.87301587302</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_s">
+                        <B:value>-29.06</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_s">
+                        <B:value>0.08298</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_s">
+                        <B:value>-25.641</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_s">
+                        <B:value>-18.66</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Aalpha_u">
+                        <B:value>0.0013</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_u">
+                        <B:value>-18.183</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_u">
+                        <B:value>-48</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_u">
+                        <B:value>0.0013</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_u">
+                        <B:value>83.33</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_u">
+                        <B:value>-48</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.00046</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="KA" definition="KAdef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_a">
+                        <B:value>0.8147</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_a">
+                        <B:value>-23.32708</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_a">
+                        <B:value>-9.17203</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_a">
+                        <B:value>0.1655</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_a">
+                        <B:value>19.47175</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_a">
+                        <B:value>-18.27914</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Aalpha_b">
+                        <B:value>0.0368</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_b">
+                        <B:value>12.8433</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_b">
+                        <B:value>-111.33209</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_b">
+                        <B:value>0.0345</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_b">
+                        <B:value>-8.90123</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_b">
+                        <B:value>-49.9537</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0_ainf">
+                        <B:value>-38</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="K_ainf">
+                        <B:value>-17</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0_binf">
+                        <B:value>-78.8</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="K_binf">
+                        <B:value>8.4</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.0032</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-84.69</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="KCa" definition="KCadef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_c">
+                        <B:value>2.5</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Balpha_c">
+                        <B:value>0.0015</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_c">
+                        <B:value>-11.765</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_c">
+                        <B:value>1.5</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Bbeta_c">
+                        <B:value>0.00015</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_c">
+                        <B:value>-11.765</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.04</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-84.69</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="Kir" definition="Kirdef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_d">
+                        <B:value>0.13289</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_d">
+                        <B:value>-24.3902</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_d">
+                        <B:value>-83.94</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_d">
+                        <B:value>0.16994</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_d">
+                        <B:value>35.714</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_d">
+                        <B:value>-83.94</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.0009</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-84.69</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="KM" definition="KMdef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_n">
+                        <B:value>0.0033</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_n">
+                        <B:value>40</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_n">
+                        <B:value>-30</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_n">
+                        <B:value>0.0033</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_n">
+                        <B:value>-20</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_n">
+                        <B:value>-30</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0_ninf">
+                        <B:value>-35</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="B_ninf">
+                        <B:value>6</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.00025</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-84.69</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="KV" definition="KVdef">
+                <B:properties>
+                    <B:Parameter name="Aalpha_n">
+                        <B:value>-0.01</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kalpha_n">
+                        <B:value>-10</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0alpha_n">
+                        <B:value>-25</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta_n">
+                        <B:value>0.125</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Kbeta_n">
+                        <B:value>-80</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="V0beta_n">
+                        <B:value>-35</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.003</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-84.69</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="Na" definition="Nadef">
+                <B:properties>
+                    <B:Parameter name="Aalfa">
+                        <B:value>353.91</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Valfa">
+                        <B:value>13.99</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Abeta">
+                        <B:value>1.272</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Vbeta">
+                        <B:value>13.99</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Agamma">
+                        <B:value>150</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Adelta">
+                        <B:value>40</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Aepsilon">
+                        <B:value>1.75</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Ateta">
+                        <B:value>0.0201</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="Vteta">
+                        <B:value>25</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="ACon">
+                        <B:value>0.005</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="ACoff">
+                        <B:value>0.5</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="AOon">
+                        <B:value>0.75</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="AOoff">
+                        <B:value>0.005</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="n1">
+                        <B:value>5.422</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="n2">
+                        <B:value>3.279</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="n3">
+                        <B:value>1.83</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="n4">
+                        <B:value>0.738</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="g">
+                        <B:value>0.013</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>87.39</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="Lkg1" definition="Lkg1def">
+                <B:properties>
+                    <B:Parameter name="g">
+                        <B:value>(5.68e-05)</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e_rev">
+                        <B:value>-16.5</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:Component name="Lkg2" definition="Lkg2def">
+                <B:properties>
+                    <B:Parameter name="g">
+                        <B:value>(3e-05)</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e">
+                        <B:value>-65</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:BuildHints>
+                <B:Builder name="nemo">
+                    <B:Simulator name="neuron">
+                        <B:Method>derivimplicit</B:Method>
+                        <B:KineticComponent>Na_z</B:KineticComponent>
+                    </B:Simulator>
+                    <B:Simulator name="nest">
+                        <B:Method>gsl</B:Method>
+                    </B:Simulator>
+                </B:Builder>
+            </B:BuildHints>
+        </B:Biophysics>
+    </ComponentClass>
+</NineML>
