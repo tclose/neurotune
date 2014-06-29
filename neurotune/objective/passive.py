@@ -25,18 +25,19 @@ class PassivePropertiesObjective(Objective):
         # Save members
         self.record_variable = record_variable
         self.injected_current = injected_current
-        step_source = neo.AnalogSignal([0, injected_current],
-                                       [0.0, time_start])
-        self.exp_conditions = {'injected_currents': step_source}
 
     def get_recording_requests(self):
         """
         Gets all recording requests required by the objective function
         """
+        step_source = neo.IrregularlySampledSignal([0, self.injected_current,
+                                                    self.injected_current],
+                                                   [0.0, self.time_start,
+                                                    self.time_stop])
         return RecordingRequest(record_variable=self.record_variable,
                                 time_start=self.time_start,
                                 time_stop=self.time_stop,
-                                conditions=self.exp_conditions)
+                                conditions={'injected_currents': step_source})
 
 
 class TimeConstantObjective(PassivePropertiesObjective):

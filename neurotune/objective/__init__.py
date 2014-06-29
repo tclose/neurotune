@@ -14,14 +14,19 @@ class Objective(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, time_start=500.0 * pq.ms, time_stop=2000.0 * pq.ms,
-                 exp_conditions=None, record_sites=[None]):
+                 conditions={}, record_sites=[None]):
         """
-        `time_stop` -- the required length of the recording required to
-                       evaluate the objective
+        `time_start`   -- the time given for the system to reach steady state
+                          before starting to record [pq.Quantity]
+        `time_stop`    -- the required length of the recording required to
+                          evaluate the objective [pq.Quantity]
+        `conditions`   -- the conditions required to run the simulation under
+        `record_sites` -- the record sites that are required for the fitness
+                          function
         """
         self.time_start = time_start
         self.time_stop = time_stop
-        self.exp_conditions = exp_conditions
+        self.conditions = conditions
         self.record_sites = record_sites
         self.tuner = None
 
@@ -48,7 +53,7 @@ class Objective(object):
         for site in self.record_sites:
             requests[site] = RecordingRequest(time_start=self.time_start,
                                               time_stop=self.time_stop,
-                                              conditions=self.exp_conditions,
+                                              conditions=self.conditions,
                                               record_variable=site)
         return requests
 

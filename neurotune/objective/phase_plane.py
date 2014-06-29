@@ -18,7 +18,7 @@ class PhasePlaneObjective(Objective):
     __metaclass__ = ABCMeta
 
     def __init__(self, reference, time_start=None, time_stop=None,
-                 record_variable=None, exp_conditions=None, dvdt2v_scale=0.25,
+                 record_variable=None, conditions=None, dvdt2v_scale=0.25,
                  interp_order=3):
         """
         Creates a phase plane histogram from the reference traces and compares
@@ -28,7 +28,7 @@ class PhasePlaneObjective(Objective):
                               against [list(neo.AnalogSignal)]
         `time_stop`        -- the length of the recording [float]
         `record_variable`  -- the recording site [str]
-        `exp_conditions`   -- the required experimental conditions (eg. initial
+        `conditions`   -- the required experimental conditions (eg. initial
                               voltage, current clamps, etc...)
                               [neurotune.simulation.Conditions]
         `dvdt2v_scale`     -- the scale used to compare the v and dV/dt traces.
@@ -44,7 +44,8 @@ class PhasePlaneObjective(Objective):
             time_start = (reference.t_stop - reference.t_start) / 4.0
         if time_stop is None:
             time_stop = reference.t_stop
-        super(PhasePlaneObjective, self).__init__(time_start, time_stop)
+        super(PhasePlaneObjective, self).__init__(time_start, time_stop,
+                                                  conditions=conditions)
         # Save reference trace(s) as a list, converting if a single trace or
         # loading from file if a valid filename
         if isinstance(reference, str):
@@ -68,7 +69,6 @@ class PhasePlaneObjective(Objective):
         self.reference = reference
         # Save members
         self.record_variable = record_variable
-        self.exp_conditions = exp_conditions
         self.interp_order = interp_order
         self.dvdt2v_scale = dvdt2v_scale
 

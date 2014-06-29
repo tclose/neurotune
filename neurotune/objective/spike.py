@@ -108,27 +108,8 @@ class MinCurrentToSpikeObjective(Objective):
                  time_stop=2500.0 * pq.ms, num_steps=20,
                  max_current=20 * pq.pA):
         super(MinCurrentToSpikeObjective, self).__init__(time_start, time_stop)
-        self.current_start = time_start
-        if self.current_start > time_stop:
-            raise Exception("time_start + wait_period ({}) needs to be less "
-                            "then time_stop ({})".format(self.current_start,
-                                                         time_stop))
         self.max_current = max_current
         self.num_steps = num_steps
-        # Generate a linear ramp in current values from 0 to max_current
-        # starting from time_start + wait_period until time_stop and inject it
-        # into the soma
-        steps = numpy.linspace(0.0, float(pq.Quantity(max_current, 'nA')),
-                               num_steps)
-        # Alternate between step and a zero current block
-        steps = numpy.vstack((steps, numpy.zeros(num_steps))).T.ravel()
-        # Prepend 0 nA current to steps
-        pulse_length = (time_stop - time_start) / (num_steps * 2.0)
-        initial_zeros = numpy.zeros(int(round(time_start / pulse_length)))
-        steps = numpy.hstack((initial_zeros, steps))
-        current = neo.AnalogSignal(steps, sampling_period=pulse_length,
-                                   units='nA')
-        self.exp_conditions = {'injected_currents': {'soma': current}}
 
     def get_recording_requests(self):
         """
@@ -136,19 +117,34 @@ class MinCurrentToSpikeObjective(Objective):
         objects with unique keys representing the recordings that are required
         from the simulation controller
         """
+        # Generate a linear ramp in current values from 0 to self.max_current
+        # starting from time_start + wait_period until time_stop and inject it
+        # into the soma
+        steps = numpy.linspace(0.0, float(pq.Quantity(self.max_current, 'nA')),
+                               self.num_steps)
+        # Alternate between step and a zero current block
+        steps = numpy.vstack((steps, numpy.zeros(self.num_steps))).T.ravel()
+        # Prepend 0 nA current to steps
+        pulse_length = ((self.time_stop - self.time_start) /
+                        (self.num_steps * 2.0))
+        initial_zeros = numpy.zeros(int(round(self.time_start / pulse_length)))
+        steps = numpy.hstack((initial_zeros, steps))
+        current = neo.AnalogSignal(steps, sampling_period=pulse_length,
+                                   units='nA')
         return {None: RecordingRequest(time_start=self.time_start,
                                        time_stop=self.time_stop,
-                                       conditions=self.exp_conditions,
+                                       conditions={'injected_currents':
+                                                   {'soma': current}},
                                        record_variable=None)}
 
     def fitness(self, analysis):
         spikes = analysis.get_signal().spikes(threshold='v', start=-20.0,
                                               stop=-20.0)
         if len(spikes):
-            fitness = self.max_current * ((spikes[0] - self.current_start) /
-                                         (self.time_stop - self.current_start))
+            fitness = ((spikes[0] - self.time_start) /
+                       (self.time_stop - self.time_start))
             if fitness < 0.0:
                 fitness = 0.0
         else:
-            fitness = self.max_current
+            fitness = 1.0
         return fitness
