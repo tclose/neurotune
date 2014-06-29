@@ -1,0 +1,114 @@
+<nineml xmlns="http://nineml.org/9ML/0.1">
+    <ComponentClass name="Golgi_DeSouza10" xmlns="http://www.nineml.org/BiophysicalCells">
+        <Mapping name="PassiveComponents">
+            <Biophysics>
+                <Component>Lkg</Component>
+            </Biophysics>
+            <Segments classification="BasicAnatomy">
+                <Class>Soma</Class>
+            </Segments>
+        </Mapping>
+        <M:morphology name="Soma" xmlns:M="http://www.nineml.org/Morphology">
+            <M:segment name="soma">
+                <M:proximal x="0" y="0" z="0" diameter="27"/>
+                <M:distal x="0" y="0" z="27" diameter="27"/>
+            </M:segment>
+            <M:classification name="BasicAnatomy">
+                <M:class name="Soma" default="True">
+                    <M:member>soma</M:member>
+                </M:class>
+            </M:classification>
+        </M:morphology>
+        <B:Biophysics name="Golgi_Solinas08" xmlns:B="http://www.nineml.org/Biophysics">
+            <B:AnalogPort mode="receive" name="v" unit="mV"/>
+            <B:AnalogPort mode="receive" name="celsius" unit="degC"/>
+            <B:Parameter name="F">
+                <B:value>96485.309</B:value>
+            </B:Parameter>
+            <B:Parameter name="R">
+                <B:value>8.31342</B:value>
+            </B:Parameter>
+            <B:Alias name="ktf" arguments="celsius">
+                <B:body>(1000.0 * R * (celsius + 273.15) / F)</B:body>
+            </B:Alias>
+            <B:Alias name="nernst" arguments="celsius,ci,co,z">
+                <B:body>(if (ci &lt;= 0) then 1000000.0 else (if (co &lt;= 0) then -1000000.0 else
+                    (ktf (celsius) / z * (ln (co / ci))))) 
+                </B:body>
+            </B:Alias>
+            <B:Component type="defaults">
+                <B:Parameter name="V_t">
+                    <B:unit>mV</B:unit>
+                    <B:value>-35</B:value>
+                </B:Parameter>
+                <B:Parameter name="celsius">
+                    <B:unit>degC</B:unit>
+                    <B:value>23</B:value>
+                </B:Parameter>
+                <B:Parameter name="Ra">
+                    <B:unit>ohm.cm</B:unit>
+                    <B:value>100</B:value>
+                </B:Parameter>
+                <B:Parameter name="C_m">
+                    <B:unit>uf/cm2</B:unit>
+                    <B:value>1</B:value>
+                </B:Parameter>
+                <B:AnalogPort mode="send" name="celsius"/>
+                <B:AnalogPort mode="send" name="V_t"/>
+                <B:AnalogPort mode="send" name="Ra"/>
+                <B:AnalogPort mode="send" name="C_m"/>
+            </B:Component>
+            <B:Component type="geometry" name="soma">
+                <B:Parameter name="L">
+                    <B:unit>um</B:unit>
+                    <B:value>27</B:value>
+                </B:Parameter>
+                <B:Parameter name="diam">
+                    <B:unit>um</B:unit>
+                    <B:value>27</B:value>
+                </B:Parameter>
+                <B:AnalogPort mode="send" name="L"/>
+                <B:AnalogPort mode="send" name="diam"/>
+            </B:Component>
+            <B:ComponentClass type="ionic-current" name="Lkg1def">
+                <B:Interface>
+                    <B:Parameter name="g" />
+                    <B:Parameter name="e_rev" />
+                </B:Interface>
+                <B:Component type="pore">
+                    <B:Parameter name="gbar">
+                        <B:value>g</B:value>
+                    </B:Parameter>
+                    <B:AnalogPort mode='send' name="gbar" />
+                </B:Component>
+                <B:Component type="permeating-ion" name="non-specific">
+                    <B:Assignment name="erev">
+                        <B:rhs>e_rev</B:rhs>
+                    </B:Assignment>
+                    <B:AnalogPort mode='send' name="erev" />
+                </B:Component>
+            </B:ComponentClass>
+            <B:Component name="Lkg" definition="Lkg1def">
+                <B:properties>
+                    <B:Parameter name="g">
+                        <B:value>(2.1e-05)</B:value>
+                    </B:Parameter>
+                    <B:Parameter name="e_rev">
+                        <B:value>-55</B:value>
+                    </B:Parameter>
+                </B:properties>
+            </B:Component>
+            <B:BuildHints>
+                <B:Builder name="nemo">
+                    <B:Simulator name="neuron">
+                        <B:Method>derivimplicit</B:Method>
+                        <B:KineticComponent>SK2_z</B:KineticComponent>
+                    </B:Simulator>
+                    <B:Simulator name="nest">
+                        <B:Method>gsl</B:Method>
+                    </B:Simulator>
+                </B:Builder>
+            </B:BuildHints>
+        </B:Biophysics>
+    </ComponentClass>
+</nineml>

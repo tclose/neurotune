@@ -9,6 +9,10 @@ from __future__ import division
 import os
 import pickle
 from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.objective.spike import MinCurrentToSpikeObjective
+from neurotune.algorithm import Algorithm
+from neurotune.tuner import Tuner
+from neurotune import Parameter
 if __name__ == '__main__':
 
     class unittest(object):
@@ -31,11 +35,30 @@ else:
 
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                        '..', 'data', 'objective'))
+                                        '..', 'data', '9ml'))
 nineml_file = os.path.join(data_dir, 'Golgi_Solinas08.9ml')
+inactive_nineml_file = os.path.join(data_dir, 'Passive.9ml')
 
 
-class TestNineLineSimulationFunctions(unittest.TestCase):
+# Create a non-abstract version of the base algorithm to initialise a Tuner
+# object with
+class DummyAlgorithm(Algorithm):
+    pass
+
+
+class TestNineLineSimulationConditions(unittest.TestCase):
+
+    def test_injected_currents(self):
+        simulation = NineLineSimulation(inactive_nineml_file)
+        tuner = Tuner([Parameter('test', 'mS', 0.0, 1.0, False)],  # @UnusedVariable @IgnorePep8
+                      MinCurrentToSpikeObjective(),
+                      DummyAlgorithm(),
+                      simulation)
+        recordings = simulation.run_all([0.5])
+        print recordings
+
+
+class TestNineLineSimulationPickle(unittest.TestCase):
 
     def test_pickle(self):
         simulation1 = NineLineSimulation(nineml_file)
@@ -49,6 +72,7 @@ class TestNineLineSimulationFunctions(unittest.TestCase):
         os.remove('./pickle')
         self.assertEqual(simulation1, simulation2)
 
+
 if __name__ == '__main__':
-    test = TestNineLineSimulationFunctions()
-    test.test_pickle()
+    test = TestNineLineSimulationConditions()
+    test.test_injected_currents()
