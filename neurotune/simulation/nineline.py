@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import quantities as pq
 import neo.core
+from nineml.extensions.biophysical_cells import ComponentClass as BiophysNineml
 from nineline.cells.neuron import NineCellMetaClass, \
                                   simulation_controller as nineline_controller
 from neuron import h
@@ -18,7 +19,7 @@ class NineLineSimulation(Simulation):
         """
         # Generate the NineLine class from the nineml file and initialise a
         # single cell from it
-        if isinstance(celltype, str):
+        if isinstance(celltype, BiophysNineml) or isinstance(celltype, str):
             self.celltype = NineCellMetaClass(celltype, build_mode=build_mode)
         else:
             self.celltype = celltype
@@ -26,8 +27,8 @@ class NineLineSimulation(Simulation):
         self.genome_keys = []
         self.log_scales = []
 
-    def __getinitargs__(self):
-        return (self.celltype, 'lazy')
+    def __reduce__(self):
+        return self.__class__, (self.celltype.nineml_model, 'lazy')
 
     def set_tune_parameters(self, tune_parameters):
         super(NineLineSimulation, self).set_tune_parameters(tune_parameters)

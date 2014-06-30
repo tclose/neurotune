@@ -79,5 +79,5 @@ class TestNineLineSimulationPickle(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    test = TestNineLineSimulationConditions()
-    test.test_injected_currents()
+    test = TestNineLineSimulationPickle()
+    test.test_pickle()
