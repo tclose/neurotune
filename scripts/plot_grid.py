@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 import os.path
 from copy import copy
@@ -10,7 +11,6 @@ from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 import matplotlib.pyplot as plt
 import matplotlib
-import csv
 import cPickle as pkl
 from collections import defaultdict
 # Import parser from evaluate_grid
@@ -19,6 +19,7 @@ from evaluate_grid import parser as grid_parser, get_parameters
 sys.path.pop(0)
 
 parser = copy(grid_parser)
+parser.add_argument('grid', help="the grid to plot")
 parser.add_argument('--trim_value', default=None, type=float,
                     help="The factor of the 95th percentile at which to "
                          "truncate the plot")
@@ -32,7 +33,7 @@ parser.add_argument('--samples', nargs=2,
 parser.add_argument('--save', default=None, help="Location to save the plot")
 
 # Remove uneeded arguments
-for argname in ('output', 'build', 'timestep', 'verbose', 'save_recordings'):
+for argname in ('reference', 'output', 'build', 'timestep', 'verbose', 'save_recordings'):
     try:
         parser._remove_action(next(a for a in parser._actions
                                    if a.dest == argname))
@@ -41,7 +42,7 @@ for argname in ('output', 'build', 'timestep', 'verbose', 'save_recordings'):
 
 
 def plot(args):
-    with open(args.output) as f:
+    with open(args.grid) as f:
         grids = pkl.load(f)
     parameters = get_parameters(args)
     # If using a non-multi-objective reshape the grid into a 1-?-? so it fits
