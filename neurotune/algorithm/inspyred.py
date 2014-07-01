@@ -321,8 +321,8 @@ def algorithm_factory(args):
     except KeyError:
         raise Exception("Unrecognised algorithm '{}'".format(args.algorithm))
     kwargs = dict(args.optimize_argument)
-    if args.replacer:
-        kwargs['replacer'] = replacer_types[args.replacer]
+#     if args.replacer:
+#         kwargs['replacer'] = replacer_types[args.replacer]
     return Algorithm(args.population_size,
                      max_generations=args.num_generations,
                      observer=[ec.observers.population_observer],
