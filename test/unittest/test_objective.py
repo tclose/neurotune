@@ -30,6 +30,7 @@ import os.path
 import numpy
 import shutil
 import quantities as pq
+from copy import deepcopy
 import neo
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter, Tuner
@@ -38,6 +39,7 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective,
                                        MinCurrentToSpikeObjective)
+from neurotune.objective.multi import MultiObjective
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.analysis import AnalysedSignal, Analysis
@@ -51,15 +53,17 @@ time_stop = 2000 * pq.ms
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                         '..', 'data', 'objective'))
-nineml_file = os.path.join(data_dir, 'Golgi_Solinas08.9ml')
+nineml_file = os.path.join(os.path.join(os.path.dirname(__file__),
+                                        '..', 'data', '9ml',
+                                         'Golgi_Solinas08.9ml'))
+#                                         'Granule_DeSouza10.9ml'))
 
 parameter = Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False)
 parameter_range = numpy.linspace(parameter.lbound, parameter.ubound, 15)
 simulation = NineLineSimulation(nineml_file)
 # Create a dummy tuner to generate the simulation 'setups'
-tuner = Tuner([parameter],
-              SpikeFrequencyObjective(1, time_start=time_start,
-                                            time_stop=time_stop),
+tuner = Tuner([parameter], SpikeFrequencyObjective(1, time_start=time_start,
+                                                   time_stop=time_stop),
               GridAlgorithm(num_steps=[10]),
               simulation)
 
@@ -265,7 +269,14 @@ if __name__ == '__main__':
 # #         print TestClass.__name__ + ': ' + repr([test.objective.fitness(a)
 # #                                                 for a in analyses])
 # #         test.plot()
-
+#     simulation2 = deepcopy(simulation)
+#     tuner2 = Tuner([parameter],
+#                    MinCurrentToSpikeObjective(time_start=time_start,
+#                                               time_stop=time_stop),
+#                    GridAlgorithm(num_steps=[10]),
+#                    simulation2)
+#     recordings = simulation2.run_all([0.0032])
+#     analysis = Analysis(recordings, simulation2.setups)
     test = TestMinCurrentToSpikeObjective()
     test.setUp()
     test.test_fitness()
