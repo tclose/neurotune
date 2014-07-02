@@ -278,9 +278,9 @@ class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):
     _InspyredClass = ec.emo.NSGA2
 
     def __init__(self, pop_size,
-                 variators=[ec.variators.blend_crossover,
-                            ec.variators.gaussian_mutation], **kwargs):
-        super(NSGA2Algorithm, self).__init__(pop_size, variators=variators,
+                 variator=[ec.variators.blend_crossover,
+                           ec.variators.gaussian_mutation], **kwargs):
+        super(NSGA2Algorithm, self).__init__(pop_size, variator=variator,
                                              **kwargs)
 
 
