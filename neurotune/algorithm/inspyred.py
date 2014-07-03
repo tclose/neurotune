@@ -330,10 +330,11 @@ def algorithm_factory(args):
 
 
 def add_options(parser):
-    parser.add_argument('--replacer', type=str, default=None,
-                        help="The replacement component of the evolutionary "
-                             "algorithm. Can be one of ('{}')"
-                             .format("', '". join(replacer_types.keys())))
+    pass
+#     parser.add_argument('--replacer', type=str, default=None,
+#                         help="The replacement component of the evolutionary "
+#                              "algorithm. Can be one of ('{}')"
+#                              .format("', '". join(replacer_types.keys())))
 
 
 # Register algorithm loader with the short names for the algorithms
