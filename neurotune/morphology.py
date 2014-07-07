@@ -43,9 +43,9 @@ def reduce_morphology(morph, only_most_distal=False):
             total_surface_area = numpy.sum(seg.length * seg.diameter()
                                            for seg in chain(*siblings))
             diameter = total_surface_area / average_length
-            name = siblings[0].name
+            name = siblings[0][0].name
             if len(branch) > 1:
-                name += '_' + siblings[-1].name
+                name += '_' + siblings[-1][0].name
             parent_ref = ParentReference(parent.name, 1.0)
             parent_ref.segment = parent
             distal = (parent.distal + parent.disp *
@@ -99,16 +99,17 @@ def rationalise_spatial_sampling(model9ml, **d_lambda_kwargs):
                                   distal=DistalPoint(distal[0], distal[1],
                                                      distal[2], diameter))
                 segment.classes = classes
+                if len(new_branch) > 1:
+                    new_branch[-1].children.append(segment)
                 new_branch.append(segment)
-            new_branch.pop(0)  # remove the parent from the new_branch
-            to_replace.append((parent, branch[0], new_branch[0]))
+            to_replace.append((parent, branch[0], new_branch[1]))
     for parent, orig_branch_start, new_branch_start in to_replace:
         parent.children.remove(orig_branch_start)
         parent.children.append(new_branch_start)
     return model9ml
 
 
-def d_lambda_rule(length, diam, Ra, cm, freq=(100.0 * pq.Hz), d_lambda=0.3):
+def d_lambda_rule(length, diam, Ra, cm, freq=(100.0 * pq.Hz), d_lambda=0.1):
     """
     Calculates the number of segments required for a straight branch section so
     that its segments are no longer than d_lambda x the AC length constant at
