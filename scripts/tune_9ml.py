@@ -7,6 +7,7 @@ import argparse
 import os.path
 import shutil
 import math
+from copy import deepcopy
 import neo
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
@@ -21,6 +22,10 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        MinCurrentToSpikeObjective)
 from neurotune.algorithm import algorithm_factory, available_algorithms
 from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.morphology import (reduce_morphology,
+                                  rationalise_spatial_sampling,
+                                  merge_morphology_classes,  # @UnusedImport
+                                  IrreducibleMorphologyException)
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
@@ -29,8 +34,33 @@ import cPickle as pkl
 
 true_parameters = []
 
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('model', type=str,
+                    help="The path of the 9ml cell to tune")
+parser.add_argument('reference', type=str,
+                    help="Either a path to a analog signal trace in "
+                         "Neo format or a path to a 9ml cell model "
+                         "which will be simulated and the resulting "
+                         "trace will be used as a reference")
+parser.add_argument('--build', type=str, default='lazy',
+                    help="Option to build the NMODL files before "
+                         "running (can be one of {})"
+                         .format(BUILD_MODE_OPTIONS))
+parser.add_argument('--time', type=float, default=2000.0,
+                   help="Recording time")
+parser.add_argument('--output', type=outputpath,
+                    default=os.path.join(os.environ['HOME'], 'grid.pkl'),
+                    help="The path to the output file where the grid will"
+                         "be written")
+parser.add_argument('--timestep', type=float, default=0.025,
+                    help="The timestep used for the simulation "
+                         "(default: %(default)s)")
+
 
 def add_tune_arguments(parser):
+    """
+    Adds tuner specific arguments, which can be reused over multiple scripts
+    """
     parser.add_argument('-o', '--objective', type=str, nargs='+',
                         default=[], action='append',
                         metavar=('OBJECTIVE_NAME', 'WEIGHTING'),
@@ -55,7 +85,7 @@ def add_tune_arguments(parser):
     parser.add_argument('--algorithm', type=str, default='eda',
                         help="The type of algorithm used for the tuning. Can "
                              " be one of '{}' (default: %(default)s)"
-                             .format("', '". join(available_algorithms.keys())))
+                             .format("', '".join(available_algorithms.keys())))
     parser.add_argument('-a', '--optimize_argument', nargs=2, action='append',
                         default=[], metavar=('KEY', 'ARG'),
                         help="Extra arguments to be passed to the algorithm")
@@ -69,27 +99,7 @@ def add_tune_arguments(parser):
                         help="Whether to print out which candidates are being "
                         "evaluated on which nodes")
 
-parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('model', type=str,
-                    help="The path of the 9ml cell to tune")
-parser.add_argument('reference', type=str,
-                    help="Either a path to a analog signal trace in "
-                         "Neo format or a path to a 9ml cell model "
-                         "which will be simulated and the resulting "
-                         "trace will be used as a reference")
-parser.add_argument('--build', type=str, default='lazy',
-                    help="Option to build the NMODL files before "
-                         "running (can be one of {})"
-                         .format(BUILD_MODE_OPTIONS))
-parser.add_argument('--time', type=float, default=2000.0,
-                   help="Recording time")
-parser.add_argument('--output', type=outputpath,
-                    default=os.path.join(os.environ['HOME'], 'grid.pkl'),
-                    help="The path to the output file where the grid will"
-                         "be written")
-parser.add_argument('--timestep', type=float, default=0.025,
-                    help="The timestep used for the simulation "
-                         "(default: %(default)s)")
+# Add tuner specific arguments
 add_tune_arguments(parser)
 
 
@@ -251,6 +261,17 @@ def run(args, parameters=None, algorithm=None, objective=None,
         # Save the grid to file
         with open(args.output, 'w') as f:
             pkl.dump((candidate, fitness), f)
+
+
+def reducing_morphology(args):
+    reduced_model = deepcopy(args.model)
+    try:
+        while True:
+            reduced_model.morphology = reduce_morphology(reduced_model.\
+                                                                    morphology)
+            reduced_model = rationalise_spatial_sampling(reduced_model)
+    except IrreducibleMorphologyException:
+        return reduced_model
 
 
 def prepare_work_dir(submitter, args):

@@ -8,7 +8,7 @@ import nineml.extensions.biophysical_cells
 from nineml.extensions.morphology import Segment, DistalPoint, ParentReference
 
 
-class IrreducibleException(Exception):
+class IrreducibleMorphologyException(Exception):
     pass
 
 
@@ -149,6 +149,10 @@ def d_lambda_rule(length, diameter, Ra, cm, freq=(100.0 * pq.Hz),
     else:
         lambda_f = 1e5 * numpy.sqrt(diameter / (4 * numpy.pi * freq * Ra * cm))
     return int((length / (d_lambda * lambda_f) + 0.9) / 2) * 2 + 1
+
+
+def merge_morphology_classes(model, from_class, into_class):
+    raise NotImplementedError
 
 
 if __name__ == '__main__':
