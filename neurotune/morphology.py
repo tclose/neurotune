@@ -1,4 +1,5 @@
 from itertools import groupby, chain
+import collections
 from copy import deepcopy
 import numpy
 from lxml import etree
@@ -109,7 +110,8 @@ def rationalise_spatial_sampling(model9ml, **d_lambda_kwargs):
     return model9ml
 
 
-def d_lambda_rule(length, diam, Ra, cm, freq=(100.0 * pq.Hz), d_lambda=0.1):
+def d_lambda_rule(length, diameter, Ra, cm, freq=(100.0 * pq.Hz),
+                  d_lambda=0.1):
     """
     Calculates the number of segments required for a straight branch section so
     that its segments are no longer than d_lambda x the AC length constant at
@@ -125,31 +127,28 @@ def d_lambda_rule(length, diam, Ra, cm, freq=(100.0 * pq.Hz), d_lambda=0.1):
     `cm`         -- membrane capacitance (uF cm^(-2))
     `freq`       -- frequency at which AC length constant will be computed (Hz)
     `d_lambda`   -- fraction of the wavelength
+
+    Returns:
+        The number of segments required for the corresponding fraction of the
+        wavelength
     """
     # Convert all units to the correct values
     length = float(pq.Quantity(length, 'um'))
-    diam = float(pq.Quantity(diam, 'um'))
+    diameter = float(pq.Quantity(diameter, 'um'))
     Ra = float(pq.Quantity(Ra, 'ohm.cm'))
     cm = float(pq.Quantity(cm, 'uF/cm^2'))
     freq = float(pq.Quantity(freq, 'Hz'))
     # Calculate the wavelength for the segment
-    lambda_f = 1e5 * numpy.sqrt(diam / (4 * numpy.pi * freq * Ra * cm))
-    length_frac = length / (d_lambda * lambda_f)
-    return int((length_frac + 0.9) / 2) * 2 + 1
-    # above was too inaccurate with large variation in 3d diameter
-    # so now we use all 3-d points to get a better approximate lambda
-#     x1 = arc3d(0)
-#     d1 = diam3d(0)
-#     lam = 0
-#     for i in xrange(1, n3d() - 1):
-#         x2 = arc3d(i)
-#         d2 = diam3d(i)
-#         lam += (x2 - x1) / numpy.sqrt(d1 + d2)
-#         x1 = x2
-#         d1 = d2
-#     #  length of the section in units of lambda
-#     lam *= numpy.sqrt(2) * 1e-5 * numpy.sqrt(4 * numpy.pi * freq * Ra * cm)
-#     lambda_f =  L / lam
+    if isinstance(length, collections.Iterable):
+        # FIXME: This (variable diameter d_lambda) is not tested yet
+        lam = 0
+        for i, lngth in enumerate(length):
+            lam += lngth / numpy.sqrt(diameter[i] + diameter[i + 1])
+        lam *= numpy.sqrt(2) * 1e-5 * numpy.sqrt(4 * numpy.pi * freq * Ra * cm)
+        lambda_f = length / lam
+    else:
+        lambda_f = 1e5 * numpy.sqrt(diameter / (4 * numpy.pi * freq * Ra * cm))
+    return int((length / (d_lambda * lambda_f) + 0.9) / 2) * 2 + 1
 
 
 if __name__ == '__main__':
