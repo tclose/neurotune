@@ -43,7 +43,9 @@ def reduce_morphology(morph, only_most_distal=False):
             total_surface_area = numpy.sum(seg.length * seg.diameter()
                                            for seg in chain(*siblings))
             diameter = total_surface_area / average_length
-            name = '_'.join(sib[0].name for sib in siblings)
+            name = siblings[0].name
+            if len(branch) > 1:
+                name += '_' + siblings[-1].name
             parent_ref = ParentReference(parent.name, 1.0)
             parent_ref.segment = parent
             distal = (parent.distal + parent.disp *
@@ -52,44 +54,61 @@ def reduce_morphology(morph, only_most_distal=False):
                                                        distal[2], diameter),
                               parent_ref=parent_ref)
             segment.classes = classes
+            segment.reduced = True
             for branch in siblings:
                 parent.children.remove(branch[0])
             parent.children.append(segment)
     return morph
 
 
-def optimise_segments(model9ml, freq=100, d_lambda=0.1):
+def rationalise_spatial_sampling(model9ml, **d_lambda_kwargs):
     model9ml = deepcopy(model9ml)
-    Ra = model9ml.biophysics.defaults['Ra']
-    cm = model9ml.biophysics.defaults['cm']
-    for branch in model9ml.morphology:
-        branch_length = numpy.sum(seg.length for seg in branch)
-        diameter = numpy.sum(seg.diameter for seg in branch) / len(branch)
-        num_segments = d_lambda_rule(branch_length, diameter, Ra, cm,
-                                     freq=freq, d_lambda=d_lambda)
-        base_name = branch[0].name
-        if len(branch) > 1:
-            base_name += '_' + branch[-1].name
+    default_params = model.biophysics.components['__NO_COMPONENT__'].parameters
+    Ra = pq.Quantity(float(default_params['Ra'].value),
+                     default_params['Ra'].unit)
+    cm = pq.Quantity(float(default_params['C_m'].value), 'uF/cm^2')  # default_params['C_m'].unit) @IgnorePep8
+    to_replace = []
+    for branch in model9ml.morphology.branches:
         parent = branch[0].parent
-        parent.children.remove(branch[0])
-        # Get the direction of the branch
-        direction = branch[-1].distal - branch[0].proximal
-        direction *= branch_length / numpy.sqrt(numpy.sum(direction ** 2))
-        for i, seg_length in enumerate(numpy.linspace(0.0, branch_length,
-                                                      num_segments)):
-            name = base_name + '_' + str(i)
-            parent_ref = ParentReference(parent.name, 1.0)
-            distal = branch[0].proximal + direction * seg_length
-            segment = Segment(name, distal=DistalPoint(distal[0], distal[1],
-                                                       distal[2], diameter),
-                              parent_ref=parent_ref)
-            segment.classes = branch[0].classes
-            parent.children.append(seg)
-            parent = seg
+        if parent:
+            branch_length = numpy.sum(seg.length for seg in branch) * pq.um
+            diameter = (numpy.sum(seg.diameter() for seg in branch) /
+                        len(branch) * pq.um)
+            num_segments = d_lambda_rule(branch_length, diameter, Ra, cm,
+                                         **d_lambda_kwargs)
+            base_name = branch[0].name
+            if len(branch) > 1:
+                base_name += '_' + branch[-1].name
+            # Get the direction of the branch
+            classes = branch[0].classes
+            direction = branch[-1].distal - branch[0].proximal
+            direction *= (branch_length /
+                          numpy.sqrt(numpy.sum(direction ** 2)))
+            # Temporarily add the parent to the new_branch to allow it to be
+            # linked to the new segments
+            new_branch = [parent]
+            for i, seg_length in enumerate(
+                                    numpy.linspace(0.0,
+                                                   float(branch_length),
+                                                   num_segments)):
+                name = base_name + '_' + str(i)
+                parent_ref = ParentReference(new_branch[-1].name, 1.0)
+                parent_ref.segment = new_branch[-1]
+                distal = branch[0].proximal + direction * seg_length
+                segment = Segment(name, parent_ref=parent_ref,
+                                  distal=DistalPoint(distal[0], distal[1],
+                                                     distal[2], diameter))
+                segment.classes = classes
+                new_branch.append(segment)
+            new_branch.pop(0)  # remove the parent from the new_branch
+            to_replace.append((parent, branch[0], new_branch[0]))
+    for parent, orig_branch_start, new_branch_start in to_replace:
+        parent.children.remove(orig_branch_start)
+        parent.children.append(new_branch_start)
     return model9ml
 
 
-def d_lambda_rule(length, diam, Ra, cm, freq=100 * pq.Hz, d_lambda=0.1):
+def d_lambda_rule(length, diam, Ra, cm, freq=(100.0 * pq.Hz), d_lambda=0.3):
     """
     Calculates the number of segments required for a straight branch section so
     that its segments are no longer than d_lambda x the AC length constant at
@@ -106,8 +125,16 @@ def d_lambda_rule(length, diam, Ra, cm, freq=100 * pq.Hz, d_lambda=0.1):
     `freq`       -- frequency at which AC length constant will be computed (Hz)
     `d_lambda`   -- fraction of the wavelength
     """
+    # Convert all units to the correct values
+    length = float(pq.Quantity(length, 'um'))
+    diam = float(pq.Quantity(diam, 'um'))
+    Ra = float(pq.Quantity(Ra, 'ohm.cm'))
+    cm = float(pq.Quantity(cm, 'uF/cm^2'))
+    freq = float(pq.Quantity(freq, 'Hz'))
+    # Calculate the wavelength for the segment
     lambda_f = 1e5 * numpy.sqrt(diam / (4 * numpy.pi * freq * Ra * cm))
-    return int((length / (d_lambda * lambda_f) + 0.9) / 2) * 2 + 1
+    length_frac = length / (d_lambda * lambda_f)
+    return int((length_frac + 0.9) / 2) * 2 + 1
     # above was too inaccurate with large variation in 3d diameter
     # so now we use all 3-d points to get a better approximate lambda
 #     x1 = arc3d(0)
@@ -126,11 +153,11 @@ def d_lambda_rule(length, diam, Ra, cm, freq=100 * pq.Hz, d_lambda=0.1):
 
 if __name__ == '__main__':
     nineml_file = '/home/tclose/git/kbrain/9ml/neurons/Golgi_Solinas08.9ml'
-    model = nineml.extensions.biophysical_cells.parse(nineml_file)
-    morph = next(model.itervalues()).morphology
-    reduced_morph = reduce_morphology(morph)
-    optimised_tree = optimise_segments(reduced_morph)
-    etree.ElementTree(reduced_morph.to_xml()).write(
+    models = nineml.extensions.biophysical_cells.parse(nineml_file)
+    model = next(models.itervalues())
+    model.morphology = reduce_morphology(model.morphology)
+    reduced_model = rationalise_spatial_sampling(model)
+    etree.ElementTree(reduced_model.to_xml()).write(
              '/home/tclose/git/kbrain/9ml/neurons/Golgi_Solinas08-reduced.9ml',
              encoding="UTF-8",
              pretty_print=True,
