@@ -20,7 +20,7 @@ def reduce_morphology(morph, only_most_distal=False):
     # Create a complete copy of the morphology to allow it to be reduced
     morph = deepcopy(morph)
     if only_most_distal:
-        # Get the branches
+        # Get the branches at the maximum depth
         max_branch_depth = max(seg.branch_depth for seg in morph.segments)
         candidates = [branch for branch in morph.branches
                       if branch[0].branch_depth == max_branch_depth]
