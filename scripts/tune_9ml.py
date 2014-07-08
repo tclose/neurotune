@@ -22,10 +22,6 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        MinCurrentToSpikeObjective)
 from neurotune.algorithm import algorithm_factory, available_algorithms
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.morphology import (reduce_morphology,
-                                  rationalise_spatial_sampling,
-                                  merge_morphology_classes,  # @UnusedImport
-                                  IrreducibleMorphologyException)
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
@@ -228,7 +224,7 @@ def get_simulation(args):
 
 
 def run(args, parameters=None, algorithm=None, objective=None,
-        simulation=None):
+        simulation=None, save_output=True):
     # Instantiate the tuner
     if not parameters:
         parameters = get_parameters(args)
@@ -249,29 +245,19 @@ def run(args, parameters=None, algorithm=None, objective=None,
     tuner.true_candidate = true_parameters
     # Run the tuner
     try:
-        candidate, fitness, _ = tuner.tune()
+        candidate, fitness, algorithm_state = tuner.tune()
     except EvaluationException as e:
         e.save(os.path.join(os.path.dirname(args.output),
                             'evaluation_exception.pkl'))
         raise
     # Save the file if the tuner is the master
-    if tuner.is_master():
+    if tuner.is_master() and save_output:
         print ("Fittest candidate (fitness {}): {}"
               .format(fitness, candidate))
         # Save the grid to file
         with open(args.output, 'w') as f:
             pkl.dump((candidate, fitness), f)
-
-
-def reducing_morphology(args):
-    reduced_model = deepcopy(args.model)
-    try:
-        while True:
-            reduced_model.morphology = reduce_morphology(reduced_model.\
-                                                                    morphology)
-            reduced_model = rationalise_spatial_sampling(reduced_model)
-    except IrreducibleMorphologyException:
-        return reduced_model
+    return candidate, fitness, algorithm_state
 
 
 def prepare_work_dir(submitter, args):
