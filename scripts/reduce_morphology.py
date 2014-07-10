@@ -5,18 +5,24 @@ and retuning the parameters
 """
 import sys
 import os.path
-import numpy
 import argparse
+import numpy
+from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
 from neurotune import Parameter
+from neurotune.tuner import EvaluationException
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.morphology import (reduce_morphology,
                                   rationalise_spatial_sampling,
                                   merge_morphology_classes,  # @UnusedImport
                                   IrreducibleMorphologyException)
-from lxml import etree
+try:
+    from neurotune.tuner.mpi import MPITuner as Tuner
+except ImportError:
+    from neurotune.tuner import Tuner
+from neurotune.algorithm import algorithm_factory
 sys.path.insert(0, os.path.dirname(__file__))
 from tune_9ml import run as tune, add_tune_arguments, get_objective
 sys.path.pop(0)
@@ -41,7 +47,7 @@ parser.add_argument('--timestep', type=float, default=0.025,
 parser.add_argument('--parameter_range', type=float, default=0.5,
                     help="The range of the parameters about the previous "
                          "best fit to vary")
-parser.add_argument('--fitness_bounds', nargs='+', type=float,
+parser.add_argument('--fitness_bounds', nargs='+', type=float, default=None,
                     help="The bounds on the fitnesses below which the tree "
                          "will continue to be reduced")
 # Add tuning arguments
@@ -53,20 +59,33 @@ def run(args):
     model = next(parse_nineml(args.nineml).itervalues())
     # Get the objective functions based on the provided arguments and the
     # original model
-    objective = get_objective(reference=args.nineml)
+    objective = get_objective(args, reference=args.nineml)
+    algorithm = algorithm_factory(args)
     parameters = []
     new_states = []
     for comp in model.biophysics.components.itervalues():
         if comp.type == 'ionic-current':
-            value = numpy.log(float(comp.parameters['g'].value))
-            # Initialise parameters with infinite bounds to begin with.
-            # Their actual bounds will vary with each iteration
-            parameters.append(Parameter('soma.{}.gbar'.format(comp.name),
-                                        'S/cm^2', float('-inf'), float('inf'),
-                                        log_scale=True,
-                                        initial_value=value))
-            new_states.append(value)
+            for mapping in model.mappings:
+                if comp.name in mapping.components:
+                    for group in mapping.segments:
+                        value = numpy.log(float(comp.parameters['g'].value))
+                        # Initialise parameters with infinite bounds to begin
+                        # with their actual bounds will vary with each
+                        # iteration
+                        parameters.append(Parameter('{}.{}.gbar'
+                                                    .format(group, comp.name),
+                                                    'S/cm^2',
+                                                    float('-inf'),
+                                                    float('inf'),
+                                                    log_scale=True,
+                                                    initial_value=value))
+                        new_states.append(value)
     fitnesses = numpy.zeros(len(objective))
+    tuner = Tuner(parameters,
+                  objective,
+                  algorithm,
+                  NineLineSimulation(model),
+                  verbose=args.verbose)
     # Keep reducing the model until it can't be reduced any further
     try:
         while all(fitnesses < args.fitness_bounds):
@@ -77,11 +96,15 @@ def run(args):
             for param, state in zip(parameters, states):
                 param.lbound = state - args.parameter_range
                 param.ubound = state + args.parameter_range
-            new_states, fitnesses, _ = tune(args, parameters=parameters,
-                                            objective=objective,
-                                            simulation=simulation)
+            tuner.set(parameters, objective, algorithm, simulation,
+                      verbose=args.verbose)
+            new_states, fitnesses, _ = tuner.tune()
     except IrreducibleMorphologyException:
         pass
+    except EvaluationException as e:
+        e.save(os.path.join(os.path.dirname(args.output),
+                            'evaluation_exception.pkl'))
+        raise
     for state, param in zip(states, parameters):
         setattr(model, param.name, state)
     # Write final model to file

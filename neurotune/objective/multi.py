@@ -25,6 +25,9 @@ class MultiObjective(Objective):
     def __setitem__(self, i, val):
         self.objectives[i] = val
 
+    def __len__(self):
+        return len(self.objectives)
+
     def fitness(self, analysis):
         """
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the

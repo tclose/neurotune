@@ -78,7 +78,7 @@ def add_tune_arguments(parser):
                              "the algorithm for")
     parser.add_argument('--population_size', type=int, default=100,
                         help="The number of genomes in a generation")
-    parser.add_argument('--algorithm', type=str, default='eda',
+    parser.add_argument('--algorithm', type=str, default='nsga2',
                         help="The type of algorithm used for the tuning. Can "
                              " be one of '{}' (default: %(default)s)"
                              .format("', '".join(available_algorithms.keys())))
@@ -108,29 +108,32 @@ obj_dict = {'histogram': PhasePlaneHistObjective,
 multi_objective_algorithms = ('nsga2', 'pareto_archived', 'multi-grid')
 
 
-def load_reference(args):
-    if args.reference.endswith('.9ml'):
+def load_reference(args, reference=None):
+    if reference is None:
+        reference = args.reference
+    if isinstance(reference, neo.AnalogSignal):
+        pass
+    elif reference.endswith('.9ml'):
         # Generate the reference trace from the original class
-        cell = NineCellMetaClass(args.reference, build_mode=args.build)()
+        cell = NineCellMetaClass(reference, build_mode=args.build)()
         cell.record('v')
         simulation_controller.run(simulation_time=args.time,
                                   timestep=args.timestep)
         reference = cell.get_recording('v')
     else:
-        if args.reference.endswith('.neo.pkl'):
-            block = neo.PickleIO(args.reference).read()
-        elif args.reference.endswith('.neo.h5'):
-            block = neo.NeoHdf5IO(args.reference).read()
+        if reference.endswith('.neo.pkl'):
+            block = neo.PickleIO(reference).read()
+        elif reference.endswith('.neo.h5'):
+            block = neo.NeoHdf5IO(reference).read()
         else:
             raise Exception("Unrecognised extension of reference file '{}'"
-                            .format(args.reference))
+                            .format(reference))
         reference = block.segments[0].analogsignals[0]
     return reference
 
 
 def get_objective(args, reference=None):
-    if reference is None:
-        reference = load_reference(args)
+    reference = load_reference(args, reference)
     # Distribute the objective arguments between the (possibly) multiple
     # objectives
     objective_args = [{}] * (len(args.objective) if args.objective else 2)
