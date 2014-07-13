@@ -4,7 +4,6 @@ import neo.core
 from nineml.extensions.biophysical_cells import ComponentClass as BiophysNineml
 from nineline.cells.neuron import NineCellMetaClass, \
                                   simulation_controller as nineline_controller
-from neuron import h
 from . import Simulation
 
 
