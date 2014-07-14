@@ -122,12 +122,17 @@ def run(args):
             simulation = NineLineSimulation(reduced_model)
             tuner.set(passive_parameters, passive_objective, algorithm,
                       simulation, verbose=args.verbose)
-            new_states, fitnesses, _ = tuner.tune()
+            new_states, passive_fitnesses, _ = tuner.tune()
+            if not all(passive_fitnesses < args.passive_tolerance):
+                raise Exception("Could not find passive tuning for reduced "
+                                "model that is less than specified tolerance")
+            for comp, state in zip(require_tuning, new_states):
+                comp.value = state
             for param, state in zip(active_parameters, states):
                 param.lbound = state - args.parameter_range
                 param.ubound = state + args.parameter_range
-            tuner.set(active_parameters, active_objective, algorithm, simulation,
-                      verbose=args.verbose)
+            tuner.set(active_parameters, active_objective, algorithm,
+                      simulation, verbose=args.verbose)
             new_states, fitnesses, _ = tuner.tune()
     except IrreducibleMorphologyException:
         pass
