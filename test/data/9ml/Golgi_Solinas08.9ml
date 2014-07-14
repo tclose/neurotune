@@ -50,7 +50,6 @@
         <Mapping name="PassiveComponents">
             <Biophysics>
                 <Component>Lkg</Component>
-                <Component>__NO_COMPONENT__</Component>
             </Biophysics>
             <Segments classification="BasicAnatomy">
                 <Class>Soma</Class>
