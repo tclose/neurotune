@@ -57,6 +57,14 @@
                 <Class>Axon</Class>
             </Segments>
         </Mapping>
+        <Mapping name="Synapses">
+            <Biophysics>
+                <Component>AMPA</Component>
+            </Biophysics>
+            <Segments classification="BasicAnatomy">
+                <Class>Dendrites</Class>
+            </Segments>
+        </Mapping>
         <M:morphology name="WithAxon" xmlns:M="http://www.nineml.org/Morphology">
             <M:segment name="soma">
                 <M:proximal x="0" y="0" z="0" diameter="27"/>

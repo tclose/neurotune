@@ -7,17 +7,16 @@ import sys
 import os.path
 import argparse
 import numpy
+from copy import deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
+from nineline.cells import (Model, IrreducibleMorphologyException,
+                            IonChannelModel)
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.morphology import (reduce_morphology,
-                                  rationalise_spatial_sampling,
-                                  merge_morphology_classes,  # @UnusedImport
-                                  IrreducibleMorphologyException)
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
@@ -56,47 +55,78 @@ add_tune_arguments(parser)
 
 def run(args):
     # Get original model to be reduced
-    model = next(parse_nineml(args.nineml).itervalues())
+    model = Model.from_9ml(next(parse_nineml(args.nineml).itervalues()))
+    # Create a copy to hold the reduced model
+    reduced_model = deepcopy(model)
     # Get the objective functions based on the provided arguments and the
     # original model
-    objective = get_objective(args, reference=args.nineml)
+    active_objective = get_objective(args, reference=args.nineml)
+    passive_objective = get_objective(args, reference=args.nineml)
     algorithm = algorithm_factory(args)
-    parameters = []
+    active_parameters = []
     new_states = []
-    for comp in model.biophysics.components.itervalues():
-        if comp.type == 'ionic-current':
-            for mapping in model.mappings:
-                if comp.name in mapping.components:
-                    for group in mapping.segments:
-                        value = numpy.log(float(comp.parameters['g'].value))
-                        # Initialise parameters with infinite bounds to begin
-                        # with their actual bounds will vary with each
-                        # iteration
-                        parameters.append(Parameter('{}.{}.gbar'
-                                                    .format(group, comp.name),
-                                                    'S/cm^2',
-                                                    float('-inf'),
-                                                    float('inf'),
-                                                    log_scale=True,
-                                                    initial_value=value))
-                        new_states.append(value)
-    fitnesses = numpy.zeros(len(objective))
-    tuner = Tuner(parameters,
-                  objective,
+    for comp in model.components:
+        if isinstance(comp, IonChannelModel):
+            value = numpy.log(float(comp.parameters['g']))
+            # Initialise parameters with infinite bounds to begin
+            # with their actual bounds will vary with each
+            # iteration
+            active_parameters.append(Parameter('{}.gbar'
+                                        .format(comp.name),
+                                        str(comp.parameters['g'].units[4:]),
+                                        float('-inf'),
+                                        float('inf'),
+                                        log_scale=True,
+                                        initial_value=value))
+            new_states.append(value)
+#     for comp in model.biophysics.components.itervalues():
+#         if comp.type == 'ionic-current':
+#             for mapping in model.mappings:
+#                 if comp.name in mapping.components:
+#                     for group in mapping.segments:
+#                         value = numpy.log(float(comp.parameters['g'].value))
+#                         # Initialise active_parameters with infinite bounds to begin
+#                         # with their actual bounds will vary with each
+#                         # iteration
+#                         active_parameters.append(Parameter('{}.{}.gbar'
+#                                                     .format(group, comp.name),
+#                                                     'S/cm^2',
+#                                                     float('-inf'),
+#                                                     float('inf'),
+#                                                     log_scale=True,
+#                                                     initial_value=value))
+#                         new_states.append(value)
+    fitnesses = numpy.zeros(len(active_objective))
+    # Initialise the tuner so I can use the 'set' method in the loop. The
+    # arguments aren't actually used in their current form but are required by
+    # the Tuner constructor
+    tuner = Tuner(active_parameters,
+                  active_objective,
                   algorithm,
-                  NineLineSimulation(model),
+                  NineLineSimulation(reduced_model),
                   verbose=args.verbose)
     # Keep reducing the model until it can't be reduced any further
     try:
         while all(fitnesses < args.fitness_bounds):
             states = new_states
-            model.morphology = reduce_morphology(model.morphology)
-            model = rationalise_spatial_sampling(model)
-            simulation = NineLineSimulation(model)
-            for param, state in zip(parameters, states):
+            require_tuning = model.merge_leaves()
+            passive_parameters = []
+            for comp in require_tuning:
+                value = float(comp.value)
+                passive_parameters.append(Parameter('{}.Ra'.format(comp.name),
+                                                    str(comp.value.units)[4:],
+                                                    value - args.ra_range,
+                                                    value + args.ra_range,
+                                                    log_scale=False,
+                                                    initial_value=value))
+            simulation = NineLineSimulation(reduced_model)
+            tuner.set(passive_parameters, passive_objective, algorithm,
+                      simulation, verbose=args.verbose)
+            new_states, fitnesses, _ = tuner.tune()
+            for param, state in zip(active_parameters, states):
                 param.lbound = state - args.parameter_range
                 param.ubound = state + args.parameter_range
-            tuner.set(parameters, objective, algorithm, simulation,
+            tuner.set(active_parameters, active_objective, algorithm, simulation,
                       verbose=args.verbose)
             new_states, fitnesses, _ = tuner.tune()
     except IrreducibleMorphologyException:
@@ -105,7 +135,7 @@ def run(args):
         e.save(os.path.join(os.path.dirname(args.output),
                             'evaluation_exception.pkl'))
         raise
-    for state, param in zip(states, parameters):
+    for state, param in zip(states, active_parameters):
         setattr(model, param.name, state)
     # Write final model to file
     etree.ElementTree(model.to_xml()).write(args.output, encoding="UTF-8",
