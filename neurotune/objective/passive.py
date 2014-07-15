@@ -69,7 +69,7 @@ class RCCurveObjective(PassivePropertiesObjective):
                 float(self.time_stop - self.time_start))
 
 
-class SteadyStateVoltageDistributionObjective(PassivePropertiesObjective):
+class SteadyStateVoltagesObjective(PassivePropertiesObjective):
 
     def __init__(self, references, record_sites, time_stop=750.0, **kwargs):
         if len(references) != len(record_sites):

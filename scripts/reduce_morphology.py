@@ -16,12 +16,12 @@ from nineline.arguments import outputpath
 from nineline.cells import (Model, SegmentModel, IonChannelModel,
                             AxialResistanceModel,
                             IrreducibleMorphologyException)
-from nineline.cells.neuron import NineCellMetaClass
+from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
-from neurotune.objective.passive import (TimeConstantObjective,
-                                         PeakConductanceObjective)
+from neurotune.objective.passive import (RCCurveObjective,
+                                         SteadyStateVoltagesObjective)
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -158,6 +158,22 @@ def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
     return tree, needs_tuning, mapped_synapses
 
 
+def get_rc_refs(model):
+    cell = NineCellMetaClass(model)()
+    cell.record('v')
+    simulation_controller.run(simulation_time=args.time,
+                                  timestep=args.timestep)
+    reference = cell.get_recording('v')
+
+
+def get_rc_refs(model):
+    cell = NineCellMetaClass(model)()
+    cell.record('v')
+    simulation_controller.run(simulation_time=args.time,
+                                  timestep=args.timestep)
+    reference = cell.get_recording('v')
+
+
 def run(args):
     # Get original model to be reduced
     model = Model.from_9ml(next(parse_nineml(args.nineml).itervalues()))
@@ -238,10 +254,12 @@ def run(args):
                 reference_inject_locations.append(old_segname)
                 tune_inject_locations.append(new_segname)
             # Set up the objectives for the passive tuning of axial resistances
-            exist_passive_model = reduced_model.passive_model()
-            exist_passive_cell = NineCellMetaClass(exist_passive_model)()
-            passive_objective = MultiObjective([TimeConstantObjective(),
-                                                PeakConductanceObjective()])
+            ref_simulation = NineLineSimulation(reduced_model.passive_model())
+            ref_passive_model = reduced_model.passive_model()
+            rc_objective = RCCurveObjective(get_rc_refs(ref_passive_model))
+            ss_objective = SteadyStateVoltagesObjective(
+                                                get_ss_refs(ref_passive_model))
+            passive_objective = MultiObjective([rc_objective, ss_objective])
             # Run the tuner to tune the axial resistances of the merged tree
             tuner.set(ra_parameters, passive_objective, algorithm,
                       NineLineSimulation(new_model.passive_model()),
