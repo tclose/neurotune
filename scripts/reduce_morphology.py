@@ -8,7 +8,7 @@ import os.path
 import argparse
 import numpy
 from itertools import chain, groupby
-from copy import deepcopy
+from copy import copy, deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
 from nineline.cells.build import BUILD_MODE_OPTIONS
@@ -16,8 +16,12 @@ from nineline.arguments import outputpath
 from nineline.cells import (Model, SegmentModel, IonChannelModel,
                             AxialResistanceModel,
                             IrreducibleMorphologyException)
+from nineline.cells.neuron import NineCellMetaClass
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
+from neurotune.objective.multi import MultiObjective
+from neurotune.objective.passive import (TimeConstantObjective,
+                                         PeakConductanceObjective)
 from neurotune.simulation.nineline import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
@@ -25,13 +29,16 @@ except ImportError:
     from neurotune.tuner import Tuner
 from neurotune.algorithm import algorithm_factory
 sys.path.insert(0, os.path.dirname(__file__))
-from tune_9ml import run as tune, add_tune_arguments, get_objective
+from tune_9ml import add_tune_arguments, get_objective
 sys.path.pop(0)
 
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('nineml', type=str,
                     help="The path of the 9ml cell to tune")
+parser.add_argument('leak_components', nargs='+', type=str,
+                    help="The names of the component classes of the leak "
+                         "components used in the model (eg. 'Lkg')")
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before "
                          "running (can be one of {})"
@@ -40,7 +47,7 @@ parser.add_argument('--time', type=float, default=2000.0,
                    help="Recording time")
 parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
-                    help="The path to the output file where the grid will"
+                    help="The path to the output file where the grid will "
                          "be written")
 parser.add_argument('--timestep', type=float, default=0.025,
                     help="The timestep used for the simulation "
@@ -55,7 +62,7 @@ parser.add_argument('--fitness_bounds', nargs='+', type=float, default=None,
 add_tune_arguments(parser)
 
 
-def merge_leaves(tree, only_most_distal=False, normalise_sampling=True):
+def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
     """
     Reduces a 9ml morphology, starting at the most distal branches and
     merging them with their siblings.
@@ -83,6 +90,7 @@ def merge_leaves(tree, only_most_distal=False, normalise_sampling=True):
                                              "further without merging "
                                              "segment_classes")
     needs_tuning = []
+    mapped_synapses = copy(synapses_to_track)
     # Group together candidates that are "siblings", i.e. have the same
     # parent and also the same components (excl. Ra)
     sibling_seg_classes = groupby(candidates,
@@ -138,12 +146,16 @@ def merge_leaves(tree, only_most_distal=False, normalise_sampling=True):
             #       therefore only stored at segment levels
             tree.add_component(Ra_comp)
             segment.set_component(Ra_comp)
-            # Append the Ra component to the 'needs_tuning' list for
-            # subsequent retuning
-            needs_tuning.append(Ra_comp)
-    if normalise_sampling:
-        tree.normalise_spatial_sampling()
-    return needs_tuning
+            # Append the Ra component to the 'needs_tuning' list for subsequent
+            # retuning along with name of the new segment and the names of the
+            # middle segments of the old branches that have been merged
+            biggest_branch = siblings[numpy.argmax(numpy.sum(s.surface_area
+                                                            for seg in branch),
+                                                   for branch in siblings)]
+            middle_segment = biggest_branch[len(biggest_branch) // 2]
+            needs_tuning.append((Ra_comp, middle_segment, segment.name))
+    tree.normalise_spatial_sampling()
+    return tree, needs_tuning, mapped_synapses
 
 
 def run(args):
@@ -154,7 +166,6 @@ def run(args):
     # Get the objective functions based on the provided arguments and the
     # original model
     active_objective = get_objective(args, reference=args.nineml)
-    passive_objective = get_objective(args, reference=args.nineml)
     algorithm = algorithm_factory(args)
     active_parameters = []
     new_states = []
@@ -178,11 +189,11 @@ def run(args):
 #                 if comp.name in mapping.components:
 #                     for group in mapping.segments:
 #                         value = numpy.log(float(comp.parameters['g'].value))
-#                         # Initialise active_parameters with infinite bounds to begin
+#                         # Initialise active_parameters with infinite bounds to begin @IgnorePep8
 #                         # with their actual bounds will vary with each
 #                         # iteration
 #                         active_parameters.append(Parameter('{}.{}.gbar'
-#                                                     .format(group, comp.name),
+#                                                     .format(group, comp.name), @IgnorePep8
 #                                                     'S/cm^2',
 #                                                     float('-inf'),
 #                                                     float('inf'),
@@ -198,34 +209,59 @@ def run(args):
                   algorithm,
                   NineLineSimulation(reduced_model),
                   verbose=args.verbose)
+    input_synapses = []
     # Keep reducing the model until it can't be reduced any further
+    new_model = model  # Start with the full model
     try:
         while all(fitnesses < args.fitness_bounds):
+            # If the best fitnesses are below the fitness bounds update the
+            # model
             states = new_states
-            require_tuning = model.merge_leaves()
-            passive_parameters = []
-            for comp in require_tuning:
+            reduced_model = new_model
+            # Merge the leaves of the outmost branches of the tree
+            (new_model, requires_tuning,
+                        mapped_synapses) = merge_leaves(reduced_model,
+                                                        input_synapses)
+            # Create the parameters that are required to be retuned for the
+            # correct axial resistance for the merged branches
+            ra_parameters = []
+            reference_inject_locations = []
+            tune_inject_locations = []
+            for comp, old_segname, new_segname in requires_tuning:
                 value = float(comp.value)
-                passive_parameters.append(Parameter('{}.Ra'.format(comp.name),
-                                                    str(comp.value.units)[4:],
-                                                    value - args.ra_range,
-                                                    value + args.ra_range,
-                                                    log_scale=False,
-                                                    initial_value=value))
-            simulation = NineLineSimulation(reduced_model)
-            tuner.set(passive_parameters, passive_objective, algorithm,
-                      simulation, verbose=args.verbose)
-            new_states, passive_fitnesses, _ = tuner.tune()
+                ra_parameters.append(Parameter(comp.name,
+                                               str(comp.value.units)[4:],
+                                               value * (1.0 - args.ra_range),
+                                               value + (1.0 + args.ra_range),
+                                               log_scale=False,
+                                               initial_value=value))
+                reference_inject_locations.append(old_segname)
+                tune_inject_locations.append(new_segname)
+            # Set up the objectives for the passive tuning of axial resistances
+            exist_passive_model = reduced_model.passive_model()
+            exist_passive_cell = NineCellMetaClass(exist_passive_model)()
+            passive_objective = MultiObjective([TimeConstantObjective(),
+                                                PeakConductanceObjective()])
+            # Run the tuner to tune the axial resistances of the merged tree
+            tuner.set(ra_parameters, passive_objective, algorithm,
+                      NineLineSimulation(new_model.passive_model()),
+                      verbose=args.verbose)
+            tuned_Ras, passive_fitnesses, _ = tuner.tune()
+            # Check to see if the passive tuning was successful
             if not all(passive_fitnesses < args.passive_tolerance):
                 raise Exception("Could not find passive tuning for reduced "
                                 "model that is less than specified tolerance")
-            for comp, state in zip(require_tuning, new_states):
-                comp.value = state
+            # Set the axial resistances to the tuned values for the new model
+            for (comp, _, _), tuned_Ra in zip(requires_tuning, tuned_Ras):
+                comp.value = tuned_Ra
+            # Set the bounds on the active parameters for the active tuning
             for param, state in zip(active_parameters, states):
                 param.lbound = state - args.parameter_range
                 param.ubound = state + args.parameter_range
+            # Create new simulation object for latest model
+            active_simulation = NineLineSimulation(new_model)
             tuner.set(active_parameters, active_objective, algorithm,
-                      simulation, verbose=args.verbose)
+                      active_simulation, verbose=args.verbose)
             new_states, fitnesses, _ = tuner.tune()
     except IrreducibleMorphologyException:
         pass
