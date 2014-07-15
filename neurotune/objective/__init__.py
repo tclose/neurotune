@@ -2,7 +2,9 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 import quantities as pq
-from ..simulation import RecordingRequest
+import neo.io
+from ..simulation import Simulation, RecordingRequest
+from ..analysis import AnalysedSignal
 
 
 class Objective(object):
@@ -56,6 +58,47 @@ class Objective(object):
                                               conditions=self.conditions,
                                               record_variable=site)
         return requests
+
+    def _set_reference(self, reference):
+        recording_requests = self.get_recording_requests()
+        # Get the number of references that are required
+        num_refs = len(recording_requests)
+        if isinstance(reference, str):  # Assume path of Neo file
+            f = neo.io.PickleIO(reference)
+            seg = f.read_segment()
+            if len(seg.analogsignals) != num_refs:
+                raise Exception("Number of loaded AnalogSignals ({}) does not "
+                                "match number of recording requests ({})"
+                                .format(len(seg.analogsignals), num_refs))
+            if num_refs == 1:
+                self.reference = AnalysedSignal(seg.analogsignals[0]).\
+                                               slice(self.t_start, self.t_stop)
+            else:
+                self.reference = [AnalysedSignal(sig).slice(self.t_start,
+                                                            self.t_stop)
+                                  for sig in seg.analogsignals]
+        elif isinstance(reference, Simulation):
+            reference.process_recording_requests(recording_requests)
+            recordings = reference.run_all(candidate=None)
+            if num_refs == 1:
+                self.reference = AnalysedSignal(
+                                    recordings.segments[0].analogsignals[0]).\
+                                               slice(self.t_start, self.t_stop)
+            else:
+                self.reference = [AnalysedSignal(seg.analogsignals[0]).\
+                                               slice(self.t_start, self.t_stop)
+                                  for seg in recordings.segments]
+        elif num_refs == 1:
+            if isinstance(reference, neo.AnalogSignal):
+                self.reference = AnalysedSignal(reference).slice(self.t_start,
+                                                                 self.t_stop)
+            else:
+                raise Exception("Unrecognised type of reference signal {}, "
+                                "must be either a path to a Neo file, an "
+                                "AnalogSignal or Simulation object"
+                                .format(str(reference.__class__)))
+        else:
+            raise NotImplementedError
 
 
 class DummyObjective(Objective):
