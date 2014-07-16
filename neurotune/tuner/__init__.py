@@ -55,13 +55,28 @@ class Tuner(object):
     algorithm and simulation objects) and runs the algorithm
     """
     num_processes = 1
+    num_tuners = 0
 
     def __init__(self, *args, **kwargs):
+        if self.num_tuners:
+            raise Exception("Only one tuner object should be used at a time, "
+                            "please use the 'set' method to repurpose an "
+                            "existing tuner for consecutive tunings")
+        self.num_tuners = 1
         self.set(*args, **kwargs)
 
-    def set(self, tune_parameters, objective, algorithm, simulation,
-            verbose=False, save_recordings=None):
+    def __del__(self):
+        self.num_tuners = 0
+
+    def set(self, tune_parameters=None, objective=None, algorithm=None,
+            simulation=None, verbose=False, save_recordings=None):
         """
+        Only on tuner instance should be used at a time as NEURON will
+        otherwise simulate both each time it is run. Therefore this set
+        method should be use to repurpose an existing simulator if performing
+        subsequent tunings.
+
+        `tune_parameters` -- The list of parameters to be tuned
         `objective`       -- The objective function to be tuned against
                              [neurotune.objectives.*Objective]
         `algorithm`       -- The algorithm used to tune the cell with
@@ -75,10 +90,26 @@ class Tuner(object):
                              are not saved
         """
         # Set members
-        self.tune_parameters = tune_parameters
-        self.objective = objective
-        self.algorithm = algorithm
-        self.simulation = simulation
+        if tune_parameters:
+            self.tune_parameters = tune_parameters
+        elif not self.tune_parameters:
+            raise Exception("tune_parameters is not set and therefore must be "
+                            "provided")
+        if objective:
+            self.objective = objective
+        elif not self.objective:
+            raise Exception("objective is not set and therefore must be "
+                            "provided")
+        if algorithm:
+            self.algorithm = algorithm
+        elif not self.algorithm:
+            raise Exception("algorithm is not set and therefore must be "
+                            "provided")
+        if simulation:
+            self.simulation = simulation
+        elif not self.simulation:
+            raise Exception("simulation is not set and therefore must be "
+                            "provided")
         self.objective.tuner = self
         self.algorithm.tuner = self
         self.simulation.tuner = self
