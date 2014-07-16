@@ -49,16 +49,8 @@ class RCCurveObjective(PassivePropertiesObjective):
                       in Neo format containing a single AnalogSignal
         """
         super(RCCurveObjective, self).__init__(**kwargs)
-        # Load reference trace from file
-        # loading from file if a valid filename
-        if isinstance(reference, str):
-            f = neo.io.PickleIO(reference)
-            seg = f.read_segment()
-            reference = seg.analogsignals[0]
-        # Convert to analysed signal and slice accoring to time_start and stop
-        self.reference_trace = AnalysedSignal(reference).slice(self.time_start,
-                                                               self.time_stop)
         self.record_site = record_site
+        self._set_reference(reference)
 
     def get_recording_requests(self):
         self._get_recording_requests(self.record_variable)

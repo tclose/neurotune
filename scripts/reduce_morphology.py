@@ -7,8 +7,9 @@ import sys
 import os.path
 import argparse
 import numpy
+from collections import namedtuple
 from itertools import chain, groupby
-from copy import copy, deepcopy
+from copy import deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
 from nineline.cells.build import BUILD_MODE_OPTIONS
@@ -16,7 +17,6 @@ from nineline.arguments import outputpath
 from nineline.cells import (Model, SegmentModel, IonChannelModel,
                             AxialResistanceModel,
                             IrreducibleMorphologyException)
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
@@ -58,11 +58,15 @@ parser.add_argument('--parameter_range', type=float, default=0.5,
 parser.add_argument('--fitness_bounds', nargs='+', type=float, default=None,
                     help="The bounds on the fitnesses below which the tree "
                          "will continue to be reduced")
+parser.add_argument('--ra_range', type=float, default=0.5,
+                    help="Fraction of combined axial resistance of merged "
+                         "branches over which the optimimum axial resistance "
+                         "will be searched for")
 # Add tuning arguments
 add_tune_arguments(parser)
 
 
-def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
+def merge_leaves(tree, only_most_distal=False, ancestry=None):
     """
     Reduces a 9ml morphology, starting at the most distal branches and
     merging them with their siblings.
@@ -90,7 +94,6 @@ def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
                                              "further without merging "
                                              "segment_classes")
     needs_tuning = []
-    mapped_synapses = copy(synapses_to_track)
     # Group together candidates that are "siblings", i.e. have the same
     # parent and also the same components (excl. Ra)
     sibling_seg_classes = groupby(candidates,
@@ -131,21 +134,23 @@ def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
             # segment treat them as one
             disp = parent.disp * (average_length / parent.length)
             segment = SegmentModel(name, parent.distal + disp, diameter)
-            # Add new segment to tree
-            tree.add_node_with_parent(segment, parent)
-            # Remove old branches from list
-            for branch in siblings:
-                parent.remove_child(branch[0])
             # Add dynamic components to segment
             for comp in non_Ra_components:
                 segment.set_component(comp)
             # Create new Ra comp to hold the adjusted axial resistance
             Ra_comp = AxialResistanceModel(name + '_Ra', axial_resistance)
-            # TODO: Remove adding of components to trees. Components should
-            #       be able to be reused across multiple trees and
-            #       therefore only stored at segment levels
+            # FIXME: Remove adding of components to trees. Components should
+            #        be able to be reused across multiple trees and
+            #        therefore only stored at segment levels
             tree.add_component(Ra_comp)
             segment.set_component(Ra_comp)
+            # Add new segment to tree
+            tree.add_node_with_parent(segment, parent)
+            # Remove old branches from list
+            for branch in siblings:
+                parent.remove_child(branch[0])
+            if ancestry:
+                ancestry.record_merger(segment, siblings)
             # Append the Ra component to the 'needs_tuning' list for subsequent
             # retuning along with name of the new segment and the names of the
             # middle segments of the old branches that have been merged
@@ -153,25 +158,11 @@ def merge_leaves(tree, only_most_distal=False, synapses_to_track=[]):
                                                             for seg in branch),
                                                    for branch in siblings)]
             middle_segment = biggest_branch[len(biggest_branch) // 2]
+            Ra_to_tune.append(Ra_comp)
             needs_tuning.append((Ra_comp, middle_segment, segment.name))
-    tree.normalise_spatial_sampling()
-    return tree, needs_tuning, mapped_synapses
-
-
-def get_rc_refs(model):
-    cell = NineCellMetaClass(model)()
-    cell.record('v')
-    simulation_controller.run(simulation_time=args.time,
-                                  timestep=args.timestep)
-    reference = cell.get_recording('v')
-
-
-def get_rc_refs(model):
-    cell = NineCellMetaClass(model)()
-    cell.record('v')
-    simulation_controller.run(simulation_time=args.time,
-                                  timestep=args.timestep)
-    reference = cell.get_recording('v')
+    ancestry, Ra_to_tune = tree.normalise_spatial_sampling(ancestry,
+                                                           Ra_to_tune)
+    return tree, ancestry, Ra_to_tune
 
 
 def run(args):
@@ -179,6 +170,9 @@ def run(args):
     model = Model.from_9ml(next(parse_nineml(args.nineml).itervalues()))
     # Create a copy to hold the reduced model
     reduced_model = deepcopy(model)
+    # Get copy of model with active components removed for tuning axial
+    # resistances
+    passive_model = model.passive_model(leak_components=['Lkg'])  # FIXME: This name shouldn't be hardcoded @IgnorePep8
     # Get the objective functions based on the provided arguments and the
     # original model
     active_objective = get_objective(args, reference=args.nineml)
@@ -254,12 +248,11 @@ def run(args):
                 reference_inject_locations.append(old_segname)
                 tune_inject_locations.append(new_segname)
             # Set up the objectives for the passive tuning of axial resistances
-            ref_simulation = NineLineSimulation(reduced_model.passive_model())
-            ref_passive_model = reduced_model.passive_model()
-            rc_objective = RCCurveObjective(get_rc_refs(ref_passive_model))
-            ss_objective = SteadyStateVoltagesObjective(
-                                                get_ss_refs(ref_passive_model))
-            passive_objective = MultiObjective([rc_objective, ss_objective])
+            new_passive_model = new_model.passive_model(['Lkg'])
+            rc_obj = RCCurveObjective(NineLineSimulation(passive_model))
+            ss_obj = SteadyStateVoltagesObjective(
+                                             NineLineSimulation(passive_model))
+            passive_objective = MultiObjective([rc_obj, ss_obj])
             # Run the tuner to tune the axial resistances of the merged tree
             tuner.set(ra_parameters, passive_objective, algorithm,
                       NineLineSimulation(new_model.passive_model()),

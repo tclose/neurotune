@@ -117,13 +117,13 @@ class Objective(object):
                                 "AnalogSignal (or list therof) or Simulation "
                                 "object"
                                 .format(str(reference.__class__.__name__)))
-
-    def _num_required_references(self):
-        """
-        Can be overridden by derived classes to change the behaviour of the
-        '_set_reference' method used in __init__ methods
-        """
-        return 1
+#
+#     def _num_required_references(self):
+#         """
+#         Can be overridden by derived classes to change the behaviour of the
+#         '_set_reference' method used in __init__ methods
+#         """
+#         return 1
 
 
 class DummyObjective(Objective):
