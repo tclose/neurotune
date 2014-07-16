@@ -77,17 +77,8 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
                             "record sites ({})".format(len(references),
                                                        len(record_sites)))
         super(RCCurveObjective, self).__init__(time_stop=time_stop, **kwargs)
-        # Load reference traces as a list, converting if a trace or
-        # loading from file if a valid filename
-        if isinstance(references, str):
-            f = neo.io.PickleIO(references)
-            seg = f.read_segment()
-            references = seg.analogsignals
-        # Get the voltage at self.time_stop for each of the reference signals
-        self.ref_vs = numpy.array([AnalysedSignal(s).slice(0.0,
-                                                           self.time_stop)[-1]
-                                   for s in references])
         self.record_sites = record_sites
+        self._set_reference(references)
 
     def get_recording_requests(self):
         return dict([(site, self._get_recording_requests(site))

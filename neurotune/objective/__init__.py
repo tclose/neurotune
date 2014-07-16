@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
+import collections
 import numpy
 import quantities as pq
 import neo.io
@@ -60,8 +61,14 @@ class Objective(object):
         return requests
 
     def _set_reference(self, reference):
+        """
+        Sets the reference trace from various sources
+
+        `reference` -- either a path to a 9ml file, a Simulation object or
+                       AnalogSignal (or an iterable of AnalogSignals if the
+                       objective requests multiple recordings)
+        """
         recording_requests = self.get_recording_requests()
-        # Get the number of references that are required
         num_refs = len(recording_requests)
         if isinstance(reference, str):  # Assume path of Neo file
             f = neo.io.PickleIO(reference)
@@ -88,17 +95,35 @@ class Objective(object):
                 self.reference = [AnalysedSignal(seg.analogsignals[0]).\
                                                slice(self.t_start, self.t_stop)
                                   for seg in recordings.segments]
-        elif num_refs == 1:
-            if isinstance(reference, neo.AnalogSignal):
-                self.reference = AnalysedSignal(reference).slice(self.t_start,
-                                                                 self.t_stop)
-            else:
-                raise Exception("Unrecognised type of reference signal {}, "
-                                "must be either a path to a Neo file, an "
-                                "AnalogSignal or Simulation object"
-                                .format(str(reference.__class__)))
+        elif isinstance(reference, neo.AnalogSignal):
+            if num_refs > 1:
+                raise Exception("{} references are required for '{}' objective"
+                                " object instantiations"
+                                .format(num_refs, self.__class__.__name__))
+            self.reference = AnalysedSignal(reference).slice(self.t_start,
+                                                             self.t_stop)
         else:
-            raise NotImplementedError
+            try:
+                self.reference = [AnalysedSignal(r).slice(self.t_start,
+                                                          self.t_stop)
+                                  for r in reference]
+                if num_refs < 2:
+                    raise Exception("Only 1 reference signal is required for "
+                                    "instantiation of '{}' objectives"
+                                    .format(self.__class__.__name__))
+            except TypeError:
+                raise Exception("Unrecognised type of reference signal '{}', "
+                                "must be either a path to a Neo file, an "
+                                "AnalogSignal (or list therof) or Simulation "
+                                "object"
+                                .format(str(reference.__class__.__name__)))
+
+    def _num_required_references(self):
+        """
+        Can be overridden by derived classes to change the behaviour of the
+        '_set_reference' method used in __init__ methods
+        """
+        return 1
 
 
 class DummyObjective(Objective):
