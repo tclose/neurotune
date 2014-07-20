@@ -12,7 +12,7 @@ class NineLineSimulation(Simulation):
 
     supported_conditions = ['injected_currents', 'voltage_clamps']
 
-    def __init__(self, celltype, build_mode='lazy'):
+    def __init__(self, celltype, model=None, build_mode='lazy'):
         """
         `cell_9ml`    -- A 9ml file [str]
         """
@@ -22,7 +22,7 @@ class NineLineSimulation(Simulation):
             self.celltype = NineCellMetaClass(celltype, build_mode=build_mode)
         else:
             self.celltype = celltype
-        self.default_seg = self.celltype().source_section.name
+        self.default_seg = self.celltype(model=model).source_section.name
         self.genome_keys = []
         self.log_scales = []
 

@@ -7,8 +7,8 @@ import argparse
 import os.path
 import shutil
 import math
-from copy import deepcopy
 import neo
+import nineline.cells
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
@@ -113,9 +113,14 @@ def load_reference(args, reference=None):
         reference = args.reference
     if isinstance(reference, neo.AnalogSignal):
         pass
-    elif reference.endswith('.9ml'):
+    elif ((isinstance(reference, str) and reference.endswith('.9ml')) or
+          isinstance(reference, nineline.cells.NineCellMetaClass)):
         # Generate the reference trace from the original class
-        cell = NineCellMetaClass(reference, build_mode=args.build)()
+        if isinstance(reference, str) and reference.endswith('.9ml'):
+            celltype = NineCellMetaClass(reference, build_mode=args.build)
+        else:
+            celltype = reference
+        cell = celltype()
         cell.record('v')
         simulation_controller.run(simulation_time=args.time,
                                   timestep=args.timestep)

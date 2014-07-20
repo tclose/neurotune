@@ -15,7 +15,9 @@ from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
 from nineline.cells import (Model, SegmentModel, IonChannelModel,
                             BranchAncestry, AxialResistanceModel,
-                            IrreducibleMorphologyException)
+                            IrreducibleMorphologyException,
+                            DistributedParameter, DummyNinemlModel)
+from nineline.cells.neuron import NineCellMetaClass
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
@@ -63,6 +65,33 @@ parser.add_argument('--ra_range', type=float, default=0.5,
                          "will be searched for")
 # Add tuning arguments
 add_tune_arguments(parser)
+
+home_dir = os.environ['HOME']
+
+cn_dir = os.path.join(home_dir, 'git', 'cerebellarnuclei')
+psection_fn = os.path.join(cn_dir, 'extracted_data', 'psections.txt')
+mechs_fn = os.path.join(cn_dir, 'extracted_data', 'mechanisms.txt')
+
+alpha = 0.2
+
+
+def load_dcn_model():
+    model = Model.from_psections(psection_fn, mechs_fn)
+    for comp in chain(model.components_of_class('CaConc'),
+                      model.components_of_class('CalConc')):
+        segments = list(model.component_segments(comp))
+        if len(segments) == 1:
+            assert segments[0].name == 'soma'
+            comp.parameters['depth'] = DistributedParameter(
+                        lambda seg: alpha - 2 * alpha ** 2 / seg.diam + \
+                                    4 * alpha ** 3 / (3 * seg.diam ** 2))
+        else:
+            comp.parameters['depth'] = DistributedParameter(
+                                lambda seg: alpha - alpha ** 2 / seg.diam)
+    nineml_model = DummyNinemlModel('CerebellarNuclei', cn_dir, model)
+    model._source = nineml_model
+    celltype = NineCellMetaClass(nineml_model, standalone=True)
+    return celltype, model
 
 
 def merge_leaves(tree, only_most_distal=False, ancestry=None):
@@ -159,8 +188,8 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None):
     return tree, ancestry, Ra_to_tune
 
 
-def tune_passive_model(tuner, algorithm, reference_sim, model, Ra_to_tune,
-                       ancestry, tuning_range, tolerances):
+def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
+                       Ra_to_tune, ancestry, tuning_range, tolerances):
     # Create the parameters that are required to be retuned for the
     # correct axial resistance for the merged branches
     ra_parameters = []
@@ -204,13 +233,13 @@ def tune_passive_model(tuner, algorithm, reference_sim, model, Ra_to_tune,
         path_length = numpy.sum([seg.length for seg in segment_path])
         orig_path_length = numpy.sum([seg.length
                                       for seg in largest_path_to_leaf])
-        fraction_along = (path_length / 2.0) / orig_path_length
-        if fraction_along > 1.0:
-            fraction_along = 1.0
+        path_fraction = (path_length / 2.0) / orig_path_length
+        if path_fraction > 1.0:
+            path_fraction = 1.0
         middle_segment = segment_path[len(segment_path) // 2]
         middle_orig_segment = largest_path_to_leaf[
                                                 int(len(largest_path_to_leaf) *
-                                                fraction_along)]
+                                                path_fraction)]
         # Create a dummy RC-curve objective for the reference simulation in
         # order to generate the correct reference traces
         ref_rc_obj = RCCurveObjective(reference_sim,
@@ -242,7 +271,7 @@ def tune_passive_model(tuner, algorithm, reference_sim, model, Ra_to_tune,
                                         inject_location=root.name))
     # Run the tuner to tune the axial resistances of the merged tree
     tuner.set(ra_parameters, MultiObjective(objectives), algorithm,
-              NineLineSimulation(passive_model))
+              NineLineSimulation(celltype, model=passive_model))
     tuned_Ras, passive_fitnesses, _ = tuner.tune()
     # Check to see if the passive tuning was successful
     if not all(passive_fitnesses < tolerances):
@@ -255,7 +284,12 @@ def tune_passive_model(tuner, algorithm, reference_sim, model, Ra_to_tune,
 
 def run(args):
     # Get original model to be reduced
-    model = Model.from_9ml(next(parse_nineml(args.nineml).itervalues()))
+    if args.nineml == 'dcn':
+        celltype, model = load_dcn_model()
+    else:
+        nineml_model = next(parse_nineml(args.nineml).itervalues())
+        model = Model.from_9ml(nineml_model)
+        celltype = NineCellMetaClass(nineml_model)
     # Create an ancestry object to enable tracing back to the segments in the
     # the original model from segments in the reduced model
     ancestry = BranchAncestry(model)
@@ -263,11 +297,11 @@ def run(args):
     reduced_model = deepcopy(model)
     # Get copy of model with active components removed for tuning axial
     # resistances
-    passive_model = model.passive_model(leak_components=['Lkg'])  # FIXME: This name shouldn't be hardcoded @IgnorePep8
-    passive_sim = NineLineSimulation(passive_model)
+    passive_model = model.passive_model(leak_components=args.leak_components)
+    passive_sim = NineLineSimulation(celltype, model=passive_model)
     # Get the objective functions based on the provided arguments and the
     # original model
-    active_objective = get_objective(args, reference=args.nineml)
+    active_objective = get_objective(args, reference=celltype)
     algorithm = algorithm_factory(args)
     active_parameters = []
     new_states = []
@@ -292,7 +326,7 @@ def run(args):
     tuner = Tuner(active_parameters,
                   active_objective,
                   algorithm,
-                  NineLineSimulation(reduced_model),
+                  NineLineSimulation(celltype, model=reduced_model),
                   verbose=args.verbose)
     input_synapses = []
     # Keep reducing the model until it can't be reduced any further
@@ -318,7 +352,7 @@ def run(args):
                 param.lbound = state - args.parameter_range
                 param.ubound = state + args.parameter_range
             # Create new simulation object for latest model
-            active_simulation = NineLineSimulation(new_model)
+            active_simulation = NineLineSimulation(celltype, model=new_model)
             tuner.set(active_parameters, active_objective, algorithm,
                       active_simulation, verbose=args.verbose)
             new_states, fitnesses, _ = tuner.tune()
