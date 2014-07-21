@@ -96,7 +96,7 @@ def load_dcn_model():
     return celltype, model
 
 
-def plot_branches(tree, branches):
+def plot_branches(tree, branches=[], show=True):
     from btmorph.btviz import plot_3D_SWC
     import matplotlib.pyplot as plt
     for b in branches:
@@ -105,7 +105,8 @@ def plot_branches(tree, branches):
     tree.write_SWC_tree_to_file('/home/tclose/Desktop/'
                                  'reduced.swc')
     plot_3D_SWC('/home/tclose/Desktop/reduced.swc')
-    plt.show()
+    if show:
+        plt.show()
 
 
 def merge_leaves(tree, only_most_distal=False, ancestry=None,
@@ -121,92 +122,100 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                      if not (isinstance(c, AxialResistanceModel) or
                              isinstance(c, PointProcessModel)))
     tree = deepcopy(tree)
-    for _ in xrange(num_merges):
-        if only_most_distal:
-            # Get the branches at the maximum depth
-            max_branch_depth = max(seg.branch_depth for seg in tree.segments)
-            candidates = [branch for branch in tree.branches
-                          if branch[0].branch_depth == max_branch_depth]
-        else:
-            candidates = [branch for branch in tree.branches
-                          if not branch[-1].children]
-        # Only include branches that have consistent segment_classes
-        candidates = [branch for branch in candidates
-                      if all(get_non_Ra_comps(b) ==
-                             get_non_Ra_comps(branch[0]) for b in branch)]
-        if not candidates:
-            raise IrreducibleMorphologyException("Cannot reduce the morphology"
-                                                 " further without merging "
-                                                 "segment_classes")
-        # Keep track of the newly created axial resistance components that will
-        # need to be tuned so that the passive properties of the cell are
-        # consistent
-        Ra_to_tune = []
-        # Group together candidates that are "siblings", i.e. have the same
-        # parent and also the same components (excl. Ra)
-        merged_branches = []
-        sibling_seg_classes = groupby(candidates,
-                                      key=lambda b: (b[0].parent,
-                                                     get_non_Ra_comps(b[0])))
-        for (parent, non_Ra_components), siblings_iter in sibling_seg_classes:
-            siblings = list(siblings_iter)
-            if len(siblings) > 1:
-                # Get the combined properties of the segments to be merged
-                average_length = (numpy.sum(seg.length
-                                            for seg in chain(*siblings)) /
-                                  len(siblings))
-                total_surface_area = numpy.sum(seg.length * float(seg.diameter)
-                                               for seg in chain(*siblings))
-                # Calculate the (in-parallel) axial resistance of the branches
-                # to be merged as a starting point for the subsequent tuning
-                # step (see the returned 'needs_tuning' list)
-                axial_cond = 0.0
-                for branch in siblings:
-                    axial_cond += 1.0 / numpy.array([seg.Ra
-                                                     for seg in branch]).sum()
-                axial_resistance = (1.0 / axial_cond) # branch[0].Ra.units FIXME: shouldn't be hard-coded
-                # Get the diameter of the merged segment so as to conserve
-                # total membrane surface area given that the length of the
-                # segment is the average of the candidates to be merged.
-                diameter = total_surface_area / average_length
-                # Get a unique name for the generated segments
-                # FIXME: this is not guaranteed to be unique (but should be in
-                # most cases given a sane naming convention)
-                sorted_names = sorted([s[0].name for s in siblings])
-                name = sorted_names[0]
-                if len(branch) > 1:
-                    name += '_' + sorted_names[-1]
-                # Extend the new get_segment in the same direction as the
-                # parent get_segment
-                #
-                # If the classes are the same between parent and the new
-                # segment treat them as one
-                disp = parent.disp * (average_length / parent.length)
-                segment = SegmentModel(name, parent.distal + disp, diameter)
-                # Add dynamic components to segment
-                for comp in non_Ra_components:
-                    segment.set_component(comp)
-                # Create new Ra comp to hold the adjusted axial resistance
-                Ra_comp = AxialResistanceModel(name + '_Ra', axial_resistance)
-                # FIXME: Remove adding of components to trees. Components should
-                #        be able to be reused across multiple trees and
-                #        therefore only stored at segment levels
-                tree.add_component(Ra_comp)
-                segment.set_component(Ra_comp)
-                # Add new segment to tree
-                tree.add_node_with_parent(segment, parent)
-                # Remove old branches from list
-                for branch in siblings:
-                    parent.remove_child(branch[0])
-                if ancestry:
-                    ancestry.record_merger(segment, siblings)
-                Ra_to_tune.append(Ra_comp)
-                merged_branches.append([segment])
-            plot_branches(tree, merged_branches)
+    try:
+        for _ in xrange(num_merges):
+            if only_most_distal:
+                # Get the branches at the maximum depth
+                max_branch_depth = max(seg.branch_depth
+                                       for seg in tree.segments)
+                candidates = [branch for branch in tree.branches
+                              if branch[0].branch_depth == max_branch_depth]
+            else:
+                candidates = [branch for branch in tree.branches
+                              if not branch[-1].children]
+            # Only include branches that have consistent segment_classes
+            candidates = [branch for branch in candidates
+                          if all(get_non_Ra_comps(b) ==
+                                 get_non_Ra_comps(branch[0]) for b in branch)]
+            if not candidates:
+                raise IrreducibleMorphologyException(
+                            "Cannot reduce the morphology further without "
+                            "merging segment_classes")
+            # Keep track of the newly created axial resistance components that
+            # will need to be tuned so that the passive properties of the cell
+            # are consistent
+            Ra_to_tune = []
+            # Group together candidates that are "siblings", i.e. have the same
+            # parent and also the same components (excl. Ra)
+            merged_branches = []
+            sibling_seg_classes = groupby(candidates,
+                                          key=lambda b: (b[0].parent,
+                                                       get_non_Ra_comps(b[0])))
+            for (parent, non_Ra_comps), siblings_iter in sibling_seg_classes:
+                siblings = list(siblings_iter)
+                if len(siblings) > 1:
+                    # Get the combined properties of the segments to be merged
+                    max_length = numpy.max([numpy.sum(seg.length
+                                                      for seg in sib)
+                                            for sib in siblings])
+                    total_surface_area = numpy.sum(seg.length *
+                                                   float(seg.diameter)
+                                                   for seg in chain(*siblings))
+                    # Calculate the (in-parallel) axial resistance of the
+                    # branches to be merged as a starting point for the
+                    # subsequent tuning step (see the returned 'needs_tuning'
+                    # list)
+                    axial_cond = 0.0
+                    for branch in siblings:
+                        axial_cond += 1.0 / numpy.array([seg.Ra
+                                                      for seg in branch]).sum()
+                    axial_resistance = (1.0 / axial_cond) # branch[0].Ra.units FIXME: shouldn't be hard-coded
+                    # Get the diameter of the merged segment so as to conserve
+                    # total membrane surface area given that the length of the
+                    # segment is the average of the candidates to be merged.
+                    diameter = total_surface_area / max_length
+                    # Get a unique name for the generated segments
+                    # FIXME: this is not guaranteed to be unique (but should be
+                    # in most cases given a sane naming convention)
+                    sorted_names = sorted([s[0].name for s in siblings])
+                    name = sorted_names[0]
+                    if len(branch) > 1:
+                        name += '_' + sorted_names[-1]
+                    # Get the displacement of the new branch, which is in the
+                    # same direction as the parent
+                    disp = parent.disp * (max_length / parent.length)
+                    # Create the segment which will form the new branch
+                    segment = SegmentModel(name,
+                                           parent.distal + disp, diameter)
+                    # Add dynamic components to segment
+                    for comp in non_Ra_comps:
+                        segment.set_component(comp)
+                    # TODO: Need to add discrete components too
+                    # Create new Ra comp to hold the adjusted axial resistance
+                    Ra_comp = AxialResistanceModel(name + '_Ra',
+                                                   axial_resistance)
+                    # FIXME: Remove adding of components to trees. Components
+                    #        should be able to be reused across multiple trees
+                    #        and therefore only stored at segment levels
+                    tree.add_component(Ra_comp)
+                    segment.set_component(Ra_comp)
+                    # Add new segment to tree
+                    tree.add_node_with_parent(segment, parent)
+                    # Remove old branches from list
+                    for branch in siblings:
+                        parent.remove_child(branch[0])
+                    if ancestry:
+                        ancestry.record_merger(segment, siblings)
+                    Ra_to_tune.append(Ra_comp)
+                    merged_branches.append([segment])
+    finally:
+        plot_branches(tree, show=False)
         if normalise:
-            ancestry, Ra_to_tune = tree.normalise_spatial_sampling(ancestry,
-                                                                   Ra_to_tune)
-        return tree, ancestry, Ra_to_tune
+            (tree, ancestry,
+             Ra_to_tune) = tree.normalise_spatial_sampling(ancestry,
+                                                           Ra_to_tune)
+        plot_branches(tree)
+    return tree, ancestry, Ra_to_tune
 
 
 def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
@@ -224,7 +233,7 @@ def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
                                        log_scale=False,
                                        initial_value=value))
     # Set up the objectives for the passive tuning of axial resistances
-    passive_model = model.passive_model(leak_components=['Lkg'])
+    passive_model = model.passive_model(leak_components=leak_components)
     objectives = []
     for Ra_comp in Ra_to_tune:
         # Get segments that have this component
