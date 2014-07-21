@@ -11,7 +11,6 @@ from itertools import chain, groupby
 from copy import deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
-import quantities as pq
 from nineline.cells.build import BUILD_MODE_OPTIONS
 from nineline.arguments import outputpath
 from nineline.cells import (Model, SegmentModel, IonChannelModel,
@@ -52,7 +51,7 @@ parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will "
                          "be written")
-parser.add_argument('--timestep', type=float, default=0.025,
+parser.add_argument('--timestep', default=0.025,
                     help="The timestep used for the simulation "
                          "(default: %(default)s)")
 parser.add_argument('--parameter_range', type=float, default=0.5,
@@ -96,21 +95,8 @@ def load_dcn_model():
     return celltype, model
 
 
-def plot_branches(tree, branches=[], show=True):
-    from btmorph.btviz import plot_3D_SWC
-    import matplotlib.pyplot as plt
-    for b in branches:
-        for seg in b:
-            seg.diameter = 10
-    tree.write_SWC_tree_to_file('/home/tclose/Desktop/'
-                                 'reduced.swc')
-    plot_3D_SWC('/home/tclose/Desktop/reduced.swc')
-    if show:
-        plt.show()
-
-
 def merge_leaves(tree, only_most_distal=False, ancestry=None,
-                 num_merges=1, normalise=True):
+                 num_merges=1, normalise=True, max_length=False):
     """
     Reduces a 9ml morphology, starting at the most distal branches and
     merging them with their siblings.
@@ -141,13 +127,8 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                 raise IrreducibleMorphologyException(
                             "Cannot reduce the morphology further without "
                             "merging segment_classes")
-            # Keep track of the newly created axial resistance components that
-            # will need to be tuned so that the passive properties of the cell
-            # are consistent
-            Ra_to_tune = []
             # Group together candidates that are "siblings", i.e. have the same
             # parent and also the same components (excl. Ra)
-            merged_branches = []
             sibling_seg_classes = groupby(candidates,
                                           key=lambda b: (b[0].parent,
                                                        get_non_Ra_comps(b[0])))
@@ -155,9 +136,16 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                 siblings = list(siblings_iter)
                 if len(siblings) > 1:
                     # Get the combined properties of the segments to be merged
-                    max_length = numpy.max([numpy.sum(seg.length
-                                                      for seg in sib)
-                                            for sib in siblings])
+                    if max_length:
+                        # Use the maximum length of the branches to merge
+                        new_length = numpy.max([numpy.sum(seg.length
+                                                          for seg in sib)
+                                                for sib in siblings])
+                    else:
+                        # Use the average length of the branches to merge
+                        new_length = (numpy.sum(seg.length
+                                                for seg in chain(*siblings)) /
+                                      float(len(siblings)))
                     total_surface_area = numpy.sum(seg.length *
                                                    float(seg.diameter)
                                                    for seg in chain(*siblings))
@@ -169,11 +157,11 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                     for branch in siblings:
                         axial_cond += 1.0 / numpy.array([seg.Ra
                                                       for seg in branch]).sum()
-                    axial_resistance = (1.0 / axial_cond) # branch[0].Ra.units FIXME: shouldn't be hard-coded
+                    axial_resistance = (1.0 / axial_cond) # branch[0].Ra.units FIXME: shouldn't be hard-coded @IgnorePep8
                     # Get the diameter of the merged segment so as to conserve
                     # total membrane surface area given that the length of the
                     # segment is the average of the candidates to be merged.
-                    diameter = total_surface_area / max_length
+                    diameter = total_surface_area / new_length
                     # Get a unique name for the generated segments
                     # FIXME: this is not guaranteed to be unique (but should be
                     # in most cases given a sane naming convention)
@@ -183,7 +171,7 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                         name += '_' + sorted_names[-1]
                     # Get the displacement of the new branch, which is in the
                     # same direction as the parent
-                    disp = parent.disp * (max_length / parent.length)
+                    disp = parent.disp * (new_length / parent.length)
                     # Create the segment which will form the new branch
                     segment = SegmentModel(name,
                                            parent.distal + disp, diameter)
@@ -193,7 +181,8 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                     # TODO: Need to add discrete components too
                     # Create new Ra comp to hold the adjusted axial resistance
                     Ra_comp = AxialResistanceModel(name + '_Ra',
-                                                   axial_resistance)
+                                                   axial_resistance,
+                                                   needs_tuning=True)
                     # FIXME: Remove adding of components to trees. Components
                     #        should be able to be reused across multiple trees
                     #        and therefore only stored at segment levels
@@ -206,24 +195,20 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                         parent.remove_child(branch[0])
                     if ancestry:
                         ancestry.record_merger(segment, siblings)
-                    Ra_to_tune.append(Ra_comp)
-                    merged_branches.append([segment])
     finally:
-        plot_branches(tree, show=False)
         if normalise:
-            (tree, ancestry,
-             Ra_to_tune) = tree.normalise_spatial_sampling(ancestry,
-                                                           Ra_to_tune)
-        plot_branches(tree)
-    return tree, ancestry, Ra_to_tune
+            tree, ancestry = tree.normalise_spatial_sampling(ancestry)
+    return tree, ancestry
 
 
 def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
-                       Ra_to_tune, ancestry, tuning_range, tolerances,
-                       leak_components):
+                       ancestry, tuning_range, tolerances, leak_components):
     # Create the parameters that are required to be retuned for the
     # correct axial resistance for the merged branches
     ra_parameters = []
+    Ra_to_tune = [Ra_comp for Ra_comp in model.components
+                  if isinstance(Ra_comp, AxialResistanceModel) and
+                     Ra_comp.needs_tuning]
     for Ra_comp in Ra_to_tune:
         value = float(Ra_comp.value)
         ra_parameters.append(Parameter(Ra_comp.name,
@@ -336,15 +321,15 @@ def run(args):
     algorithm = algorithm_factory(args)
     active_parameters = []
     new_states = []
-    for comp in model.components:
-        if isinstance(comp, IonChannelModel):
-            value = numpy.log(float(comp.parameters['g']))
+    for comp in model.components.itervalues():
+        if isinstance(comp, IonChannelModel) and 'gbar' in comp.parameters:
+            value = numpy.log(float(comp.parameters['gbar']))
             # Initialise parameters with infinite bounds to begin
             # with their actual bounds will vary with each
             # iteration
             active_parameters.append(Parameter('{}.gbar'
                                         .format(comp.name),
-                                        str(comp.parameters['g'].units[4:]),
+                                        'S/cm^2',
                                         float('-inf'),
                                         float('inf'),
                                         log_scale=True,

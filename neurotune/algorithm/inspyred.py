@@ -174,7 +174,7 @@ class EDAAlgorithm(InspyredAlgorithm):
     """
     _InspyredClass = ec.EDA
 
-    def __init__(self, pop_size,
+    def __init__(self, pop_size=100,
                  terminator=[ec.terminators.diversity_termination,
                              ec.terminators.generation_termination],
                  replacer=ec.replacers.crowding_replacement,
@@ -277,7 +277,7 @@ class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):
     """
     _InspyredClass = ec.emo.NSGA2
 
-    def __init__(self, pop_size,
+    def __init__(self, pop_size=100,
                  variator=[ec.variators.blend_crossover,
                            ec.variators.gaussian_mutation], **kwargs):
         super(NSGA2Algorithm, self).__init__(pop_size, variator=variator,

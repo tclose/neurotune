@@ -63,6 +63,10 @@ class Tuner(object):
                             "please use the 'set' method to repurpose an "
                             "existing tuner for consecutive tunings")
         self.num_tuners = 1
+        self.tune_parameters = None
+        self.objective = None
+        self.algorithm = None
+        self.simulation = None
         self.set(*args, **kwargs)
 
     def __del__(self):
@@ -90,22 +94,25 @@ class Tuner(object):
                              are not saved
         """
         # Set members
-        if tune_parameters:
+        if tune_parameters is not None:
+            if not len(tune_parameters):
+                raise Exception("No parameters to tune were provided "
+                                "(empty list)")
             self.tune_parameters = tune_parameters
         elif not self.tune_parameters:
             raise Exception("tune_parameters is not set and therefore must be "
                             "provided")
-        if objective:
+        if objective is not None:
             self.objective = objective
         elif not self.objective:
             raise Exception("objective is not set and therefore must be "
                             "provided")
-        if algorithm:
+        if algorithm is not None:
             self.algorithm = algorithm
         elif not self.algorithm:
             raise Exception("algorithm is not set and therefore must be "
                             "provided")
-        if simulation:
+        if simulation is not None:
             self.simulation = simulation
         elif not self.simulation:
             raise Exception("simulation is not set and therefore must be "

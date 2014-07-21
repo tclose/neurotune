@@ -48,7 +48,7 @@ parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will"
                          "be written")
-parser.add_argument('--timestep', type=float, default=0.025,
+parser.add_argument('--timestep', default=0.025,
                     help="The timestep used for the simulation "
                          "(default: %(default)s)")
 
