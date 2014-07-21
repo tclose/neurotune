@@ -95,8 +95,8 @@ def load_dcn_model():
     return celltype, model
 
 
-def merge_leaves(tree, only_most_distal=False, ancestry=None,
-                 num_merges=1, normalise=True, max_length=False):
+def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
+                 max_length=False):
     """
     Reduces a 9ml morphology, starting at the most distal branches and
     merging them with their siblings.
@@ -166,9 +166,7 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                     # FIXME: this is not guaranteed to be unique (but should be
                     # in most cases given a sane naming convention)
                     sorted_names = sorted([s[0].name for s in siblings])
-                    name = sorted_names[0]
-                    if len(branch) > 1:
-                        name += '_' + sorted_names[-1]
+                    name = sorted_names[0] + '_and_' + sorted_names[-1]
                     # Get the displacement of the new branch, which is in the
                     # same direction as the parent
                     disp = parent.disp * (new_length / parent.length)
@@ -193,16 +191,14 @@ def merge_leaves(tree, only_most_distal=False, ancestry=None,
                     # Remove old branches from list
                     for branch in siblings:
                         parent.remove_child(branch[0])
-                    if ancestry:
-                        ancestry.record_merger(segment, siblings)
     finally:
         if normalise:
-            tree, ancestry = tree.normalise_spatial_sampling(ancestry)
-    return tree, ancestry
+            tree = tree.normalise_spatial_sampling()
+    return tree
 
 
 def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
-                       ancestry, tuning_range, tolerances, leak_components):
+                       orig_model, tuning_range, tolerances, leak_components):
     # Create the parameters that are required to be retuned for the
     # correct axial resistance for the merged branches
     ra_parameters = []
@@ -232,7 +228,7 @@ def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
         leaf = leaf[0]
         segment_path = reversed(leaf.path_to_ancestor(root))
         # Get the equivalent subtree in the original model
-        orig_root = ancestry.get_original(root)
+        orig_root = orig_model.get_segment(root)
         # Loop through all the paths from the root to the leaves in the
         # original subtree and pick out the one with the largest surface
         # area
@@ -306,9 +302,6 @@ def run(args):
         nineml_model = next(parse_nineml(args.nineml).itervalues())
         model = Model.from_9ml(nineml_model)
         celltype = NineCellMetaClass(nineml_model)
-    # Create an ancestry object to enable tracing back to the segments in the
-    # the original model from segments in the reduced model
-    ancestry = BranchAncestry(model)
     # Create a copy to hold the reduced model
     reduced_model = deepcopy(model)
     # Get copy of model with active components removed for tuning axial
@@ -344,7 +337,6 @@ def run(args):
                   algorithm,
                   NineLineSimulation(celltype, model=reduced_model),
                   verbose=args.verbose)
-    input_synapses = []
     # Keep reducing the model until it can't be reduced any further
     new_model = model  # Start with the full model
     try:
@@ -354,13 +346,11 @@ def run(args):
             states = new_states
             reduced_model = new_model
             # Merge the leaves of the outmost branches of the tree
-            new_model, Ra_to_tune, ancestry = merge_leaves(reduced_model,
-                                                           input_synapses,
-                                                           ancestry)
+            new_model = merge_leaves(reduced_model)
             # Tune the axial resistances of the new model to match the
             # passive properties of the original model
             new_model = tune_passive_model(tuner, algorithm, passive_sim,
-                                           new_model, Ra_to_tune, ancestry,
+                                           new_model, model,
                                            args.ra_range,
                                            args.passive_tolerances,
                                            args.leak_components)
