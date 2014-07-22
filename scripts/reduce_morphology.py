@@ -101,12 +101,6 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
     Reduces a 9ml morphology, starting at the most distal branches and
     merging them with their siblings.
     """
-    # Helper function with which to compare segments on all of their components
-    # except axial resistance
-    def get_non_Ra_comps(seg):
-        return set(c for c in seg.components
-                     if not (isinstance(c, AxialResistanceModel) or
-                             isinstance(c, PointProcessModel)))
     tree = deepcopy(tree)
     try:
         for _ in xrange(num_merges):
@@ -121,18 +115,17 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                               if not branch[-1].children]
             # Only include branches that have consistent segment_classes
             candidates = [branch for branch in candidates
-                          if all(get_non_Ra_comps(b) ==
-                                 get_non_Ra_comps(branch[0]) for b in branch)]
+                          if all(b.ionic_components ==
+                                 branch[0].ionic_components for b in branch)]
             if not candidates:
                 raise IrreducibleMorphologyException(
                             "Cannot reduce the morphology further without "
                             "merging segment_classes")
             # Group together candidates that are "siblings", i.e. have the same
-            # parent and also the same components (excl. Ra)
-            sibling_seg_classes = groupby(candidates,
-                                          key=lambda b: (b[0].parent,
-                                                       get_non_Ra_comps(b[0])))
-            for (parent, non_Ra_comps), siblings_iter in sibling_seg_classes:
+            # parent and also the same ionic components
+            families = groupby(candidates, key=lambda b: (b[0].parent,
+                                                        b[0].ionic_components))
+            for (parent, distr_comps), siblings_iter in families:
                 siblings = list(siblings_iter)
                 if len(siblings) > 1:
                     # Get the combined properties of the segments to be merged
@@ -169,12 +162,12 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                     name = sorted_names[0] + '_and_' + sorted_names[-1]
                     # Get the displacement of the new branch, which is in the
                     # same direction as the parent
-                    disp = parent.disp * (new_length / parent.length)
+                    disp = (new_length / parent.length) * parent.disp
                     # Create the segment which will form the new branch
                     segment = SegmentModel(name,
                                            parent.distal + disp, diameter)
-                    # Add dynamic components to segment
-                    for comp in non_Ra_comps:
+                    # Add distributed components to segment
+                    for comp in distr_comps:
                         segment.set_component(comp)
                     # TODO: Need to add discrete components too
                     # Create new Ra comp to hold the adjusted axial resistance
