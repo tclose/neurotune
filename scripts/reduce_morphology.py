@@ -93,8 +93,6 @@ def load_dcn_model():
     return celltype, model
 
 
-
-
 def tune_passive_model(tuner, algorithm, reference_sim, celltype, model,
                        orig_model, tuning_range, tolerances, leak_components):
     # Create the parameters that are required to be retuned for the
@@ -303,6 +301,6 @@ def run(args):
 #                                                     initial_value=value))
 #                         new_states.append(value)
 
-# if __name__ == '__main__':
-#     args = parser.parse_args()
-#     run(args)
+if __name__ == '__main__':
+    args = parser.parse_args()
+    run(args)
