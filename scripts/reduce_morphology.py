@@ -8,7 +8,8 @@ import os.path
 import argparse
 import numpy
 from itertools import chain, groupby, izip_longest
-from copy import deepcopy, copy
+import collections
+from copy import deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
 from nineline.cells.build import BUILD_MODE_OPTIONS
@@ -102,6 +103,8 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
     merging them with their siblings.
     """
     tree = deepcopy(tree)
+    merged = True
+    #print [x for x, y in collections.Counter(s.name for s in tree.segments).items() if y > 1]
     for merge_index in xrange(num_merges):
         if only_most_distal:
             # Get the branches at the maximum depth
@@ -122,6 +125,9 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
         families = groupby(sorted(candidates, key=get_parent), key=get_parent)
         for parent, siblings_iter in families:
             siblings = list(siblings_iter)
+            inital_surface_areas = dict(tree.category_surface_areas())
+            new_segments = []
+#             parent_direction = parent.disp / parent.length
             unmerged = [zip(*Model.branch_sections_w_comps(b))
                         for b in siblings]
             while len(unmerged) > 1:
@@ -137,27 +143,52 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                 # Skip if this branch cannot be merged with any other branches
                 # (doesn't need to be merged with itself)
                 if len(to_merge) == 1:
-                    if (stack_with_parent and
-                        longest[1][0] == parent.ionic_components and
-                        all(longest[1][-1] == unmrg[1][0]
-                            for unmrg in unmerged)):
-                        to_merge = copy(unmerged)
-                        to_merge.append(((longest[0][1],), (longest[1][1],)))
-                        section_parent = longest[0][0][-1]
-                        longest[0][0][0].set_parent_node(
-                                        SegmentModel('dummy', parent.distal,
-                                                     parent.diameter))
+                    if stack_with_parent:
+                        if len(longest[0]) == 2:
+                            if longest[1][0] != parent.id_components:
+                                continue
+                            assert all(len(u[0]) == 1 for u in unmerged)
+                            to_remove = [u[0][0][0] for u in unmerged]
+                            to_merge = unmerged + [((longest[0][1],),
+                                                    (longest[1][1],))]
+                            unmerged = []
+                            if any(m[1][0] != longest[1][1]
+                                   for m in to_merge):
+                                continue
+                            section_parent = longest[0][0][-1]
+                            new_segments.extend(longest[0][0])
+                        elif len(longest[0]) == 1:
+                            assert len(unmerged) == 1
+                            if longest[1][0] == parent.id_components:
+                                near = longest[0][0][0]
+                                far = unmerged[0][0][0][0]
+                            else:
+                                near = unmerged[0][0][0][0]
+                                far = longest[0][0][0]
+                            new_segments.extend(unmerged[0][0][0])
+                            new_segments.extend(longest[0][0])
+                            tree.add_node_with_parent(far, near)
+                            parent.remove_child(far)
+                            unmerged = []
+                            continue
+                        else:
+                            raise NotImplementedError
                     else:
                         continue
+                else:
+                    # Initially set the "section_parent" (the parent of the next
+                    # newly created section) to the parent of the branches
+                    section_parent = parent
+                    to_remove = [b[0][0][0] for b in to_merge]
                 merged.extend(to_merge)
-                # Initially set the "section_parent" (the parent of the next
-                # newly created section) to the parent of the branches
-                section_parent = parent
                 for sec_list, distr_comps in zip(izip_longest(
                                                      *(s[0] for s in to_merge),
                                                      fillvalue=None),
                                                  longest[1]):
                     sec_siblings = [s for s in sec_list if s is not None]
+                    avg_dir = numpy.sum(seg.disp
+                                        for seg in chain(*sec_siblings))
+                    avg_dir = avg_dir / numpy.sqrt(numpy.sum(avg_dir ** 2))
                     # Get the combined properties of the segments to be merged
                     if max_length:
                         # Use the maximum length of the branches to merge
@@ -169,9 +200,8 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                         new_length = (numpy.sum(seg.length
                                             for seg in chain(*sec_siblings)) /
                                       len(sec_siblings))
-                    total_surface_area = numpy.sum(
-                                            seg.length * float(seg.diameter)
-                                            for seg in chain(*sec_siblings))
+                    surface_area = numpy.sum(seg.surface_area
+                                             for seg in chain(*sec_siblings))
                     # Calculate the (in-parallel) axial resistance of the
                     # branches to be merged as a starting point for the
                     # subsequent tuning step (see the returned 'needs_tuning'
@@ -184,18 +214,18 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                     # Get the diameter of the merged segment so as to conserve
                     # total membrane surface area given that the length of the
                     # segment is the average of the candidates to be merged.
-                    diameter = total_surface_area / new_length
+                    diameter = surface_area / (new_length * numpy.pi)
                     # Get a unique name for the generated segments
                     # FIXME: this is not guaranteed to be unique (but should be
                     # in most cases given a sane naming convention)
-                    sorted_names = sorted([s[0].name for s in siblings])
-                    name = sorted_names[0] + '_and_' + sorted_names[-1]
+                    sorted_names = sorted([s[0].name for s in sec_siblings])
+                    name = sorted_names[0] + '_thru_' + sorted_names[-1]
                     # Get the displacement of the new branch, which is in the
                     # same direction as the parent
-                    disp = (new_length / parent.length) * parent.disp
+                    disp = new_length * avg_dir
                     # Create the segment which will form the new branch
-                    segment = SegmentModel(name,
-                                           parent.distal + disp, diameter)
+                    segment = SegmentModel(name, section_parent.distal + disp,
+                                           diameter)
                     # Add distributed components to segment
                     for comp in distr_comps:
                         segment.set_component(comp)
@@ -208,9 +238,16 @@ def merge_leaves(tree, only_most_distal=False, num_merges=1, normalise=True,
                     segment.set_component(Ra_comp)
                     # Add new segment to tree
                     tree.add_node_with_parent(segment, section_parent)
-                # Remove old branches from list
-                for branch in siblings:
-                    parent.remove_child(branch[0])
+                    section_parent = segment
+                    new_segments.append(segment)
+#                 assert ((numpy.sum(s.surface_area for s in to_remove) -
+#                          numpy.sum(s.surface_area for s in new_segments))
+#                         < 1e-10), "mismatch in surface areas"
+                # Remove old branches from tree
+                for seg in to_remove:
+                    parent.remove_child(seg)
+#                 for comps, surface_area in tree.category_surface_areas():
+#                     assert inital_surface_areas[comps] - surface_area < 1e-10
         if not merged:
             break
     if normalise:
