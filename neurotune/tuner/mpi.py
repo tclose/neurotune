@@ -4,6 +4,7 @@ from collections import deque
 from itertools import chain
 from mpi4py import MPI
 from . import Tuner, EvaluationException
+import os.path
 
 
 class MPITuner(Tuner):
@@ -159,6 +160,9 @@ class MPITuner(Tuner):
                 self.comm.send((e.tuner, e.candidate, e.analysis,
                                 e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
+                print "Process {} has failed".format(self.rank)
+                e.save(os.environ['HOME'],
+                       'evaluation_exception_{}.pkl'.format(self.rank))
                 break
             self.comm.send((self.rank, jobID, evaluation),
                            dest=self.MASTER, tag=self.DATA_MSG)
