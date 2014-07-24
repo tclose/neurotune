@@ -60,14 +60,14 @@ class RCCurveObjective(PassivePropertiesObjective):
 
     def fitness(self, analysis):
         signal = analysis.get_signal()
-        return (numpy.sum((self.reference - signal) ** 2) /
-                float(self.time_stop - self.time_start))
+        return float(numpy.sum((self.reference - signal) ** 2) /
+                     float(self.time_stop - self.time_start))
 
 
 class SteadyStateVoltagesObjective(PassivePropertiesObjective):
 
     def __init__(self, references, record_sites, ref_inject_dists,
-                 rec_inject_dists, time_stop=750.0 * pq.ms, interp_order=3,
+                 rec_inject_dists, time_stop=750.0 * pq.ms, coeff_order=6,
                  **kwargs):
         if len(references) != len(ref_inject_dists):
             raise Exception("Number of references ({}) should match number of "
@@ -79,17 +79,19 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
         self.record_sites = record_sites
         self.ref_inject_dists = ref_inject_dists
         self.rec_inject_dists = rec_inject_dists
-        self.interp_order = interp_order
+        self.coeff_order = coeff_order
         if type(references) is numpy.ndarray:
             steady_state_v = references
         else:
             self._set_reference(references)
-            # Get the steady-state voltages for each of the reference recordings
+            # Get the steady-state voltages for each of the reference
+            # recordings
             steady_state_v = [r[-1] for r in self.reference]
         # Get an interpolated spline relating steady-state voltage to distance
         # from the root segment
-        self.ss_interpolator = UnivariateSpline(ref_inject_dists,
-                                                steady_state_v, k=interp_order)
+        self.ss_poly_fit = numpy.poly1d(numpy.polyfit(ref_inject_dists,
+                                                      steady_state_v,
+                                                      coeff_order))
 
     def get_recording_requests(self):
         return dict([(site, self._get_recording_request(site))
@@ -100,5 +102,6 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
                             for s in self.record_sites])
         # Get the reference distance function interpolated to the recorded
         # distances
-        ref_ss_v = self.ss_interpolator(self.rec_inject_dists)
-        return numpy.sum((ref_ss_v - ss_v) ** 2) / len(self.rec_inject_dists)
+        ref_ss_v = self.ss_poly_fit(self.rec_inject_dists)
+        return float(numpy.sum((ref_ss_v - ss_v) ** 2) /
+                     len(self.rec_inject_dists))

@@ -27,10 +27,10 @@ class InspyredAlgorithm(Algorithm):
     _ea_defaults = {'terminator': ec.terminators.generation_termination,
                     'observer': [ec.observers.best_observer]}
 
-    def __init__(self, pop_size, output_dir=os.getcwd(),
+    def __init__(self, population_size, output_dir=os.getcwd(),
                  max_generations=100, seeds=None, random_seed=None, **kwargs):
         """
-        `pop_size`        -- the size of the population in each generation
+        `population_size` -- the size of the population in each generation
         `max_generations` -- places a limit on the maximum number of
                              generations
         `seeds`           -- initial starting states of the algorithm
@@ -53,7 +53,7 @@ class InspyredAlgorithm(Algorithm):
             if observers != ec.observers.file_observer:
                 self.ea_attributes['observer'] = [observers,
                                                   ec.observers.file_observer]
-        self.pop_size = pop_size
+        self.pop_size = int(population_size)
         self.evolve_args = kwargs
         self.evolve_args['max_generations'] = max_generations
         self._rng = Random()
@@ -174,12 +174,13 @@ class EDAAlgorithm(InspyredAlgorithm):
     """
     _InspyredClass = ec.EDA
 
-    def __init__(self, pop_size=100,
+    def __init__(self, population_size=100,
                  terminator=[ec.terminators.diversity_termination,
                              ec.terminators.generation_termination],
                  replacer=ec.replacers.crowding_replacement,
                  min_diversity=0.01, max_generations=100, **kwargs):
-        super(EDAAlgorithm, self).__init__(pop_size, terminator=terminator,
+        super(EDAAlgorithm, self).__init__(population_size,
+                                           terminator=terminator,
                                            replacer=replacer,
                                            min_diversity=min_diversity,
                                            max_generations=max_generations,
@@ -277,10 +278,11 @@ class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):
     """
     _InspyredClass = ec.emo.NSGA2
 
-    def __init__(self, pop_size=100,
+    def __init__(self, population_size=100,
                  variator=[ec.variators.blend_crossover,
                            ec.variators.gaussian_mutation], **kwargs):
-        super(NSGA2Algorithm, self).__init__(pop_size, variator=variator,
+        super(NSGA2Algorithm, self).__init__(population_size,
+                                             variator=variator,
                                              **kwargs)
 
 
