@@ -79,10 +79,11 @@ class Objective(object):
                                 .format(len(seg.analogsignals), num_refs))
             if num_refs == 1:
                 self.reference = AnalysedSignal(seg.analogsignals[0]).\
-                                               slice(self.t_start, self.t_stop)
+                                                        slice(self.time_start,
+                                                              self.time_stop)
             else:
-                self.reference = [AnalysedSignal(sig).slice(self.t_start,
-                                                            self.t_stop)
+                self.reference = [AnalysedSignal(sig).slice(self.time_start,
+                                                            self.time_stop)
                                   for sig in seg.analogsignals]
         elif isinstance(reference, Simulation):
             reference.process_recording_requests(recording_requests)
@@ -90,22 +91,24 @@ class Objective(object):
             if num_refs == 1:
                 self.reference = AnalysedSignal(
                                     recordings.segments[0].analogsignals[0]).\
-                                               slice(self.t_start, self.t_stop)
+                                                        slice(self.time_start,
+                                                              self.time_stop)
             else:
                 self.reference = [AnalysedSignal(seg.analogsignals[0]).\
-                                               slice(self.t_start, self.t_stop)
+                                                        slice(self.time_start,
+                                                              self.time_stop)
                                   for seg in recordings.segments]
         elif isinstance(reference, neo.AnalogSignal):
             if num_refs > 1:
                 raise Exception("{} references are required for '{}' objective"
                                 " object instantiations"
                                 .format(num_refs, self.__class__.__name__))
-            self.reference = AnalysedSignal(reference).slice(self.t_start,
-                                                             self.t_stop)
+            self.reference = AnalysedSignal(reference).slice(self.time_start,
+                                                             self.time_stop)
         else:
             try:
-                self.reference = [AnalysedSignal(r).slice(self.t_start,
-                                                          self.t_stop)
+                self.reference = [AnalysedSignal(r).slice(self.time_start,
+                                                          self.time_stop)
                                   for r in reference]
                 if num_refs < 2:
                     raise Exception("Only 1 reference signal is required for "

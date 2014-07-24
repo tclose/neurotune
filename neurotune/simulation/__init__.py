@@ -6,7 +6,10 @@ from collections import namedtuple
 from itertools import groupby
 from abc import ABCMeta  # Metaclass for abstract base classes
 import neo
+from copy import deepcopy
 import quantities as pq
+from collections import Sequence, Mapping, Container, Set
+import numpy
 
 
 class RecordingRequest(object):
@@ -60,6 +63,52 @@ class Simulation():
 
     supported_conditions = []
 
+    @classmethod
+    def _condition_key(cls, item):
+        """
+        Generates a key with which to sort and group recording requests
+        """
+        conditions = cls._convert_numpy_arrays_to_tuples(item[1].conditions)
+        return conditions
+
+    @classmethod
+    def _convert_numpy_arrays_to_tuples(cls, item):
+        """
+        This methods is a work-around for numpy's equality testing (which
+        screws up sorting and grouping by returning an array of truth values
+        instead of a single truth value) by converting all numpy elements to
+        tuples in the condition key
+        """
+        if isinstance(item, Sequence) or isinstance(item, Mapping):
+            item = deepcopy(item)
+            if isinstance(item, Sequence):
+                keys = xrange(len(item))
+            elif isinstance(item, Mapping):
+                keys = item.iterkeys()
+            for k in keys:
+                if isinstance(item[k], numpy.ndarray):
+                    item[k] = cls._cnvrt_np_to_tpl(item[k])
+                elif isinstance(item[k], Container):
+                    item[k] = cls._convert_numpy_arrays_to_tuples(item[k])
+        elif isinstance(item, Set):
+            item = deepcopy(item)
+            for e in item:
+                if isinstance(e, numpy.ndarray):
+                    item.remove(e)
+                    item.add(cls._cnvrt_np_to_tpl(e))
+                elif isinstance(e, Container):
+                    item.remove(e)
+                    item.add(cls._convert_numpy_arrays_to_tuples(e))
+        return item
+
+    @classmethod
+    def _cnvrt_np_to_tpl(cls, a):
+        if isinstance(a, neo.IrregularlySampledSignal):
+            a = (tuple(a.times), tuple(a))
+        else:
+            a = tuple(a)
+        return a
+
     def _process_requests(self, recording_requests):
         """
         Merge recording requests so that the same recording/simulation doesn't
@@ -73,18 +122,20 @@ class Simulation():
             request_items = recording_requests.items()
         except AttributeError:
             request_items = [(None, recording_requests)]
-        request_items.sort(key=lambda x: x[1].conditions)
-        common_conditions = groupby(request_items,
-                                    key=lambda x: x[1].conditions)
+        request_items.sort(key=self._condition_key)
+        common_conditions = groupby(request_items, key=self._condition_key)
         # Merge the common requests into simulation setups
         self._simulation_setups = []
-        for conditions, requests_iter in common_conditions:
+        for _, requests_iter in common_conditions:
+            # Convert the requests to a list so it can be read multiple times
+            requests = list(requests_iter)
+            # Get the common conditions for the group
+            conditions = requests[0][1].conditions
             for key in conditions.keys():
                 if key not in self.supported_conditions:
                     raise Exception("Condition of type {} is not supported"
                                     " by this Simulation class ({})"
                                     .format(key, self.__class__))
-            requests = list(requests_iter)
             # Get the maxium record time in the group
             record_time = max([r[1].time_stop for r in requests])
             # Group the requests by common recording sites
@@ -92,13 +143,13 @@ class Simulation():
             common_record_variables = groupby(requests,
                                             key=lambda x: x[1].record_variable)
             # Get the common recording sites
-            record_variables, requests_iters = zip(*[(rv, list(requests))
+            record_variables, req_iters = zip(*[(rv, list(requests))
                                                       for rv, requests in
                                                       common_record_variables])
             # Get the list of request keys for each requested recording
             req_refs = [[RequestRef(key, req.time_start, req.time_stop)
                          for key, req in com_record]
-                        for com_record in requests_iters]
+                        for com_record in req_iters]
             # Append the simulation request to the
             self._simulation_setups.append(Setup(record_time, conditions,
                                                  list(record_variables),

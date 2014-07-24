@@ -23,11 +23,13 @@ class NineLineSimulation(Simulation):
         else:
             self.celltype = celltype
         self.default_seg = self.celltype(model=model).source_section.name
+        self._model = model
         self.genome_keys = []
         self.log_scales = []
 
     def __reduce__(self):
-        return self.__class__, (self.celltype.nineml_model, 'lazy')
+        return self.__class__, (self.celltype.nineml_model,
+                                self._model, 'lazy')
 
     def set_tune_parameters(self, tune_parameters):
         super(NineLineSimulation, self).set_tune_parameters(tune_parameters)
@@ -115,7 +117,7 @@ class NineLineSimulation(Simulation):
         `setup` -- A set of simulation setup instructions [Simulation.Setup]
         """
         # Initialise cell
-        self.cell = self.celltype()
+        self.cell = self.celltype(model=self._model)
         for rec in setup.record_variables:
             self.cell.record(*rec)
         if 'injected_currents' in setup.conditions:

@@ -27,12 +27,15 @@ class PassivePropertiesObjective(Objective):
         self.inject_location = inject_location
         self.inject_amplitude = inject_amplitude
         step_times = [0.0, self.time_start, self.time_stop]
-        step_amps = [0.0, self.injected_current, self.injected_current]
-        step_source = neo.IrregularlySampledSignal(step_times, step_amps)
+        step_amps = [0.0, self.inject_amplitude, self.inject_amplitude]
+        step_source = neo.IrregularlySampledSignal(
+                                               step_times, step_amps,
+                                               units=inject_amplitude.units,
+                                               time_units=self.time_stop.units)
         inject_dict = {self.inject_location: step_source}
         self.conditions = {'injected_currents': inject_dict}
 
-    def _get_recording_requests(self, record_site=None):
+    def _get_recording_request(self, record_site=None):
         """
         Gets all recording requests required by the objective function
         """
@@ -53,7 +56,7 @@ class RCCurveObjective(PassivePropertiesObjective):
         self._set_reference(reference)
 
     def get_recording_requests(self):
-        self._get_recording_requests(self.inject_location)
+        return {None: self._get_recording_request(self.inject_location)}
 
     def fitness(self, analysis):
         signal = analysis.get_signal()
@@ -64,27 +67,32 @@ class RCCurveObjective(PassivePropertiesObjective):
 class SteadyStateVoltagesObjective(PassivePropertiesObjective):
 
     def __init__(self, references, record_sites, ref_inject_dists,
-                 rec_inject_dists, time_stop=750.0, interp_order=3,
+                 rec_inject_dists, time_stop=750.0 * pq.ms, interp_order=3,
                  **kwargs):
-        if len(references) != len(record_sites):
+        if len(references) != len(ref_inject_dists):
             raise Exception("Number of references ({}) should match number of "
-                            "record sites ({})".format(len(references),
-                                                       len(record_sites)))
-        super(RCCurveObjective, self).__init__(time_stop=time_stop, **kwargs)
+                            "ref inject distances ({})"
+                            .format(len(references),
+                                                       len(ref_inject_dists)))
+        super(SteadyStateVoltagesObjective, self).__init__(time_stop=time_stop,
+                                                           **kwargs)
         self.record_sites = record_sites
         self.ref_inject_dists = ref_inject_dists
         self.rec_inject_dists = rec_inject_dists
         self.interp_order = interp_order
-        self._set_reference(references)
-        # Get the steady-state voltages for each of the reference recordings
-        steady_state_v = [r[-1] for r in self.reference]
+        if type(references) is numpy.ndarray:
+            steady_state_v = references
+        else:
+            self._set_reference(references)
+            # Get the steady-state voltages for each of the reference recordings
+            steady_state_v = [r[-1] for r in self.reference]
         # Get an interpolated spline relating steady-state voltage to distance
         # from the root segment
         self.ss_interpolator = UnivariateSpline(ref_inject_dists,
                                                 steady_state_v, k=interp_order)
 
     def get_recording_requests(self):
-        return dict([(site, self._get_recording_requests(site))
+        return dict([(site, self._get_recording_request(site))
                      for site in self.record_sites])
 
     def fitness(self, analysis):
@@ -93,4 +101,4 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
         # Get the reference distance function interpolated to the recorded
         # distances
         ref_ss_v = self.ss_interpolator(self.rec_inject_dists)
-        return numpy.sum((ref_ss_v - ss_v) ** 2)
+        return numpy.sum((ref_ss_v - ss_v) ** 2) / len(self.rec_inject_dists)
