@@ -167,6 +167,8 @@ class MPITuner(Tuner):
             self.comm.send((self.rank, jobID, evaluation),
                            dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
+        if command != 'stop':
+            print "Process {} quit after exception".format(self.rank)
         if self.mpi_verbose:
             print "Stopping listening on process {}".format(self.rank)
         # Gather all bad candidates onto the master node object
