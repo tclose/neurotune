@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 import quantities as pq
 import neo.core
+from nineline.cells import DummyNinemlModel
 from nineml.extensions.biophysical_cells import ComponentClass as BiophysNineml
 from nineline.cells.neuron import NineCellMetaClass, \
                                   simulation_controller as nineline_controller
@@ -18,7 +19,8 @@ class NineLineSimulation(Simulation):
         """
         # Generate the NineLine class from the nineml file and initialise a
         # single cell from it
-        if isinstance(celltype, BiophysNineml) or isinstance(celltype, str):
+        if (isinstance(celltype, BiophysNineml) or isinstance(celltype, str) or
+            isinstance(celltype, DummyNinemlModel)):
             self.celltype = NineCellMetaClass(celltype, build_mode=build_mode)
         else:
             self.celltype = celltype
@@ -126,6 +128,9 @@ class NineLineSimulation(Simulation):
         if 'voltage_clamps' in setup.conditions:
             for loc, voltages in setup.conditions['voltage_clamps'].items():
                 getattr(self.cell, loc).voltage_clamp(voltages)
+        if 'synaptic_spikes' in setup.conditions:
+            for loc, syn, spkes in setup.conditions['synaptic_spikes'].items():
+                getattr(self.cell, loc).synaptic_stimulation(spkes, syn)
 
     def _set_candidate_params(self, candidate):
         """
