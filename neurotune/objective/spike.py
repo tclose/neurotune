@@ -70,8 +70,8 @@ class SpikeTimesObjective(Objective):
                             "{}".format(type(reference)))
         self.time_buffer = time_buffer
         self.ref_inner = reference[numpy.where(
-                                    (reference >= (time_start + time_buffer)) &
-                                    (reference <= (time_stop - time_buffer)))]
+                              (self.ref_spikes >= (time_start + time_buffer)) &
+                              (self.ref_spikes <= (time_stop - time_buffer)))]
         if not len(self.ref_inner):
             raise Exception("Inner window does not contain any spikes")
 
