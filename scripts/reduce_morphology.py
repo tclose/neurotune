@@ -214,7 +214,7 @@ def run(args):
     new_states = []
     for comp in model.components.itervalues():
         if isinstance(comp, IonChannelModel) and 'gbar' in comp.parameters:
-            value = numpy.log(float(comp.parameters['gbar']))
+            value = numpy.log10(float(comp.parameters['gbar']))
             # Initialise parameters with infinite bounds to begin
             # with their actual bounds will vary with each
             # iteration
@@ -288,7 +288,7 @@ def run(args):
 #             for mapping in model.mappings:
 #                 if comp.name in mapping.components:
 #                     for group in mapping.segments:
-#                         value = numpy.log(float(comp.parameters['g'].value))
+#                         value = numpy.log10(float(comp.parameters['g'].value))
 #                         # Initialise active_parameters with infinite bounds to begin @IgnorePep8
 #                         # with their actual bounds will vary with each
 #                         # iteration
