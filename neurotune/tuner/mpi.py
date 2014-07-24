@@ -161,8 +161,9 @@ class MPITuner(Tuner):
                                 e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
                 print "Process {} has failed".format(self.rank)
-                e.save(os.environ['HOME'],
-                       'evaluation_exception_{}.pkl'.format(self.rank))
+                e.save(os.path.join(os.environ['HOME'],
+                                    'evaluation_exception_{}.pkl'
+                                    .format(self.rank)))
                 break
             self.comm.send((self.rank, jobID, evaluation),
                            dest=self.MASTER, tag=self.DATA_MSG)
