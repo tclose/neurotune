@@ -12,6 +12,69 @@ from collections import Sequence, Mapping, Container, Set
 import numpy
 
 
+class ExperimentalConditions(object):
+
+    def __init__(self, **kwargs):
+        self._conds = kwargs
+
+    def __getitem__(self, key):
+        return self._conds[key]
+
+    def __iter__(self):
+        return self.keys()
+
+    def keys(self):
+        return self._conds.iterkeys()
+
+    def items(self):
+        return self._conds.iteritems()
+
+    def sort_key(self):
+        """
+        Returns a key with which the experimental conditions can be compared,
+        sorted and grouped by
+        """
+        return self._convert_numpy_arrays_to_tuples(self._conds)
+
+    @classmethod
+    def _convert_numpy_arrays_to_tuples(cls, item):
+        """
+        This methods is a work-around for numpy's equality testing (which
+        screws up sorting and grouping by returning an array of truth values
+        instead of a single truth value) by converting all numpy elements to
+        tuples
+        """
+        if isinstance(item, Sequence) or isinstance(item, Mapping):
+            item = deepcopy(item)
+            if isinstance(item, Sequence):
+                keys = xrange(len(item))
+            elif isinstance(item, Mapping):
+                keys = item.iterkeys()
+            for k in keys:
+                if isinstance(item[k], numpy.ndarray):
+                    item[k] = cls._cnvrt_np_to_tpl(item[k])
+                elif isinstance(item[k], Container):
+                    item[k] = cls._convert_numpy_arrays_to_tuples(item[k])
+        elif isinstance(item, Set):
+            item = deepcopy(item)
+            for e in item:
+                if isinstance(e, numpy.ndarray):
+                    item.remove(e)
+                    item.add(cls._cnvrt_np_to_tpl(e))
+                elif isinstance(e, Container):
+                    item.remove(e)
+                    item.add(cls._convert_numpy_arrays_to_tuples(e))
+        return item
+
+    @classmethod
+    def _cnvrt_np_to_tpl(cls, a):
+        if isinstance(a, neo.IrregularlySampledSignal):
+            a = (tuple(a.times), tuple(a))
+        else:
+            a = tuple(a)
+        return a
+
+
 class RecordingRequest(object):
     """"
     RecordingRequests are raised by objective functions and are passed to
@@ -20,7 +83,7 @@ class RecordingRequest(object):
     """
 
     def __init__(self, time_start=0.0, time_stop=2000.0, record_variable=None,
-                 conditions={}):
+                 conditions=ExperimentalConditions()):
         """
         `time_stop`     -- the length of the recording required by the
                              simulation
@@ -63,52 +126,6 @@ class Simulation():
 
     supported_conditions = []
 
-    @classmethod
-    def _condition_key(cls, item):
-        """
-        Generates a key with which to sort and group recording requests
-        """
-        conditions = cls._convert_numpy_arrays_to_tuples(item[1].conditions)
-        return conditions
-
-    @classmethod
-    def _convert_numpy_arrays_to_tuples(cls, item):
-        """
-        This methods is a work-around for numpy's equality testing (which
-        screws up sorting and grouping by returning an array of truth values
-        instead of a single truth value) by converting all numpy elements to
-        tuples in the condition key
-        """
-        if isinstance(item, Sequence) or isinstance(item, Mapping):
-            item = deepcopy(item)
-            if isinstance(item, Sequence):
-                keys = xrange(len(item))
-            elif isinstance(item, Mapping):
-                keys = item.iterkeys()
-            for k in keys:
-                if isinstance(item[k], numpy.ndarray):
-                    item[k] = cls._cnvrt_np_to_tpl(item[k])
-                elif isinstance(item[k], Container):
-                    item[k] = cls._convert_numpy_arrays_to_tuples(item[k])
-        elif isinstance(item, Set):
-            item = deepcopy(item)
-            for e in item:
-                if isinstance(e, numpy.ndarray):
-                    item.remove(e)
-                    item.add(cls._cnvrt_np_to_tpl(e))
-                elif isinstance(e, Container):
-                    item.remove(e)
-                    item.add(cls._convert_numpy_arrays_to_tuples(e))
-        return item
-
-    @classmethod
-    def _cnvrt_np_to_tpl(cls, a):
-        if isinstance(a, neo.IrregularlySampledSignal):
-            a = (tuple(a.times), tuple(a))
-        else:
-            a = tuple(a)
-        return a
-
     def _process_requests(self, recording_requests):
         """
         Merge recording requests so that the same recording/simulation doesn't
@@ -122,14 +139,17 @@ class Simulation():
             request_items = recording_requests.items()
         except AttributeError:
             request_items = [(None, recording_requests)]
-        request_items.sort(key=self._condition_key)
-        common_conditions = groupby(request_items, key=self._condition_key)
+        request_items.sort(key=lambda i: i[1].sort_key())
+        common_conditions = groupby(request_items,
+                                    key=lambda i: i[1].sort_key())
         # Merge the common requests into simulation setups
         self._simulation_setups = []
         for _, requests_iter in common_conditions:
             # Convert the requests to a list so it can be read multiple times
             requests = list(requests_iter)
-            # Get the common conditions for the group
+            # Get the common conditions for the group, can't use the one
+            # returned by groupby as it the numpy arrays have been converted
+            # to tuples
             conditions = requests[0][1].conditions
             for key in conditions.keys():
                 if key not in self.supported_conditions:

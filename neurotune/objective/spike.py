@@ -4,7 +4,7 @@ import quantities as pq
 import neo.core
 from ..analysis import AnalysedSignal
 from . import Objective
-from ..simulation import RecordingRequest
+from ..simulation import RecordingRequest, ExperimentalConditions
 
 
 class SpikeFrequencyObjective(Objective):
@@ -131,10 +131,10 @@ class MinCurrentToSpikeObjective(Objective):
         steps = numpy.hstack((initial_zeros, steps))
         current = neo.AnalogSignal(steps, sampling_period=pulse_length,
                                    units='nA')
+        conds = ExperimentalConditions(injected_currents={'soma': current})
         return {None: RecordingRequest(time_start=self.time_start,
                                        time_stop=self.time_stop,
-                                       conditions={'injected_currents':
-                                                   {'soma': current}},
+                                       conditions=conds,
                                        record_variable=None)}
 
     def fitness(self, analysis):

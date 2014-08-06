@@ -4,7 +4,7 @@ import collections
 import numpy
 import quantities as pq
 import neo.io
-from ..simulation import Simulation, RecordingRequest
+from ..simulation import Simulation, RecordingRequest, ExperimentalConditions
 from ..analysis import AnalysedSignal
 
 
@@ -17,7 +17,7 @@ class Objective(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, time_start=500.0 * pq.ms, time_stop=2000.0 * pq.ms,
-                 conditions={}, record_sites=[None]):
+                 conditions=ExperimentalConditions(), record_sites=[None]):
         """
         `time_start`   -- the time given for the system to reach steady state
                           before starting to record [pq.Quantity]

@@ -5,7 +5,7 @@ import numpy
 import quantities as pq
 import neo
 from .__init__ import Objective
-from ..simulation import RecordingRequest
+from ..simulation import RecordingRequest, ExperimentalConditions
 
 
 class PassivePropertiesObjective(Objective):
@@ -33,7 +33,7 @@ class PassivePropertiesObjective(Objective):
                                                units=inject_amplitude.units,
                                                time_units=self.time_stop.units)
         inject_dict = {self.inject_location: step_source}
-        self.conditions = {'injected_currents': inject_dict}
+        self.conditions = ExperimentalConditions(injected_currents=inject_dict)
 
     def _get_recording_request(self, record_site=None):
         """
