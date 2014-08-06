@@ -126,6 +126,7 @@ class MPITuner(Tuner):
                 received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
                 try:
+                    print "received {}".format(received)
                     processID, jobID, result = received
                 # If the slave raised an evaluation exception it sends 4-tuple
                 except ValueError:
