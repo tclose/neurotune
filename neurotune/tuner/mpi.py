@@ -128,10 +128,13 @@ class MPITuner(Tuner):
                 try:
                     print "received {}".format(received)
                     processID, jobID, result = received
+                    print "here L131 {}, {}, {}".format(processID, jobID, result)
                 # If the slave raised an evaluation exception it sends 4-tuple
                 except ValueError:
+                    print "here L134"
                     print "Received evaluation exception from {}".format(processID)
                     raise EvaluationException(*received)
+                print "here L137"
                 evaluations[jobID] = result
                 free_processes.append(processID)
                 remaining_evaluations -= 1
