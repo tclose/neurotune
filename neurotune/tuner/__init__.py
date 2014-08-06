@@ -213,7 +213,7 @@ class Tuner(object):
             if self.num_processes == 1 and __debug__:
                 raise
             else:
-                raise EvaluationException(self.objective, candidate,
+                raise EvaluationException(self, candidate,
                                           locals().get('analysis', None))
         return fitness
 

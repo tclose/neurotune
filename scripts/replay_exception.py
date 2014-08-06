@@ -11,6 +11,9 @@ parser.add_argument('exception_file',
                          " ('evaluation_exception.pkl')")
 args = parser.parse_args()
 
+import sys
+sys.path.append('/home/tclose/git/purkinje/tuning')
+
 with open(args.exception_file, 'rb') as f:
     tuner, candidate, analysis = pkl.load(f)
 
