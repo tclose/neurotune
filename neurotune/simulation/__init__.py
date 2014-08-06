@@ -139,9 +139,9 @@ class Simulation():
             request_items = recording_requests.items()
         except AttributeError:
             request_items = [(None, recording_requests)]
-        request_items.sort(key=lambda i: i[1].sort_key())
+        request_items.sort(key=lambda i: i[1].conditions.sort_key())
         common_conditions = groupby(request_items,
-                                    key=lambda i: i[1].sort_key())
+                                    key=lambda i: i[1].conditions.sort_key())
         # Merge the common requests into simulation setups
         self._simulation_setups = []
         for _, requests_iter in common_conditions:
@@ -153,9 +153,12 @@ class Simulation():
             conditions = requests[0][1].conditions
             for key in conditions.keys():
                 if key not in self.supported_conditions:
-                    raise Exception("Condition of type {} is not supported"
-                                    " by this Simulation class ({})"
-                                    .format(key, self.__class__))
+                    raise Exception("Condition of type '{}' is not supported "
+                                    "by the '{}' Simulation class (supported "
+                                    "condition types: {})"
+                                    .format(key, self.__class__,
+                                            "', '"
+                                            .join(self.supported_conditions)))
             # Get the maxium record time in the group
             record_time = max([r[1].time_stop for r in requests])
             # Group the requests by common recording sites
