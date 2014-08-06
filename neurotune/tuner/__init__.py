@@ -16,10 +16,12 @@ class EvaluationException(Exception):
     """
 
     def __init__(self, tuner, candidate, analysis, tback=None):
+        print "initialising EvaluationException"
         self.tuner = tuner
         self.candidate = candidate
         self.analysis = analysis
         self.traceback = tback if tback is not None else traceback.format_exc()
+        print "finished initialising EvaluationException"
 
     def __str__(self):
         return ("Evaluating candidate {} caused the following error:\n\n{}"
