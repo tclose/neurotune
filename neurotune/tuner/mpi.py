@@ -59,6 +59,8 @@ class MPITuner(Tuner):
             try:
                 result = self.algorithm.optimize(self._evaluator, **kwargs)
             finally:
+                if self.mpi_verbose:
+                    print "Releasing slaves"
                 self._release_slaves()
         else:
             self._listen_for_candidates()
@@ -126,14 +128,11 @@ class MPITuner(Tuner):
                 received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
                 try:
-                    print "received {}".format(received)
                     processID, jobID, result = received
-                    print "here L131 {}, {}, {}".format(processID, jobID, result)
                 # If the slave raised an evaluation exception it sends 4-tuple
                 except ValueError:
-                    print "here L134"
+                    print "received {} indicates exception".format(received)
                     raise EvaluationException(*received)
-                print "here L137"
                 evaluations[jobID] = result
                 free_processes.append(processID)
                 remaining_evaluations -= 1
@@ -155,16 +154,17 @@ class MPITuner(Tuner):
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except EvaluationException as e:
+                print ("Process {} has failed, raising exception"
+                       .format(self.rank))
                 # Check to see that the size of the recordings isn't very large
                 # before attempting to pass it back over MPI
                 if sys.getsizeof(e.analysis) > 100000:
                     e.analysis = 'Too large to pass over MPI'
                 # This will tell the master node to raise an
                 # EvaluationException and release all slaves
-                self.comm.send((e.tuner, e.candidate, e.analysis,
-                                e.traceback),
+                self.comm.send((e.objective, e.simulation, e.candidate,
+                                e.analysis, e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
-                print "Process {} has failed".format(self.rank)
                 e.save(os.path.join(os.environ['HOME'],
                                     'evaluation_exception_{}.pkl'
                                     .format(self.rank)))

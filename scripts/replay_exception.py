@@ -15,11 +15,11 @@ import sys
 sys.path.append('/home/tclose/git/purkinje/tuning')
 
 with open(args.exception_file, 'rb') as f:
-    tuner, candidate, analysis = pkl.load(f)
+    objective, simulation, candidate, analysis = pkl.load(f)
 
 print "Replaying evaluation exception for {}".format(candidate)
 
 if analysis is None:
-    tuner.simulation.run_all(candidate)
+    simulation.run_all(candidate)
 else:
-    print "fitness: {}".format(tuner.objective.fitness(analysis))
+    print "fitness: {}".format(objective.fitness(analysis))

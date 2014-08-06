@@ -15,13 +15,12 @@ class EvaluationException(Exception):
     exception to be examined
     """
 
-    def __init__(self, tuner, candidate, analysis, tback=None):
-        print "initialising EvaluationException on process {}".format(tuner.rank)
-        self.tuner = tuner
+    def __init__(self, objective, simulation, candidate, analysis, tback=None):
+        self.objective = objective
+        self.simulation = simulation
         self.candidate = candidate
         self.analysis = analysis
         self.traceback = tback if tback is not None else traceback.format_exc()
-        print "finished initialising EvaluationException on process {}".format(tuner.rank)
 
     def __str__(self):
         return ("Evaluating candidate {} caused the following error:\n\n{}"
@@ -29,9 +28,10 @@ class EvaluationException(Exception):
 
     def save(self, filename):
         with open(filename, 'w') as f:
-            pkl.dump((self.tuner, self.candidate, self.analysis), f)
-        print ("Saving failed candidate along with tuner object and analysis "
-               "to file at '{}'".format(filename))
+            pkl.dump((self.objective, self.simulation, self.candidate,
+                      self.analysis), f)
+        print ("Saving failed candidate along with objective, simulation "
+               "and analysis objects to file at '{}'".format(filename))
 
 
 class BadCandidateException(Exception):
@@ -215,7 +215,8 @@ class Tuner(object):
             if self.num_processes == 1 and __debug__:
                 raise
             else:
-                raise EvaluationException(self, candidate,
+                raise EvaluationException(self.objective, self.simulation,
+                                          candidate,
                                           locals().get('analysis', None))
         return fitness
 
