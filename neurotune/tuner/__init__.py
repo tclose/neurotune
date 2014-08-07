@@ -206,7 +206,7 @@ class Tuner(object):
                    "simulation for these parameters".format(candidate))
             fitness = self.algorithm.BAD_FITNESS_VALUE
             self.bad_candidates.append(candidate)
-        except Exception:
+        except:
             # Check to see if using distributed processing, in which case
             # raise an EvaluationException (allows the MPI tuner to fail
             # gracefully). Otherwise the assumption is that you are debugging

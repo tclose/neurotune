@@ -3,7 +3,7 @@ import sys
 from collections import deque
 from mpi4py import MPI
 from . import Tuner, EvaluationException
-import os.path
+import traceback
 
 
 class MPITuner(Tuner):
@@ -57,9 +57,16 @@ class MPITuner(Tuner):
         if self.is_master():
             try:
                 result = self.algorithm.optimize(self._evaluator, **kwargs)
+            except Exception:
+                # Receive all the incoming messages from the slave nodes before
+                # sending them the stop signal
+                if self.num_processes != 1:
+                    while len(self.free_processes) < self.num_processes - 1:
+                        received = self.comm.recv(source=self.ANY_SOURCE,
+                                                  tag=self.DATA_MSG)
+                        self.free_processes.append(received[0])
+                raise
             finally:
-                if self.mpi_verbose:
-                    print "Releasing slaves"
                 self._release_slaves()
         else:
             self._listen_for_candidates()
@@ -88,8 +95,8 @@ class MPITuner(Tuner):
         assert self.is_master(), "Distribution of candidate jobs should only "\
                                  "be performed by master node"
         candidate_jobs = list(enumerate(candidates))
-        free_processes = (deque(xrange(1, self.num_processes))
-                          if self.num_processes > 1 else [0])
+        self.free_processes = (deque(xrange(1, self.num_processes))
+                               if self.num_processes > 1 else [0])
         # Create a list of None values the same length as the candidate list
         evaluations = [None] * len(candidates)
         # Record the number of evaluations that are yet to be performed
@@ -100,14 +107,12 @@ class MPITuner(Tuner):
         # master
         until_master_eval = self.num_processes - 1
         while remaining_evaluations:
-            print "remaining evals {}".format(remaining_evaluations)
             # If there are remaining candidates and free processes then
             # distribute the candidates to the processes
-            if free_processes and candidate_jobs:
-                print "sending process"
+            if self.free_processes and candidate_jobs:
                 if self.num_processes > 1:
                     self.comm.send(candidate_jobs.pop(),
-                                   dest=free_processes.popleft(),
+                                   dest=self.free_processes.popleft(),
                                    tag=self.COMMAND_MSG)
                     until_master_eval -= 1
                 # If evaluate_on_master is set, check to see how many
@@ -126,18 +131,16 @@ class MPITuner(Tuner):
             # record their result
             else:
                 # Receive evaluation from slave node
-                print "waiting for signal"
                 received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
-                print "received signal {}".format(received)
                 try:
                     processID, jobID, result = received
-                # If the slave raised an evaluation exception it sends 4-tuple
+                # If the slave raised an evaluation exception it sends 6-tuple
                 except ValueError:
-                    print "received {} indicates exception".format(received)
-                    raise EvaluationException(*received)
+                    self.free_processes.append(received[0])
+                    raise EvaluationException(*received[1:])
                 evaluations[jobID] = result
-                free_processes.append(processID)
+                self.free_processes.append(processID)
                 remaining_evaluations -= 1
         return evaluations
 
@@ -149,6 +152,7 @@ class MPITuner(Tuner):
         assert not self.is_master(), "Evaluation of candidates should only be"\
                                      " performed by slave nodes"
         command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
+        error = False
         while command != 'stop':
             jobID, candidate = command
             if self.mpi_verbose:
@@ -157,7 +161,7 @@ class MPITuner(Tuner):
             try:
                 evaluation = self._evaluate_candidate(candidate)
             except EvaluationException as e:
-                print ("Process {} has failed, raising exception"
+                print ("Process {} raised an evaluation exception"
                        .format(self.rank))
                 # Check to see that the size of the recordings isn't very large
                 # before attempting to pass it back over MPI
@@ -165,20 +169,14 @@ class MPITuner(Tuner):
                     e.analysis = 'Too large to pass over MPI'
                 # This will tell the master node to raise an
                 # EvaluationException and release all slaves
-                print "sending exception back to master"
-                self.comm.send((e.objective, e.simulation, e.candidate,
-                                e.analysis, e.traceback),
+                self.comm.send((self.rank, e.objective, e.simulation,
+                                e.candidate, e.analysis, e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
-                print "sent exception back to master"
-                e.save(os.path.join(os.environ['HOME'],
-                                    'evaluation_exception_{}.pkl'
-                                    .format(self.rank)))
-                break
-            self.comm.send((self.rank, jobID, evaluation),
-                           dest=self.MASTER, tag=self.DATA_MSG)
+                error = True
+            if not error:
+                self.comm.send((self.rank, jobID, evaluation),
+                               dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
-        if command != 'stop':
-            print "Process {} quit after exception".format(self.rank)
         if self.mpi_verbose:
             print "Stopping listening on process {}".format(self.rank)
         # Gather all bad candidates onto the master node object
@@ -190,6 +188,8 @@ class MPITuner(Tuner):
         """
         assert self.is_master(), "Release of slaves should only "\
                                  "be performed by master node"
+        if self.mpi_verbose:
+            print "Releasing slaves"
         for processID in xrange(1, self.num_processes):
             self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)
         # Gather all bad candidates onto the master node
