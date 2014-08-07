@@ -199,3 +199,5 @@ class MPITuner(Tuner):
         # Gather all bad candidates onto the master node
         bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
         self.bad_candidates = list(chain.from_iterable(bad_list))
+        if self.mpi_verbose:
+            print "Gathered bad candidates from slave nodes"
