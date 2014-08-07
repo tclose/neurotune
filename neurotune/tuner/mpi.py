@@ -182,6 +182,9 @@ class MPITuner(Tuner):
             print "Stopping listening on process {}".format(self.rank)
         # Gather all bad candidates onto the master node object
         self.comm.gather(self.bad_candidates, root=self.MASTER)
+        if self.mpi_verbose:
+            print ("Gathered bad candidates and exiting process {}"
+                   .format(self.rank))
 
     def _release_slaves(self):
         """
