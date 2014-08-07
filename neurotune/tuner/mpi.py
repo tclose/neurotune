@@ -119,7 +119,8 @@ class MPITuner(Tuner):
                 # evaluations have been sent since the last evaluation on the
                 # master node and if it equals the number of processes evaluate
                 # another candidate on the master node
-                if self.evaluate_on_master and until_master_eval == 0:
+                if (self.evaluate_on_master and until_master_eval == 0 and
+                    candidate_jobs):
                     jobID, candidate = candidate_jobs.pop()
                     if self.mpi_verbose:
                         print ("Evaluating jobID: {}, candidate: {} on Process"
