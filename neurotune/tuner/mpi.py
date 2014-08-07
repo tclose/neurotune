@@ -57,7 +57,7 @@ class MPITuner(Tuner):
         if self.is_master():
             try:
                 result = self.algorithm.optimize(self._evaluator, **kwargs)
-            except Exception:
+            except:
                 # Receive all the incoming messages from the slave nodes before
                 # sending them the stop signal
                 if self.num_processes != 1:
@@ -182,9 +182,6 @@ class MPITuner(Tuner):
             print "Stopping listening on process {}".format(self.rank)
         # Gather all bad candidates onto the master node object
         self.comm.gather(self.bad_candidates, root=self.MASTER)
-        if self.mpi_verbose:
-            print ("Gathered bad candidates and exiting process {}"
-                   .format(self.rank))
 
     def _release_slaves(self):
         """
@@ -199,5 +196,3 @@ class MPITuner(Tuner):
         # Gather all bad candidates onto the master node
         bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
         self.bad_candidates = list(chain.from_iterable(bad_list))
-        if self.mpi_verbose:
-            print "Gathered bad candidates from slave nodes"
