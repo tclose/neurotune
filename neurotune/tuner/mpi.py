@@ -153,7 +153,7 @@ class MPITuner(Tuner):
         assert not self.is_master(), "Evaluation of candidates should only be"\
                                      " performed by slave nodes"
         command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
-        error = False
+        e = None
         while command != 'stop':
             jobID, candidate = command
             if self.mpi_verbose:
@@ -173,8 +173,7 @@ class MPITuner(Tuner):
                 self.comm.send((self.rank, e.objective, e.simulation,
                                 e.candidate, e.analysis, e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
-                error = True
-            if not error:
+            if not e:
                 self.comm.send((self.rank, jobID, evaluation),
                                dest=self.MASTER, tag=self.DATA_MSG)
             command = self.comm.recv(source=self.MASTER, tag=self.COMMAND_MSG)
