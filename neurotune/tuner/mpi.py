@@ -5,6 +5,7 @@ from itertools import chain
 from mpi4py import MPI
 from . import Tuner, EvaluationException
 import os.path
+import traceback
 
 
 class MPITuner(Tuner):
@@ -61,6 +62,7 @@ class MPITuner(Tuner):
             finally:
                 if self.mpi_verbose:
                     print "Releasing slaves"
+                traceback.format_exc()
                 self._release_slaves()
         else:
             self._listen_for_candidates()
@@ -101,9 +103,11 @@ class MPITuner(Tuner):
         # master
         until_master_eval = self.num_processes - 1
         while remaining_evaluations:
+            print "remaining evals {}".format(remaining_evaluations)
             # If there are remaining candidates and free processes then
             # distribute the candidates to the processes
             if free_processes and candidate_jobs:
+                print "sending process"
                 if self.num_processes > 1:
                     self.comm.send(candidate_jobs.pop(),
                                    dest=free_processes.popleft(),
@@ -125,8 +129,10 @@ class MPITuner(Tuner):
             # record their result
             else:
                 # Receive evaluation from slave node
+                print "waiting for signal"
                 received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
+                print "received signal"
                 try:
                     processID, jobID, result = received
                 # If the slave raised an evaluation exception it sends 4-tuple
@@ -162,9 +168,11 @@ class MPITuner(Tuner):
                     e.analysis = 'Too large to pass over MPI'
                 # This will tell the master node to raise an
                 # EvaluationException and release all slaves
+                print "sending exception back to master"
                 self.comm.send((e.objective, e.simulation, e.candidate,
                                 e.analysis, e.traceback),
                                dest=self.MASTER, tag=self.DATA_MSG)
+                print "sent exception back to master"
                 e.save(os.path.join(os.environ['HOME'],
                                     'evaluation_exception_{}.pkl'
                                     .format(self.rank)))
@@ -183,8 +191,10 @@ class MPITuner(Tuner):
         """
         Release slave nodes from listening to new candidates to evaluate
         """
+        assert self.is_master(), "Release of slaves should only "\
+                                 "be performed by master node"
         for processID in xrange(1, self.num_processes):
             self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)
         # Gather all bad candidates onto the master node
-        bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
-        self.bad_candidates = list(chain.from_iterable(bad_list))
+        #bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
+        #self.bad_candidates = list(chain.from_iterable(bad_list))
