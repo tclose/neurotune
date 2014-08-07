@@ -1,11 +1,9 @@
 from __future__ import absolute_import
 import sys
 from collections import deque
-from itertools import chain
 from mpi4py import MPI
 from . import Tuner, EvaluationException
 import os.path
-import traceback
 
 
 class MPITuner(Tuner):
@@ -62,7 +60,6 @@ class MPITuner(Tuner):
             finally:
                 if self.mpi_verbose:
                     print "Releasing slaves"
-                traceback.format_exc()
                 self._release_slaves()
         else:
             self._listen_for_candidates()
@@ -132,7 +129,7 @@ class MPITuner(Tuner):
                 print "waiting for signal"
                 received = self.comm.recv(source=self.ANY_SOURCE,
                                           tag=self.DATA_MSG)
-                print "received signal"
+                print "received signal {}".format(received)
                 try:
                     processID, jobID, result = received
                 # If the slave raised an evaluation exception it sends 4-tuple
