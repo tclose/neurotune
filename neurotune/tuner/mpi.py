@@ -3,7 +3,7 @@ import sys
 from collections import deque
 from mpi4py import MPI
 from . import Tuner, EvaluationException
-import traceback
+from itertools import chain
 
 
 class MPITuner(Tuner):
@@ -194,5 +194,5 @@ class MPITuner(Tuner):
         for processID in xrange(1, self.num_processes):
             self.comm.send('stop', dest=processID, tag=self.COMMAND_MSG)
         # Gather all bad candidates onto the master node
-        #bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
-        #self.bad_candidates = list(chain.from_iterable(bad_list))
+        bad_list = self.comm.gather(self.bad_candidates, root=self.MASTER)
+        self.bad_candidates = list(chain.from_iterable(bad_list))
