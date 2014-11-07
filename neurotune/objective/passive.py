@@ -2,37 +2,59 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 import quantities as pq
-import neo
+import neo.io
 from .__init__ import Objective
 from ..simulation import RecordingRequest, ExperimentalConditions
+
+#step_source = StepCurrentSource([0, injected_current],
+#                                [0.0, time_start])
+#ExperimentalConditions(clamps=clamp)
 
 
 class PassivePropertiesObjective(Objective):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, inject_location=None, inject_amplitude=-2 * pq.nA,
-                 time_start=250.0 * pq.ms, time_stop=500.0 * pq.ms):
-        """
-        `inject_location`  -- segment in which to inject the current into
-                              if None it (should) default to the source_section
-        `inject_amplitude` -- the strength of the current
-        `time_start`       -- start of the recording (after transients have
-                              decayed)
-        `time_stop`        -- end of the recording
-        """
+# <<<<<<< HEAD
+#     def __init__(self, inject_location=None, inject_amplitude=-2 * pq.nA,
+#                  time_start=250.0 * pq.ms, time_stop=500.0 * pq.ms):
+#         """
+#         `inject_location`  -- segment in which to inject the current into
+#                               if None it (should) default to the source_section
+#         `inject_amplitude` -- the strength of the current
+#         `time_start`       -- start of the recording (after transients have
+#                               decayed)
+#         `time_stop`        -- end of the recording
+#         """
+#         super(PassivePropertiesObjective, self).__init__(time_start, time_stop)
+#         # Save members
+#         self.inject_location = inject_location
+#         self.inject_amplitude = inject_amplitude
+#         step_times = [0.0, self.time_start, self.time_stop]
+#         step_amps = [0.0, self.inject_amplitude, self.inject_amplitude]
+#         step_source = neo.IrregularlySampledSignal(
+#                                                step_times, step_amps,
+#                                                units=inject_amplitude.units,
+#                                                time_units=self.time_stop.units)
+#         inject_dict = {self.inject_location: step_source}
+#         self.conditions = ExperimentalConditions(injected_currents=inject_dict)
+# =======
+    def __init__(self, reference_trace, conditions,
+                 record_variable=None, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms):
         super(PassivePropertiesObjective, self).__init__(time_start, time_stop)
+        # Save reference trace(s) as a list, converting if a single trace or
+        # loading from file if a valid filename
+        if isinstance(reference_trace, str):
+            f = neo.io.PickleIO(reference_trace)
+            seg = f.read_segment()
+            self.reference_trace = seg.analogsignals[0]
+        elif isinstance(reference_trace, neo.AnalogSignal):
+            self.reference_trace = reference_trace
         # Save members
-        self.inject_location = inject_location
-        self.inject_amplitude = inject_amplitude
-        step_times = [0.0, self.time_start, self.time_stop]
-        step_amps = [0.0, self.inject_amplitude, self.inject_amplitude]
-        step_source = neo.IrregularlySampledSignal(
-                                               step_times, step_amps,
-                                               units=inject_amplitude.units,
-                                               time_units=self.time_stop.units)
-        inject_dict = {self.inject_location: step_source}
-        self.conditions = ExperimentalConditions(injected_currents=inject_dict)
+        self.record_variable = record_variable
+        self.exp_conditions = conditions
+# >>>>>>> ab4e49d311af1666120f13d0e851649e462fde37
 
     def _get_recording_request(self, record_site=None):
         """
@@ -42,6 +64,14 @@ class PassivePropertiesObjective(Objective):
                                 time_start=self.time_start,
                                 time_stop=self.time_stop,
                                 conditions=self.conditions)
+
+
+class SumOfSquaresObjective(PassivePropertiesObjective):
+
+    def fitness(self, analysis):
+        signal = analysis.get_signal()
+        fitness = numpy.sum((self.reference_trace - signal) ** 2)
+        return fitness
 
 
 class RCCurveObjective(PassivePropertiesObjective):
