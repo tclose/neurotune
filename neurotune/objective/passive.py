@@ -4,7 +4,7 @@ import numpy
 import quantities as pq
 import neo.io
 from .__init__ import Objective
-from ..simulation import RecordingRequest, ExperimentalConditions
+from ..simulation import RecordingRequest
 
 #step_source = StepCurrentSource([0, injected_current],
 #                                [0.0, time_start])
