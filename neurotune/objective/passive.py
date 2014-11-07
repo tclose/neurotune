@@ -1,6 +1,5 @@
 from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
-from scipy.interpolate import UnivariateSpline
 import numpy
 import quantities as pq
 import neo

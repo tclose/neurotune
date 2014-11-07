@@ -224,6 +224,12 @@ class Simulation():
         """
         self.tune_parameters = tune_parameters
 
+    @property
+    def tune_parameter_names(self):
+        if not self.tune_parameters:
+            raise Exception("Tuning parameters have not been set")
+        return (p.name for p in self.tune_parameters)
+
     def run_all(self, candidate):
         """
         Runs all simulations reuquired by the requested simulation setups
