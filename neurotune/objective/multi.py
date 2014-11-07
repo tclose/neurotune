@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from .__init__ import Objective
+from ..simulation import RecordingRequest
 
 
 class MultiObjective(Objective):
@@ -45,6 +46,8 @@ class MultiObjective(Objective):
         for obj in self.objectives:
             # Get the recording requests from the sub-objective function
             obj_requests = obj.get_recording_requests()
+            if isinstance(obj_requests, RecordingRequest):
+                obj_requests = {None: obj_requests}
             # Add the recording request to the collated dictionary
             recordings_request.update([((obj, key), val)
                                        for key, val in obj_requests.items()])

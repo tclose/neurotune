@@ -15,30 +15,6 @@ class PassivePropertiesObjective(Objective):
 
     __metaclass__ = ABCMeta
 
-# <<<<<<< HEAD
-#     def __init__(self, inject_location=None, inject_amplitude=-2 * pq.nA,
-#                  time_start=250.0 * pq.ms, time_stop=500.0 * pq.ms):
-#         """
-#         `inject_location`  -- segment in which to inject the current into
-#                               if None it (should) default to the source_section
-#         `inject_amplitude` -- the strength of the current
-#         `time_start`       -- start of the recording (after transients have
-#                               decayed)
-#         `time_stop`        -- end of the recording
-#         """
-#         super(PassivePropertiesObjective, self).__init__(time_start, time_stop)
-#         # Save members
-#         self.inject_location = inject_location
-#         self.inject_amplitude = inject_amplitude
-#         step_times = [0.0, self.time_start, self.time_stop]
-#         step_amps = [0.0, self.inject_amplitude, self.inject_amplitude]
-#         step_source = neo.IrregularlySampledSignal(
-#                                                step_times, step_amps,
-#                                                units=inject_amplitude.units,
-#                                                time_units=self.time_stop.units)
-#         inject_dict = {self.inject_location: step_source}
-#         self.conditions = ExperimentalConditions(injected_currents=inject_dict)
-# =======
     def __init__(self, reference_trace, conditions,
                  record_variable=None, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms):
@@ -53,24 +29,23 @@ class PassivePropertiesObjective(Objective):
             self.reference_trace = reference_trace
         # Save members
         self.record_variable = record_variable
-        self.exp_conditions = conditions
-# >>>>>>> ab4e49d311af1666120f13d0e851649e462fde37
+        self.conditions = conditions
 
-    def _get_recording_request(self, record_site=None):
+    def get_recording_requests(self, record_site=None):
         """
         Gets all recording requests required by the objective function
         """
-        return RecordingRequest(record_variable=record_site + '.v',
-                                time_start=self.time_start,
-                                time_stop=self.time_stop,
-                                conditions=self.conditions)
+        return RecordingRequest(record_variable=record_site,
+                                       time_start=self.time_start,
+                                       time_stop=self.time_stop,
+                                       conditions=self.conditions)
 
 
 class SumOfSquaresObjective(PassivePropertiesObjective):
 
     def fitness(self, analysis):
         signal = analysis.get_signal()
-        fitness = numpy.sum((self.reference_trace - signal) ** 2)
+        fitness = float(numpy.sum((self.reference_trace - signal) ** 2))
         return fitness
 
 
