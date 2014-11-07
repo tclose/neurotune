@@ -6,12 +6,15 @@ from .__init__ import Objective
 from ..simulation import RecordingRequest, ExperimentalConditions, \
                          StepCurrentSource
 
+#step_source = StepCurrentSource([0, injected_current],
+#                                [0.0, time_start])
+#ExperimentalConditions(clamps=clamp)
 
 class PassivePropertiesObjective(Objective):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, reference_trace, injected_current,
+    def __init__(self, reference_trace, conditions,
                  record_variable=None, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms):
         super(PassivePropertiesObjective, self).__init__(time_start, time_stop)
@@ -20,15 +23,13 @@ class PassivePropertiesObjective(Objective):
         if isinstance(reference_trace, str):
             f = neo.io.PickleIO(reference_trace)
             seg = f.read_segment()
-            self.reference_traces = seg.analogsignals[0]
+            self.reference_trace = seg.analogsignals[0]
         elif isinstance(reference_trace, neo.AnalogSignal):
-            self.reference_traces = reference_trace
+            self.reference_trace = reference_trace
         # Save members
         self.record_variable = record_variable
         self.injected_current = injected_current
-        step_source = StepCurrentSource([0, injected_current],
-                                        [0.0, time_start])
-        self.exp_conditions = ExperimentalConditions(clamps=step_source)
+        self.exp_conditions = conditions
 
     def get_recording_requests(self):
         """
@@ -39,6 +40,12 @@ class PassivePropertiesObjective(Objective):
                                 time_stop=self.time_stop,
                                 conditions=self.exp_conditions)
 
+class SumOfSquaresObjective(PassivePropertiesObjective):
+    
+    def fitness(self, analysis):
+        signal = analysis.get_signal()
+        fitness = numpy.sum((self.reference_trace - signal) ** 2)
+        return fitness
 
 class TimeConstantObjective(PassivePropertiesObjective):
 
