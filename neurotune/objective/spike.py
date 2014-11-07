@@ -39,6 +39,19 @@ class SpikeFrequencyObjective(Objective):
         return float((self.frequency - frequency) ** 2)
 
 
+class SpikeAmplitudeObjective(Objective):
+
+    def __init__(self, amplitude, time_start=500.0 * pq.ms,
+                 time_stop=2000.0 * pq.ms):
+        super(SpikeAmplitudeObjective, self).__init__(time_start, time_stop)         
+        self.amplitude = amplitude
+
+    def fitness(self, analysis):
+        signal = analysis.get_signal()
+        frequency = signal.spike_frequency()
+        return float((self.frequency - frequency) ** 2)
+
+
 class SpikeTimesObjective(Objective):
     """
     The sum of squared time differences between all simulated spikes and the
