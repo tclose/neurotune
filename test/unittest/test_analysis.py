@@ -23,7 +23,7 @@ class TestAnalysedSignalFunctions(unittest.TestCase):
 
     def test_pickle(self):
         signal = AnalogSignal(range(20), sampling_period=1 * pq.ms,
-                               units=pq.mV)
+                              units=pq.mV)
         analysed_signal1 = AnalysedSignal(signal)
         with open('./pickle', 'wb') as f:
             pickle.dump(analysed_signal1, f)
@@ -40,11 +40,11 @@ class TestAnalysedSignalSliceFunctions(unittest.TestCase):
 
     def test_pickle(self):
         signal = AnalogSignal(range(20), sampling_period=1 * pq.ms,
-                               units=pq.mV)
+                              units=pq.mV)
         analysed_signal = AnalysedSignal(signal)
         sliced_signal1 = AnalysedSignalSlice(analysed_signal,
-                                              t_start=5 * pq.ms,
-                                              t_stop=15 * pq.ms)
+                                             t_start=5 * pq.ms,
+                                             t_stop=15 * pq.ms)
         with open('./pickle', 'wb') as f:
             pickle.dump(sliced_signal1, f)
         with open('./pickle', 'rb') as f:

@@ -213,7 +213,7 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                                  range=self.bounds, normed=False)[0]
         if self.kernel is not None:
             # Convolve the histogram with the precalculated Gaussian kernel
-            hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
+            hist = scipy._signal.convolve2d(hist, self.kernel, mode='same')
         return hist
 
     def plot_hist(self, trace_or_hist=None, min_max=None, diff=False,
@@ -340,7 +340,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                                            self.thresh[1])
         if len(self.reference_loops) == 0:
             self.reference_loops = [numpy.zeros((2, num_points))]
-#            raise Exception("No loops found in reference signal")
+#            raise Exception("No loops found in reference _signal")
 
     def fitness(self, analysis):
         """
