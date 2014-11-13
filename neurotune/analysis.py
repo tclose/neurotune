@@ -13,6 +13,7 @@ import math
 from copy import copy
 import quantities as pq
 import neo.core
+from __builtin__ import classmethod
 
 
 class Analysis(object):
@@ -58,10 +59,10 @@ class Analysis(object):
 
     def objective_specific(self, objective_key):
         """
-        Returns a copy of the current analysis in which the provided objective
-        key is automatically prepended to the key requests. This makes it
-        transparent to objective components of multi-objective functions that
-        they are part of a multi-objective object.
+        Returns a shallow copy of the current analysis in which the provided
+        objective key is automatically prepended to the key requests. This
+        makes it transparent to objective components of multi-objective
+        functions that they are part of a multi-objective object.
         """
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
@@ -82,7 +83,7 @@ class AnalysedSignal(neo.core.AnalogSignal):
         dictionary lookups
         """
         return tuple([val for _, val in sorted(kwargs.items(),
-                                                   key=lambda item: item[0])])
+                                               key=lambda item: item[0])])
 
     @classmethod
     def _interpolate_v_dvdt(cls, v, dvdt, dvdt2v_scale=0.25, order=3):
@@ -108,11 +109,12 @@ class AnalysedSignal(neo.core.AnalogSignal):
         elif not isinstance(signal, neo.core.AnalogSignal):
             raise Exception("Can only analyse neo.coreAnalogSignals (not {})"
                             .format(type(signal)))
-        # Make a shallow copy of the original AnalogSignal object
+        # Make a shallow copy of the original AnalogSignal object.
         obj = copy(signal)
         # "Cast" the new AnalogSignal object to the AnalysedSignal derived
-        # class
+        # class, this saves duplicating the data but is a bit of a dirty hack..
         obj.__class__ = AnalysedSignal
+        # Initialise all the fields required by AnalysedSignal
         obj._dvdt = None
         obj._spike_periods = {}
         obj._spikes = {}
@@ -459,6 +461,27 @@ class AnalysedSignalSlice(AnalysedSignal):
         return (v, dvdt, s[self._start_index:self._stop_index])
 
 
+def trim_continuous(method):
+    """
+    Decorator to trim continuous signal outputs to the slice times
+    """
+    def trimmed_method(self, *args, **kwargs):
+        return method(self, *args, **kwargs)[self._start_index:
+                                             self._end_index]
+    return trimmed_method
+
+
+def trim_discrete(method):
+    """
+    Decorator to trim discrete outputs to the slice times
+    """
+    def trimmed_method(self, *args, **kwargs):
+        events = 
+        return method(self, *args, **kwargs)[self._start_index:
+                                             self._end_index]
+    return trimmed_method
+
+
 def smooth(x, window_len=11, window='hanning'):
     """Smooth the data using a window with requested size.
     
@@ -515,6 +538,7 @@ def smooth(x, window_len=11, window='hanning'):
 
     edge = window_len / 2
     return y[edge:-edge]
+
 
 def linear_fit(t, y):
     """ Fits data to a line
@@ -655,6 +679,7 @@ def max_min(a, t, delta=0, peak_threshold=0):
     turning_points = {'maxima_locations':maxima_locations, 'minima_locations':minima_locations, 'maxima_number':maxima_num, 'minima_number':minima_num, 'maxima_times':maxima_times, 'minima_times':minima_times, 'maxima_values':maxima_values, 'minima_values':minima_values}
 
     return turning_points
+
 
 def spike_frequencies(t):
     """
@@ -826,6 +851,7 @@ def spike_widths(y, t, baseline=0, delta=0):
     maxima_times_widths = [maxima_times, spike_widths]
     return maxima_times_widths
 
+
 def burst_analyser(t):
     """ Pearson's correlation coefficient applied to interspike times
         
@@ -838,6 +864,7 @@ def burst_analyser(t):
     pearsonr = scipy.stats.pearsonr(x, t)[0]
     return pearsonr
 
+
 def spike_covar(t):
     """ Calculates the coefficient of variation of interspike times 
         
@@ -849,6 +876,7 @@ def spike_covar(t):
     interspike_times = numpy.diff(t)
     covar = scipy.stats.variation(interspike_times)
     return covar
+
 
 def elburg_bursting(spike_times):
     """ bursting measure B as described by Elburg & Ooyen 2004
@@ -875,6 +903,7 @@ def elburg_bursting(spike_times):
     B = (2 * var_i_1 - var_i_2) / (2 * mean_interspike ** 2)
 
     return B
+
 
 def alpha_normalised_cost_function(value, target, base=10):
     """Fitness of a value-target pair from 0 to 1 
@@ -903,6 +932,7 @@ def alpha_normalised_cost_function(value, target, base=10):
     x = ((value - target) / (target + 0.01)) ** 2  # the 0.01 thing is a bit of a hack at the moment.
     fitness = base ** (-x)
     return fitness
+
 
 def normalised_cost_function(value, target, Q=None):
     """ Returns fitness of a value-target pair from 0 to 1 
@@ -934,6 +964,7 @@ def normalised_cost_function(value, target, Q=None):
     fitness = 1 - 1 / (Q * (target - value) ** 2 + 1)
 
     return fitness
+
 
 def load_csv_data(file_path, plot=False):
     """Extracts time and voltage data from a csv file
@@ -1015,10 +1046,11 @@ def phase_plane(t, y, plot=False):  # plot should be here really
 #
 #     return ibp
 
+
 def pptd(t, y, bins=10, xyrange=None, dvdt_threshold=None, plot=False):
     """
-    Returns a 2D map of x vs y data and the xedges and yedges. 
-    in the form of a vector (H,xedges,yedges) Useful for the 
+    Returns a 2D map of x vs y data and the xedges and yedges.
+    in the form of a vector (H,xedges,yedges) Useful for the
     PPTD method described by Van Geit 2007.
     """
 
@@ -1027,7 +1059,7 @@ def pptd(t, y, bins=10, xyrange=None, dvdt_threshold=None, plot=False):
     # filter the phase space data
     phase_dvdt_new = []
     phase_v_new = []
-    if dvdt_threshold != None:
+    if dvdt_threshold is not None:
         i = 0
         for dvdt in phase_space[1]:
             if dvdt > dvdt_threshold:
@@ -1037,12 +1069,13 @@ def pptd(t, y, bins=10, xyrange=None, dvdt_threshold=None, plot=False):
         phase_space[1] = phase_dvdt_new
         phase_space[0] = phase_v_new
 
-    if xyrange != None:
-        density_map = numpy.histogram2d(phase_space[1], phase_space[0], bins=bins,
-                                normed=False, weights=None)
-    elif xyrange == None:
-        density_map = numpy.histogram2d(phase_space[1], phase_space[0], bins=bins, range=xyrange,
-                                normed=False, weights=None)
+    if xyrange is not None:
+        density_map = numpy.histogram2d(phase_space[1], phase_space[0],
+                                        bins=bins, normed=False, weights=None)
+    elif xyrange is not None:
+        density_map = numpy.histogram2d(phase_space[1], phase_space[0],
+                                        bins=bins, range=xyrange,
+                                        normed=False, weights=None)
 
     # Reverse the density map (probably not necessary as
     # it's being done because imshow has a funny origin):
@@ -1063,6 +1096,7 @@ def pptd(t, y, bins=10, xyrange=None, dvdt_threshold=None, plot=False):
 
     return [density, xedges, yedges]
 
+
 def spike_broadening(spike_width_list):
     """
     Returns the value of the width of the first AP over
@@ -1074,6 +1108,7 @@ def spike_broadening(spike_width_list):
     broadening = first_spike / mean_following_spikes
 
     return broadening
+
 
 def pptd_error(t_model, v_model, t_target, v_target, dvdt_threshold=None):
     """
@@ -1120,6 +1155,7 @@ def pptd_error(t_model, v_model, t_target, v_target, dvdt_threshold=None):
     print error
 
     return error
+
 
 def minima_phases(t, y, delta=0):
     """
