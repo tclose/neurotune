@@ -120,25 +120,6 @@ class AnalysedSignal(object):
     def smooth(self, order=3, smoothing_factor=None):
         self._signal[:] = UnivariateSpline(self.times, self, k=order,
                                            s=smoothing_factor)
-#     def __reduce__(self):
-#         '''
-#         Map the __new__ function onto _new_AnalysedSignal, so that pickle
-#         works
-#         '''
-#         # Pass the unpickling function along with the neo_signal and members
-#         return _unpickle_AnalysedSignal, (self.__class__, self._base(),
-#                                           self._spikes, self._dvdt,
-#                                           self._spike_periods, self._splines)
-#
-#     def _base(self):
-#         """
-#         Uncovers the neo.core.AnalogSignal object beneath
-#         """
-#         # Make a shallow copy of the AnalysedSignal
-#         neo_obj = copy(self)
-#         # Cast the copy back to a neo.core.AnalogSignal
-#         neo_obj.__class__ = neo.core.AnalogSignal
-#         return neo_obj
 
     def __eq__(self, other):
         '''
@@ -399,20 +380,6 @@ class AnalysedSignal(object):
             plt.show()
 
 
-# def _unpickle_AnalysedSignal(cls, _signal, spikes, dvdt, spike_periods={},
-#                              splines={}):
-#     '''
-#     A function to map BaseAnalogSignal.__new__ to function that
-#         does not do the unit checking. This is needed for pickle to work.
-#     '''
-#     obj = cls(_signal)
-#     obj._spikes = spikes
-#     obj._dvdt = dvdt
-#     obj._spike_periods = spike_periods
-#     obj._splines = splines
-#     return obj
-
-
 class AnalysedSignalSlice(AnalysedSignal):
     """
     A thin wrapper around the AnalogSignal class to keep all of the analysis
@@ -460,15 +427,6 @@ class AnalysedSignalSlice(AnalysedSignal):
                 self.t_start == other.t_start and
                 self.t_stop == other.t_stop)
 
-#     def _spike_period_indices(self, **kwargs):
-#         periods = self._unsliced._spike_period_indices(**kwargs)
-#         if len(periods):
-#             return (periods[numpy.where((periods[:, 0] >= self._start_index) &
-#                                         (periods[:, 1] <= self._stop_index))] -
-#                     self._start_index)
-#         else:
-#             return numpy.array([])
-
     @property
     def dvdt(self):
         return self._unsliced.dvdt[self._start_index:self._stop_index]
@@ -483,7 +441,3 @@ class AnalysedSignalSlice(AnalysedSignal):
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self._unsliced.v_dvdt_splines(**kwargs)
         return (v, dvdt, s[self._start_index:self._stop_index])
-
-
-
-
