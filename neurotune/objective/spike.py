@@ -47,9 +47,7 @@ class SpikeAmplitudeObjective(Objective):
         self.amplitude = amplitude
 
     def fitness(self, analysis):
-        signal = analysis.get_signal()
-        frequency = signal.spike_frequency()
-        return float((self.frequency - frequency) ** 2)
+        pass
 
 
 class SpikeTimesObjective(Objective):
