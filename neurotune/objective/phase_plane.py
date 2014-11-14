@@ -2,10 +2,10 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 from numpy.linalg import norm
-import scipy.signal
 import neo.io
 from . import Objective
 from ..analysis import AnalysedSignal
+from ..simulation import ExperimentalConditions
 
 
 class PhasePlaneObjective(Objective):
@@ -63,8 +63,7 @@ class PhasePlaneObjective(Objective):
             raise Exception("Unrecognised format for reference trace ({}), "
                             "must be either path-to-file, neo.AnalogSignal or "
                             "AnalysedSignal".format(type(reference)))
-        if (time_start > reference.t_start or
-            time_stop < reference.t_stop):
+        if (time_start > reference.t_start or time_stop < reference.t_stop):
             reference = reference.slice(time_start, time_stop)
         self.reference = reference
         # Save members
@@ -334,10 +333,11 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
                             " must be below 0 (found {})".format(self.thresh))
         self.num_points = num_points
         self.no_spike_reference = no_spike_reference
-        self.reference_loops = self.reference.spike_v_dvdt(
-                                           self.num_points, self.dvdt2v_scale,
-                                           self.interp_order, self.thresh[0],
-                                           self.thresh[1])
+        self.reference_loops = self.reference.spike_v_dvdt(self.num_points,
+                                                           self.dvdt2v_scale,
+                                                           self.interp_order,
+                                                           self.thresh[0],
+                                                           self.thresh[1])
         if len(self.reference_loops) == 0:
             self.reference_loops = [numpy.zeros((2, num_points))]
 #            raise Exception("No loops found in reference _signal")
