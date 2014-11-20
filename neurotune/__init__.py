@@ -20,7 +20,7 @@ class Parameter(object):
                              well to be used as a reference
         """
         self.name = name
-        self.units = pq.Quantity(1.0, units)
+        self.units = pq.Quantity(1.0, units) if units is not None else 1.0
         self.lbound = float(lbound)
         self.ubound = float(ubound)
         self.log_scale = bool(int(log_scale))
