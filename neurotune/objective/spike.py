@@ -26,7 +26,7 @@ class SpikeFrequencyObjective(Objective):
         else:
             self.frequency = pq.Quantity(frequency, units='Hz')
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         """
         Calculates the sum squared difference between the reference freqency
         and the spike frequency of the recorded trace
@@ -34,7 +34,7 @@ class SpikeFrequencyObjective(Objective):
         `analysis` -- The analysis object containing all recordings and
                       analysis of them [analysis.Analysis]
         """
-        signal = analysis.get_signal()
+        signal = recordings.get_analysed_signal()
         frequency = signal.spike_frequency()
         return float((self.frequency - frequency) ** 2)
 
@@ -46,7 +46,7 @@ class SpikeAmplitudeObjective(Objective):
         super(SpikeAmplitudeObjective, self).__init__(time_start, time_stop)
         self.amplitude = amplitude
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         pass
 
 
@@ -86,7 +86,7 @@ class SpikeTimesObjective(Objective):
         if not len(self.ref_inner):
             raise Exception("Inner window does not contain any spikes")
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         """
         Calculates the sum squared difference between each spike in the
         signal and the closest spike in the reference spike train, plus the
@@ -95,7 +95,7 @@ class SpikeTimesObjective(Objective):
         `analysis` -- The analysis object containing all recordings and
                       analysis of them [analysis.Analysis]
         """
-        spikes = analysis.get_signal().spikes()
+        spikes = recordings.get_analysed_signal().spikes()
         inner = spikes[numpy.where(
                              (spikes >= (self.time_start + self.time_buffer)) &
                              (spikes <= (self.time_stop - self.time_buffer)))]
@@ -148,9 +148,9 @@ class MinCurrentToSpikeObjective(Objective):
                                        conditions=conds,
                                        record_variable=None)}
 
-    def fitness(self, analysis):
-        spikes = analysis.get_signal().spikes(threshold='v', start=-20.0,
-                                              stop=-20.0)
+    def fitness(self, recordings):
+        analysed_signal = recordings.get_analysed_signal()
+        spikes = analysed_signal.spikes(threshold='v', start=-20.0, stop=-20.0)
         if len(spikes):
             fitness = ((spikes[0] - self.time_start) /
                        (self.time_stop - self.time_start))

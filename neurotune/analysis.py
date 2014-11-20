@@ -10,7 +10,7 @@ from scipy.optimize import brentq
 import numpy
 from copy import copy
 import quantities as pq
-import neo.core
+import neo
 from __builtin__ import classmethod
 
 
@@ -21,7 +21,7 @@ def _all(vals):
         return bool(vals)
 
 
-class Analysis(object):
+class AnalysedRecordings(object):
 
     def __init__(self, recordings, simulation_setups):
         self.recordings = recordings
@@ -54,7 +54,7 @@ class Analysis(object):
                     self._requests[key] = req_signal
         self._objective_key = None
 
-    def get_signal(self, key=None):
+    def get_analysed_signal(self, key=None):
         """
         Returns the analysed _signal that matches the specified key
         """
@@ -151,7 +151,7 @@ class AnalysedSignal(object):
 
     @property
     def times(self):
-        return self._signal.times
+        return self.signal.times
 
     @property
     def sampling_period(self):
@@ -163,11 +163,11 @@ class AnalysedSignal(object):
 
     @property
     def t_start(self):
-        return self._signal.t_start
+        return self.signal.t_start
 
     @property
     def t_stop(self):
-        return self._signal.t_stop
+        return self.signal.t_stop
 
     @property
     def units(self):
@@ -198,10 +198,10 @@ class AnalysedSignal(object):
                               index_buffer=0):
         """
         Find sections of the trace where it crosses the given dvdt threshold
-        until it loops around and crosses the dvdt_return threshold in the positive
-        direction again or alternatively if threshold=='v' when it crosses the
-        dvdt_crossing threshold in the positive direction and crosses the dvdt_return
-        threshold in the negative direction.
+        until it loops around and crosses the dvdt_return threshold in the
+        positive direction again or alternatively if threshold=='v' when it
+        crosses the dvdt_crossing threshold in the positive direction and
+        crosses the dvdt_return threshold in the negative direction.
 
         `threshold`      -- can be either 'dvdt' or 'v', which determines the
                             type of threshold used to classify the spike
@@ -237,7 +237,7 @@ class AnalysedSignal(object):
                                     "for voltage threshold crossing detection"
                                     .format(dvdt_return, dvdt_crossing))
                 start_inds = numpy.where((self._signal[1:] >= volt_crossing) &
-                                         (self._signal[:-1] < volt_crossing))[0]
+                                        (self._signal[:-1] < volt_crossing))[0]  #@IgnorePep8
                 stop_inds = numpy.where((self._signal[1:] < volt_return) &
                                         (self._signal[:-1] >= volt_return))[0]
             # Adjust the indices by 1
@@ -308,7 +308,7 @@ class AnalysedSignal(object):
         except KeyError:
             amplitudes = []
             for start_i, end_i in self._spike_period_indices(
-                                                threshold='dvdt',
+                                                threshold='dvdt',               # @IgnorePep8
                                                 dvdt_crossing=threshold_cross,
                                                 dvdt_return=threshold_return):
                 amplitudes.append(max(self._signal[start_i:end_i]))
@@ -380,7 +380,8 @@ class AnalysedSignal(object):
         spikes = []
         for start_i, stop_i in self._spike_period_indices(
                                   threshold='dvdt', dvdt_crossing=start_thresh,          # @IgnorePep8
-                                  dvdt_return=stop_thresh, index_buffer=index_buffer):
+                                  dvdt_return=stop_thresh,
+                                  index_buffer=index_buffer):
             v_spl, dvdt_spl, s = self._interpolate_v_dvdt(
                                                    self._signal[start_i:stop_i],  # @IgnorePep8
                                                    self.dvdt[start_i:stop_i],
@@ -463,7 +464,7 @@ class AnalysedSignalSlice(AnalysedSignal):
 
     @property
     def signal(self):
-        return self._unsliced[self._start_index:self._stop_index]
+        return self._unsliced._signal[self._start_index:self._stop_index]
 
     @property
     def t_start(self):
