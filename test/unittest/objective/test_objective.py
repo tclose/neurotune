@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests of the objective module
+Tests of the objective package
 """
 
 # needed for python 3 compatibility
@@ -8,29 +8,18 @@ from __future__ import division
 from abc import ABCMeta  # Metaclass for abstract base classes
 
 # Sometimes it is convenient to run it outside of the unit-testing framework
-# in which case the unittesting module is not imported
+# in which case the ng module is not imported
 if __name__ == '__main__':
-
-    class unittest(object):
-
-        class TestCase(object):
-
-            def __init__(self):
-                self.setUp()
-
-            def assertEqual(self, first, second):
-                print 'are{} equal'.format(' not' if first != second else '')
-
+    from neurotune.utilities import DummyTestCase as TestCase  # @UnusedImport
 else:
     try:
-        import unittest2 as unittest
+        from unittest2 import TestCase
     except ImportError:
-        import unittest  # @UnusedImport
+        from unittest import TestCase
 import os.path
 import numpy
 import shutil
 import quantities as pq
-from copy import deepcopy
 import neo
 from nineline.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter, Tuner
@@ -39,10 +28,9 @@ from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective,
                                        MinCurrentToSpikeObjective)
-from neurotune.objective.multi import MultiObjective
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.analysis import AnalysedSignal, Analysis
+from neurotune.analysis import AnalysedSignal, AnalysedRecordings
 try:
     from matplotlib import pyplot as plt
 except:
@@ -52,10 +40,10 @@ time_start = 250 * pq.ms
 time_stop = 2000 * pq.ms
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                        '..', 'data', 'objective'))
+                                        '..', '..', 'data', 'objective'))
 nineml_file = os.path.join(os.path.join(os.path.dirname(__file__),
-                                        '..', 'data', '9ml',
-                                         'Golgi_Solinas08.9ml'))
+                                        '..', '..', 'data', '9ml',
+                                        'Golgi_Solinas08.9ml'))
 #                                         'Granule_DeSouza10.9ml'))
 
 parameter = Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False)
@@ -74,7 +62,7 @@ try:
     recordings = []
     for p in parameter_range:
         recording = neo.PickleIO(os.path.join(cache_dir,
-                                       '{}.neo.pkl'.format(p))).read()[0]
+                                              '{}.neo.pkl'.format(p))).read()[0]
         recordings.append(recording)
 except:
     try:
@@ -95,15 +83,15 @@ except:
         print "Simulating candidate parameter {}".format(p)
         recording = simulation.run_all([p])
         neo.PickleIO(os.path.join(cache_dir,
-                                '{}.neo.pkl'.format(p))).write(recording)
+                                  '{}.neo.pkl'.format(p))).write(recording)
         recordings.append(recording)
     print "Finished regenerating test recordings"
 
 reference = AnalysedSignal(reference_block.segments[0].analogsignals[0]).\
                                                    slice(time_start, time_stop)
-analyses = [Analysis(r, simulation.setups) for r in recordings]
+analyses = [AnalysedRecordings(r, simulation.setups) for r in recordings]
 analyses_dict = dict([(str(r.annotations['candidate'][0]),
-                       Analysis(r, simulation.setups))
+                       AnalysedRecordings(r, simulation.setups))
                       for r in recordings])
 
 
@@ -127,7 +115,7 @@ class TestObjective(object):
         self.assertEqual(fitnesses, self.target_fitnesses)
 
 
-class TestPhasePlaneHistObjective(TestObjective, unittest.TestCase):
+class TestPhasePlaneHistObjective(TestObjective, TestCase):
 
     target_fitnesses = [0.02015844682551193, 0.018123409598981708,
                         0.013962311575888967, 0.0069441036552407784,
@@ -144,7 +132,7 @@ class TestPhasePlaneHistObjective(TestObjective, unittest.TestCase):
                                                  time_stop=time_stop)
 
 
-class TestPhasePlanePointwiseObjective(TestObjective, unittest.TestCase):
+class TestPhasePlanePointwiseObjective(TestObjective, TestCase):
 
     target_fitnesses = [791688.05737917486, 417417.7464231535,
                         193261.77390985735, 74410.720655699188,
@@ -162,7 +150,7 @@ class TestPhasePlanePointwiseObjective(TestObjective, unittest.TestCase):
                                                       time_stop=time_stop)
 
 
-class TestSpikeFrequencyObjective(TestObjective, unittest.TestCase):
+class TestSpikeFrequencyObjective(TestObjective, TestCase):
 
     target_fitnesses = [0.3265306122448987, 0.3265306122448987,
                         0.3265306122448987, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -177,7 +165,7 @@ class TestSpikeFrequencyObjective(TestObjective, unittest.TestCase):
                                                  time_stop=time_stop)
 
 
-class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
+class TestSpikeTimesObjective(TestObjective, TestCase):
 
     target_fitnesses = [48861.63264168518, 42461.31814161993,
                         45899.285983621434, 71791.87749344285,
@@ -193,7 +181,7 @@ class TestSpikeTimesObjective(TestObjective, unittest.TestCase):
                                              time_stop=time_stop)
 
 
-class TestMinCurrentToSpikeObjective(TestObjective, unittest.TestCase):
+class TestMinCurrentToSpikeObjective(TestObjective, TestCase):
 
     target_fitnesses = []
 
@@ -203,80 +191,6 @@ class TestMinCurrentToSpikeObjective(TestObjective, unittest.TestCase):
 
 if __name__ == '__main__':
 
-#     import cPickle as pkl
-#
-#     test = TestPhasePlanePointwiseObjective()
-#     ka_tests = ['0.00437931034483', '0.00486206896552', '0.00534482758621']
-#     sk2_tests = ['0.0447916666667', '0.0458333333333', '0.0489583333333']
-#
-#     parameters = [Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False),
-#                    Parameter('soma.SK2.gbar', 'nS', 0.001, 0.015, False)]
-# #     simulation = NineLineSimulation(nineml_file)
-# #     # Create a dummy tuner to generate the simulation 'setups'
-# #     tuner = Tuner(parameters,
-# #                   SpikeFrequencyObjective(1, time_start=time_start,
-# #                                                 time_stop=time_stop),
-# #                   GridAlgorithm(num_steps=[10, 10]),
-# #                   simulation)
-# #
-# #     for ka_test in ka_tests:
-# #         for sk2_test in sk2_tests:
-# #             with open('/home/tclose/Data/NeuroTune/'
-# #                       'evaluate_grid.2014-05-27-Tuesday_12-45-29.1'
-# #                       '/recordings/recordingssoma.'
-# #                       'KA.gbar={},soma.SK2.gbar={}.neo.pkl'
-# #                       .format(ka_test, sk2_test)) as f:
-# #                 data = pkl.load(f)
-# #             sig = data.segments[0].analogsignals[0]
-# # #             plt.plot(sig.times, sig)
-# # #             plt.show()
-# #             analysis = Analysis(data, simulation.setups)
-# #             fitness = test.objective.fitness(analysis)
-# #             print "ka {}, sk2 {}: {}".format(ka_test, sk2_test, fitness)
-# 
-#     from neurotune.objective.multi import MultiObjective
-#     # Generate the reference trace from the original class
-# #     cell = NineCellMetaClass(nineml_file)()
-# #     cell.record('v')
-# #     simulation_controller.run(simulation_time=2000 * pq.ms,
-# #                               timestep=0.025)
-# #     reference = AnalysedSignal(cell.get_recording('v'))
-# #     sliced_reference = reference.slice(500 * pq.ms, 2000 * pq.ms)
-# 
-#     # Instantiate the multi-objective objective from 3 phase-plane objectives
-#     objective = MultiObjective(PhasePlaneHistObjective(reference),
-#                                PhasePlanePointwiseObjective(reference, 100,
-#                                                             (20, -20)),
-#                                SpikeFrequencyObjective(reference.\
-#                                                        spike_frequency()),
-#                                SpikeTimesObjective(reference.spikes()))
-#     simulation = NineLineSimulation(nineml_file)
-#     # Instantiate the tuner
-#     tuner = Tuner(parameters,
-#                   objective,
-#                   GridAlgorithm([10, 10]),
-#                   simulation)
-# 
-#     analysis = Analysis(simulation.run_all([0.00196552, 0.05024138]),
-#                         simulation.setups)
-#     objective.fitness(analysis)
-# 
-# #     for TestClass in [TestPhasePlaneHistObjective,
-# #                       TestPhasePlanePointwiseObjective,
-# #                       TestSpikeFrequencyObjective,
-# #                       TestSpikeTimesObjective]:
-# #         test = TestClass()
-# #         print TestClass.__name__ + ': ' + repr([test.objective.fitness(a)
-# #                                                 for a in analyses])
-# #         test.plot()
-#     simulation2 = deepcopy(simulation)
-#     tuner2 = Tuner([parameter],
-#                    MinCurrentToSpikeObjective(time_start=time_start,
-#                                               time_stop=time_stop),
-#                    GridAlgorithm(num_steps=[10]),
-#                    simulation2)
-#     recordings = simulation2.run_all([0.0032])
-#     analysis = Analysis(recordings, simulation2.setups)
     test = TestMinCurrentToSpikeObjective()
     test.setUp()
     test.test_fitness()

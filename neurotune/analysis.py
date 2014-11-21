@@ -12,6 +12,8 @@ from copy import copy
 import quantities as pq
 import neo
 from __builtin__ import classmethod
+from simulation import Setup, RequestRef
+from neurotune.simulation import ExperimentalConditions
 
 
 def _all(vals):
@@ -23,7 +25,13 @@ def _all(vals):
 
 class AnalysedRecordings(object):
 
-    def __init__(self, recordings, simulation_setups):
+    def __init__(self, recordings, simulation_setups=None):
+        if isinstance(recordings, list):
+            block = neo.Block()
+            block.segments = recordings
+            recordings = block
+        if simulation_setups is None:
+            simulation_setups = self._get_dummy_setups(recordings)
         self.recordings = recordings
         self._simulation_setups = simulation_setups
         self._requests = {}
@@ -75,6 +83,34 @@ class AnalysedRecordings(object):
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
         return specific_analysis
+
+    @classmethod
+    def _get_dummy_setups(cls, recordings):
+        """
+        Get default simulated setups to allow AnalysedRecordings to be
+        constructed in tests outside of a Simulation object.
+        """
+        conditions = ExperimentalConditions()
+        simulation_setups = []
+        for seg in recordings.segments:
+            record_variables = []
+            request_refs = []
+            rec_time = None
+            for i, sig in enumerate(seg.analogsignals):
+                if rec_time is None:
+                    rec_time = sig.t_stop
+                elif rec_time != sig.t_stop:
+                    raise ValueError("Recording times are not equal ({} and "
+                                     "{})".format(rec_time, sig.t_stop))
+                record_variables.append(str(i))
+                request = RequestRef(None, time_start=0.0,
+                                     time_stop=sig.t_stop)
+                request_refs.append([request])
+            setup = Setup(rec_time, conditions=conditions,
+                          record_variables=record_variables,
+                          var_request_refs=request_refs)
+            simulation_setups.append(setup)
+        return simulation_setups
 
 
 class AnalysedSignal(object):
@@ -293,7 +329,7 @@ class AnalysedSignal(object):
                 # the points straddling the zero crossing
                 spike_time = times[i] + (times[i + 1] - times[i]) * exact_cross
                 spikes.append(spike_time)
-            spikes = neo.SpikeTrain(spikes, self._t_stop,
+            spikes = neo.SpikeTrain(spikes, self._signal.t_stop,
                                     units=self.times.units)
             self._spikes[args_key] = spikes
             return spikes
@@ -498,3 +534,12 @@ class AnalysedSignalSlice(AnalysedSignal):
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self._unsliced.v_dvdt_splines(**kwargs)
         return (v, dvdt, s[self._start_index:self._stop_index])
+
+if __name__ == '__main__':
+    seg = neo.PickleIO('/Users/tclose/git/neurotune/test/data/analysis/spiking_neuron.pkl').read()
+    recs = AnalysedRecordings(seg)
+    sig = recs.get_analysed_signal()
+    print sig.spikes()
+    print "done"
+    
+

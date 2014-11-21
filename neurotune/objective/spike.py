@@ -32,7 +32,7 @@ class SpikeFrequencyObjective(Objective):
         and the spike frequency of the recorded trace
 
         `analysis` -- The analysis object containing all recordings and
-                      analysis of them [analysis.Analysis]
+                      analysis of them [analysis.AnalysedRecordings]
         """
         signal = recordings.get_analysed_signal()
         frequency = signal.spike_frequency()
@@ -93,7 +93,7 @@ class SpikeTimesObjective(Objective):
         vice-versa case
 
         `analysis` -- The analysis object containing all recordings and
-                      analysis of them [analysis.Analysis]
+                      analysis of them [analysis.AnalysedRecordings]
         """
         spikes = recordings.get_analysed_signal().spikes()
         inner = spikes[numpy.where(

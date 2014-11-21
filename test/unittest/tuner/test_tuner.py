@@ -5,30 +5,16 @@ Tests of the objective module
 
 # needed for python 3 compatibility
 from __future__ import division
-from abc import ABCMeta  # Metaclass for abstract base classes
 
 # Sometimes it is convenient to run it outside of the unit-testing framework
 # in which case the unittesting module is not imported
 if __name__ == '__main__':
-
-    class unittest(object):
-
-        class TestCase(object):
-
-            def __init__(self):
-                try:
-                    self.setUp()
-                except AttributeError:
-                    pass
-
-            def assertEqual(self, first, second):
-                print 'are{} equal'.format(' not' if first != second else '')
-
+    from neurotune.utilities import DummyTestCase as TestCase  # @UnusedImport
 else:
     try:
-        import unittest2 as unittest
+        from unittest2 import TestCase
     except ImportError:
-        import unittest  # @UnusedImport
+        from unittest import TestCase
 import os.path
 import numpy
 import shutil
@@ -43,7 +29,7 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
 from neurotune.objective.multi import MultiObjective
 from neurotune.algorithm.grid import GridAlgorithm
 from neurotune.simulation.nineline import NineLineSimulation
-from neurotune.analysis import AnalysedSignal, Analysis
+from neurotune.analysis import AnalysedSignal, AnalysedRecordings
 try:
     from matplotlib import pyplot as plt
 except:
@@ -75,7 +61,7 @@ try:
     recordings = []
     for p in parameter_range:
         recording = neo.PickleIO(os.path.join(cache_dir,
-                                       '{}.neo.pkl'.format(p))).read()[0]
+                                              '{}.neo.pkl'.format(p))).read()[0]
         recordings.append(recording)
 except:
     try:
@@ -96,15 +82,15 @@ except:
         print "Simulating candidate parameter {}".format(p)
         recording = simulation.run_all([p])
         neo.PickleIO(os.path.join(cache_dir,
-                                '{}.neo.pkl'.format(p))).write(recording)
+                                  '{}.neo.pkl'.format(p))).write(recording)
         recordings.append(recording)
     print "Finished regenerating test recordings"
 
 reference = AnalysedSignal(reference_block.segments[0].analogsignals[0]).\
                                                    slice(time_start, time_stop)
-analyses = [Analysis(r, simulation.setups) for r in recordings]
+analyses = [AnalysedRecordings(r, simulation.setups) for r in recordings]
 analyses_dict = dict([(str(r.annotations['candidate'][0]),
-                       Analysis(r, simulation.setups))
+                       AnalysedRecordings(r, simulation.setups))
                       for r in recordings])
 
 objective = MultiObjective(PhasePlaneHistObjective(reference),
@@ -119,13 +105,13 @@ parameters = [Parameter('soma.KA.gbar', 'nS', 0.001, 0.015, False),
                Parameter('soma.SK2.gbar', 'nS', 0.001, 0.015, False)]
 
 
-class TestTunerFunctions(unittest.TestCase):
+class TestTunerFunctions(TestCase):
 
     def test_pickle(self):
         tuner1 = Tuner(parameters,
-                      objective,
-                      GridAlgorithm([10, 10]),
-                      simulation)
+                       objective,
+                       GridAlgorithm([10, 10]),
+                       simulation)
         with open('./pickle', 'wb') as f:
             pickle.dump(tuner1, f)
         with open('./pickle', 'rb') as f:

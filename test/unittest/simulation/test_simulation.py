@@ -8,31 +8,18 @@ from __future__ import division
 
 import os
 import pickle
-import quantities as pq
 from neurotune.simulation.nineline import NineLineSimulation
 from neurotune.objective.spike import MinCurrentToSpikeObjective
 from neurotune.algorithm import Algorithm
 from neurotune.tuner import Tuner
 from neurotune import Parameter
 if __name__ == '__main__':
-
-    class unittest(object):
-
-        class TestCase(object):
-
-            def __init__(self):
-                try:
-                    self.setUp()
-                except AttributeError:
-                    pass
-
-            def assertEqual(self, first, second):
-                print 'are{} equal'.format(' not' if first != second else '')
+    from neurotune.utilities import DummyTestCase as TestCase  # @UnusedImport
 else:
     try:
-        import unittest2 as unittest
+        from unittest2 import TestCase
     except ImportError:
-        import unittest
+        from unittest import TestCase
 
 
 data_dir = os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -47,7 +34,7 @@ class DummyAlgorithm(Algorithm):
     pass
 
 
-class TestNineLineSimulationConditions(unittest.TestCase):
+class TestNineLineSimulationConditions(TestCase):
 
     def test_injected_currents(self):
         simulation = NineLineSimulation(inactive_nineml_file)
@@ -63,7 +50,7 @@ class TestNineLineSimulationConditions(unittest.TestCase):
         print recordings
 
 
-class TestNineLineSimulationPickle(unittest.TestCase):
+class TestNineLineSimulationPickle(TestCase):
 
     def test_pickle(self):
         simulation1 = NineLineSimulation(nineml_file)
