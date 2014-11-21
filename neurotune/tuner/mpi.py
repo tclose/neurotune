@@ -57,8 +57,10 @@ class MPITuner(Tuner):
 
         if self.is_master():
             try:
+                print "60:"
                 result = self.algorithm.optimize(self._evaluator, **kwargs)
             except:
+                print "63"
                 # Receive all the incoming messages from the slave nodes before
                 # sending them the stop signal
                 if self.num_processes != 1:
@@ -66,10 +68,13 @@ class MPITuner(Tuner):
                         received = self.comm.recv(source=self.ANY_SOURCE,
                                                   tag=self.DATA_MSG)
                         self.free_processes.append(received[0])
+                print "71"
                 raise
             finally:
+                print "74"
                 self._release_slaves()
         else:
+            print "77"
             self._listen_for_candidates()
             result = (None, None, None)  # To fit with return tuple on master
         return result
@@ -107,6 +112,7 @@ class MPITuner(Tuner):
         # number of slave processes another evaluation is performed on the
         # master
         until_master_eval = self.num_processes - 1
+        print "110: evaluating"
         while remaining_evaluations:
             # If there are remaining candidates and free processes then
             # distribute the candidates to the processes
