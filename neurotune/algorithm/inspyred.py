@@ -11,6 +11,7 @@ from time import time
 from random import Random
 from . import Algorithm, add_factory_to_register, add_option_adder_to_register
 from inspyred import ec
+from inspyred.swarm import PSO
 
 
 class InspyredAlgorithm(Algorithm):
@@ -263,6 +264,10 @@ class SAAlgorithm(InspyredAlgorithm):
                      (default 1)
     """
     _InspyredClass = ec.SA
+
+
+class PSOAlgorithm(InspyredAlgorithm):
+    _InspyredClass = PSO
 
 
 class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):
