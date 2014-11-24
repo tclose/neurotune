@@ -7,7 +7,7 @@ Tests of the objective package
 from __future__ import division
 import os.path
 import neo
-import sys
+import numpy
 import quantities as pq
 
 # Sometimes it is convenient to run it outside of the unit-testing framework
@@ -38,15 +38,17 @@ dend_seg = neo.PickleIO(os.path.join(data_dir, 'purkinje_dendrite.pkl')).read()
 soma_analysis = AnalysedRecordings(soma_seg)
 dend_analysis = AnalysedRecordings(dend_seg)
 reference = soma_analysis.get_analysed_signal()
+avg_reference_amp = numpy.average(reference.spike_amplitudes())
 
 
 class TestObjectiveBase(TestCase):
 
     def test_fitness(self):
-        fitness = self.objective.fitness(soma_analysis)
-        print ("Fitness value: {} (reference amplitude {})"
-               .format(fitness, self.amplitude))
-        #self.assertEqual(fitness, self.target_fitness)
+        fitnesses = []
+        for objective in self.objectives:
+            fitnesses.append(objective.fitness(soma_analysis))
+        # self.assertEqual(fitnesses, self.target_fitness)
+        return fitnesses
 
 
 class TestSpikeFrequencyObjective(TestObjectiveBase):
@@ -82,21 +84,21 @@ class TestSpikeAmplitudeObjective(TestObjectiveBase):
 
     target_fitness = 1.0
 
-    def __init__(self, amplitude=10 * pq.mV):
-        super(TestSpikeAmplitudeObjective, self).__init__()
-        self.amplitude = amplitude
+    references = numpy.arange(-20, 30, 5) * pq.mV
 
     def setUp(self):
-        self.objective = SpikeAmplitudeObjective(self.amplitude,
-                                                 time_start=reference.t_start,
-                                                 time_stop=reference.t_stop)
+        self.objectives = [SpikeAmplitudeObjective(amplitude,
+                                                   time_start=reference.t_start,
+                                                   time_stop=reference.t_stop)
+                           for amplitude in self.references]
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--amplitude', type=float, default=10.0 * pq.mV,
-                        help="The reference spike amplitude")
-    args = parser.parse_args()
-    test = TestSpikeAmplitudeObjective(amplitude=args.amplitude)
+    test = TestSpikeAmplitudeObjective()
     test.setUp()
-    test.test_fitness()
+    fitnesses = test.test_fitness()
+    plt.plot(test.references, fitnesses)
+    plt.xlabel('Reference amplitude (mV)')
+    plt.ylabel('Fitness')
+    plt.title("Objective function (avg. amp.={})"
+              .format(avg_reference_amp))
+    plt.show()
