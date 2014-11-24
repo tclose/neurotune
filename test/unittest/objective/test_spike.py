@@ -97,7 +97,7 @@ if __name__ == '__main__':
     test.setUp()
     fitnesses = test.test_fitness()
     plt.plot(test.references, fitnesses)
-    plt.xlabel('Reference amplitude (mV)')
+    plt.xlabel('Target amplitude (mV)')
     plt.ylabel('Fitness')
     plt.title("Objective function (avg. amp.={})"
               .format(avg_reference_amp))
