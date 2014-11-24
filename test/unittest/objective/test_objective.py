@@ -150,47 +150,5 @@ class TestPhasePlanePointwiseObjective(TestObjective, TestCase):
                                                       time_stop=time_stop)
 
 
-class TestSpikeFrequencyObjective(TestObjective, TestCase):
-
-    target_fitnesses = [0.3265306122448987, 0.3265306122448987,
-                        0.3265306122448987, 0.0, 0.0, 0.0, 0.0, 0.0,
-                        0.32653061224489766, 0.32653061224489766,
-                        0.32653061224489766, 0.32653061224489766,
-                        1.3061224489795906, 1.3061224489795906,
-                        1.3061224489795906]
-
-    def setUp(self):
-        self.objective = SpikeFrequencyObjective(reference.spike_frequency(),
-                                                 time_start=time_start,
-                                                 time_stop=time_stop)
-
-
-class TestSpikeTimesObjective(TestObjective, TestCase):
-
-    target_fitnesses = [48861.63264168518, 42461.31814161993,
-                        45899.285983621434, 71791.87749344285,
-                        72317.99719666546, 43638.346161592424,
-                        11543.74327161325, 2.6999188118427894e-20,
-                        24167.5639638691, 51168.20605556744, 68990.99639960933,
-                        54978.101362379784, 60117.67140614826,
-                        55935.42039310986, 58535.24894951394]
-
-    def setUp(self):
-        self.objective = SpikeTimesObjective(reference.spikes(),
-                                             time_start=time_start,
-                                             time_stop=time_stop)
-
-
-class TestMinCurrentToSpikeObjective(TestObjective, TestCase):
-
-    target_fitnesses = []
-
-    def setUp(self):
-        self.objective = MinCurrentToSpikeObjective(time_start=time_start,
-                                                    time_stop=time_stop)
-
 if __name__ == '__main__':
-
-    test = TestMinCurrentToSpikeObjective()
-    test.setUp()
-    test.test_fitness()
+    print "didn't run any tests"

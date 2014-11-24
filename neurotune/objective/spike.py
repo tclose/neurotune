@@ -47,7 +47,7 @@ class SpikeAmplitudeObjective(Objective):
         self.amplitude = amplitude
 
     def fitness(self, recordings):
-        pass
+        return 0.0
 
 
 class SpikeTimesObjective(Objective):

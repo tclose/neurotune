@@ -28,7 +28,7 @@ class AnalysedRecordings(object):
     def __init__(self, recordings, simulation_setups=None):
         if isinstance(recordings, list):
             block = neo.Block()
-            block.segments = recordings
+            block.segments.extend(recordings)
             recordings = block
         if simulation_setups is None:
             simulation_setups = self._get_dummy_setups(recordings)
