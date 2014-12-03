@@ -110,8 +110,8 @@ class Setup(object):
     from a requested simulation
     """
 
-    def __init__(self, record_time, conditions, record_variables,
-                 var_request_refs):
+    def __init__(self, record_time, conditions=ExperimentalConditions(),
+                 record_variables=[], var_request_refs=[]):
         self.record_time = record_time
         self.conditions = conditions
         self.record_variables = record_variables
@@ -164,7 +164,8 @@ class Simulation():
             # Group the requests by common recording sites
             requests.sort(key=lambda x: x[1].record_variable)
             common_record_variables = groupby(requests,
-                                            key=lambda x: x[1].record_variable)
+                                              key=(lambda x:
+                                                   x[1].record_variable))
             # Get the common recording sites
             record_variables, req_iters = zip(*[(rv, list(requests))
                                                       for rv, requests in

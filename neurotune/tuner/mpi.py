@@ -29,6 +29,7 @@ class MPITuner(Tuner):
             self.evaluate_on_master = kwargs.pop('evaluate_on_master',
                                                  self.num_processes < 10)
         self.mpi_verbose = kwargs.pop('verbose', True)
+        self.free_processes = None
         super(MPITuner, self).set(*args, **kwargs)
 
     @classmethod
@@ -60,7 +61,7 @@ class MPITuner(Tuner):
             except:
                 # Receive all the incoming messages from the slave nodes before
                 # sending them the stop signal
-                if self.num_processes != 1:
+                if self.num_processes != 1 and self.free_processes is not None:
                     while len(self.free_processes) < self.num_processes - 1:
                         received = self.comm.recv(source=self.ANY_SOURCE,
                                                   tag=self.DATA_MSG)
@@ -106,6 +107,7 @@ class MPITuner(Tuner):
         # number of slave processes another evaluation is performed on the
         # master
         until_master_eval = self.num_processes - 1
+        print "110: evaluating"
         while remaining_evaluations:
             # If there are remaining candidates and free processes then
             # distribute the candidates to the processes

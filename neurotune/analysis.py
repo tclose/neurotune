@@ -10,8 +10,10 @@ from scipy.optimize import brentq
 import numpy
 from copy import copy
 import quantities as pq
-import neo.core
+import neo
 from __builtin__ import classmethod
+from simulation import Setup, RequestRef
+from neurotune.simulation import ExperimentalConditions
 
 
 def _all(vals):
@@ -21,9 +23,15 @@ def _all(vals):
         return bool(vals)
 
 
-class Analysis(object):
+class AnalysedRecordings(object):
 
-    def __init__(self, recordings, simulation_setups):
+    def __init__(self, recordings, simulation_setups=None):
+        if isinstance(recordings, list):
+            block = neo.Block()
+            block.segments.extend(recordings)
+            recordings = block
+        if simulation_setups is None:
+            simulation_setups = self._get_dummy_setups(recordings)
         self.recordings = recordings
         self._simulation_setups = simulation_setups
         self._requests = {}
@@ -54,7 +62,7 @@ class Analysis(object):
                     self._requests[key] = req_signal
         self._objective_key = None
 
-    def get_signal(self, key=None):
+    def get_analysed_signal(self, key=None):
         """
         Returns the analysed _signal that matches the specified key
         """
@@ -75,6 +83,34 @@ class Analysis(object):
         specific_analysis = copy(self)
         specific_analysis._objective_key = (objective_key,)
         return specific_analysis
+
+    @classmethod
+    def _get_dummy_setups(cls, recordings):
+        """
+        Get default simulated setups to allow AnalysedRecordings to be
+        constructed in tests outside of a Simulation object.
+        """
+        conditions = ExperimentalConditions()
+        simulation_setups = []
+        for seg in recordings.segments:
+            record_variables = []
+            request_refs = []
+            rec_time = None
+            for i, sig in enumerate(seg.analogsignals):
+                if rec_time is None:
+                    rec_time = sig.t_stop
+                elif rec_time != sig.t_stop:
+                    raise ValueError("Recording times are not equal ({} and "
+                                     "{})".format(rec_time, sig.t_stop))
+                record_variables.append(str(i))
+                request = RequestRef(None, time_start=0.0,
+                                     time_stop=sig.t_stop)
+                request_refs.append([request])
+            setup = Setup(rec_time, conditions=conditions,
+                          record_variables=record_variables,
+                          var_request_refs=request_refs)
+            simulation_setups.append(setup)
+        return simulation_setups
 
 
 class AnalysedSignal(object):
@@ -151,7 +187,7 @@ class AnalysedSignal(object):
 
     @property
     def times(self):
-        return self._signal.times
+        return self.signal.times
 
     @property
     def sampling_period(self):
@@ -163,11 +199,11 @@ class AnalysedSignal(object):
 
     @property
     def t_start(self):
-        return self._signal.t_start
+        return self.signal.t_start
 
     @property
     def t_stop(self):
-        return self._signal.t_stop
+        return self.signal.t_stop
 
     @property
     def units(self):
@@ -198,10 +234,10 @@ class AnalysedSignal(object):
                               index_buffer=0):
         """
         Find sections of the trace where it crosses the given dvdt threshold
-        until it loops around and crosses the dvdt_return threshold in the positive
-        direction again or alternatively if threshold=='v' when it crosses the
-        dvdt_crossing threshold in the positive direction and crosses the dvdt_return
-        threshold in the negative direction.
+        until it loops around and crosses the dvdt_return threshold in the
+        positive direction again or alternatively if threshold=='v' when it
+        crosses the dvdt_crossing threshold in the positive direction and
+        crosses the dvdt_return threshold in the negative direction.
 
         `threshold`      -- can be either 'dvdt' or 'v', which determines the
                             type of threshold used to classify the spike
@@ -237,7 +273,7 @@ class AnalysedSignal(object):
                                     "for voltage threshold crossing detection"
                                     .format(dvdt_return, dvdt_crossing))
                 start_inds = numpy.where((self._signal[1:] >= volt_crossing) &
-                                         (self._signal[:-1] < volt_crossing))[0]
+                                        (self._signal[:-1] < volt_crossing))[0]  #@IgnorePep8
                 stop_inds = numpy.where((self._signal[1:] < volt_return) &
                                         (self._signal[:-1] >= volt_return))[0]
             # Adjust the indices by 1
@@ -293,7 +329,7 @@ class AnalysedSignal(object):
                 # the points straddling the zero crossing
                 spike_time = times[i] + (times[i + 1] - times[i]) * exact_cross
                 spikes.append(spike_time)
-            spikes = neo.SpikeTrain(spikes, self._t_stop,
+            spikes = neo.SpikeTrain(spikes, self._signal.t_stop,
                                     units=self.times.units)
             self._spikes[args_key] = spikes
             return spikes
@@ -308,7 +344,7 @@ class AnalysedSignal(object):
         except KeyError:
             amplitudes = []
             for start_i, end_i in self._spike_period_indices(
-                                                threshold='dvdt',
+                                                threshold='dvdt',               # @IgnorePep8
                                                 dvdt_crossing=threshold_cross,
                                                 dvdt_return=threshold_return):
                 amplitudes.append(max(self._signal[start_i:end_i]))
@@ -380,7 +416,8 @@ class AnalysedSignal(object):
         spikes = []
         for start_i, stop_i in self._spike_period_indices(
                                   threshold='dvdt', dvdt_crossing=start_thresh,          # @IgnorePep8
-                                  dvdt_return=stop_thresh, index_buffer=index_buffer):
+                                  dvdt_return=stop_thresh,
+                                  index_buffer=index_buffer):
             v_spl, dvdt_spl, s = self._interpolate_v_dvdt(
                                                    self._signal[start_i:stop_i],  # @IgnorePep8
                                                    self.dvdt[start_i:stop_i],
@@ -463,7 +500,7 @@ class AnalysedSignalSlice(AnalysedSignal):
 
     @property
     def signal(self):
-        return self._unsliced[self._start_index:self._stop_index]
+        return self._unsliced._signal[self._start_index:self._stop_index]
 
     @property
     def t_start(self):
@@ -497,3 +534,12 @@ class AnalysedSignalSlice(AnalysedSignal):
     def v_dvdt_splines(self, **kwargs):
         v, dvdt, s = self._unsliced.v_dvdt_splines(**kwargs)
         return (v, dvdt, s[self._start_index:self._stop_index])
+
+if __name__ == '__main__':
+    seg = neo.PickleIO('/Users/tclose/git/neurotune/test/data/analysis/spiking_neuron.pkl').read()
+    recs = AnalysedRecordings(seg)
+    sig = recs.get_analysed_signal()
+    print sig.spikes()
+    print "done"
+    
+

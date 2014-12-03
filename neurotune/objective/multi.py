@@ -29,14 +29,15 @@ class MultiObjective(Objective):
     def __len__(self):
         return len(self.objectives)
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         """
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the
         order the objectives were passed to the __init__ method
         """
         fitnesses = []
-        for obj in self.objectives:
-            fitnesses.append(obj.fitness(analysis.objective_specific(obj)))
+        for objective in self.objectives:
+            specific_recs = recordings.objective_specific(objective)
+            fitnesses.append(objective.fitness(specific_recs))
         return fitnesses
 
     def get_recording_requests(self):
@@ -67,13 +68,14 @@ class WeightedSumObjective(MultiObjective):
         """
         self.weights, self.objectives = zip(*weighted_objectives)
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         """
         Returns a inspyred.ec.emo.Pareto list of the fitness functions in the
         order the objectives were passed to the __init__ method
         """
         weighted_sum = 0.0
-        for weight, obj in zip(self.weights, self.objectives):
+        for weight, objective in zip(self.weights, self.objectives):
+            specific_recs = recordings.objective_specific(objective)
             weighted_sum += (weight *
-                             obj.fitness(analysis.objective_specific(obj)))
+                             objective.fitness(specific_recs))
         return weighted_sum

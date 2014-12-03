@@ -6,10 +6,6 @@ import neo.io
 from .__init__ import Objective
 from ..simulation import RecordingRequest
 
-#step_source = StepCurrentSource([0, injected_current],
-#                                [0.0, time_start])
-#ExperimentalConditions(clamps=clamp)
-
 
 class PassivePropertiesObjective(Objective):
 
@@ -43,8 +39,8 @@ class PassivePropertiesObjective(Objective):
 
 class SumOfSquaresObjective(PassivePropertiesObjective):
 
-    def fitness(self, analysis):
-        signal = analysis.get_signal()
+    def fitness(self, recordings):
+        signal = recordings.get_analysed_signal().signal
         fitness = float(numpy.sum((self.reference_trace - signal) ** 2))
         return fitness
 
@@ -62,8 +58,8 @@ class RCCurveObjective(PassivePropertiesObjective):
     def get_recording_requests(self):
         return {None: self._get_recording_request(self.inject_location)}
 
-    def fitness(self, analysis):
-        signal = analysis.get_signal()
+    def fitness(self, recordings):
+        signal = recordings.get_analysed_signal().signal
         return float(numpy.sum((self.reference - signal) ** 2) /
                      float(self.time_stop - self.time_start))
 
@@ -101,8 +97,8 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
         return dict([(site, self._get_recording_request(site))
                      for site in self.record_sites])
 
-    def fitness(self, analysis):
-        ss_v = numpy.array([analysis.get_signal(s)[-1]
+    def fitness(self, recordings):
+        ss_v = numpy.array([analysis.get_analysed_signal(s).signal[-1]
                             for s in self.record_sites])
         # Get the reference distance function interpolated to the recorded
         # distances

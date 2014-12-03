@@ -11,6 +11,7 @@ from time import time
 from random import Random
 from . import Algorithm, add_factory_to_register, add_option_adder_to_register
 from inspyred import ec
+from inspyred.swarm import PSO
 
 
 class InspyredAlgorithm(Algorithm):
@@ -109,6 +110,7 @@ class InspyredAlgorithm(Algorithm):
     def set_random_seed(self, seed=None):
         if seed is None:
             seed = (long(time() * 256))
+            print("Using random seed: {}".format(seed))
         self._rng.seed(seed)
 
     def set_seeds(self, seeds):
@@ -263,6 +265,10 @@ class SAAlgorithm(InspyredAlgorithm):
                      (default 1)
     """
     _InspyredClass = ec.SA
+
+
+class PSOAlgorithm(InspyredAlgorithm):
+    _InspyredClass = PSO
 
 
 class NSGA2Algorithm(MultiObjectiveInspyredAlgorithm):

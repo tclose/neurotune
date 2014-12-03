@@ -4,7 +4,7 @@ import collections
 import traceback
 import cPickle as pkl
 import neo.io
-from ..analysis import Analysis
+from ..analysis import AnalysedRecordings
 
 
 class EvaluationException(Exception):
@@ -198,7 +198,7 @@ class Tuner(object):
                 if os.path.exists(fpath):
                     os.remove(fpath)
                 self.save_recordings.io(fpath).write(recordings)
-            analysis = Analysis(recordings, self.simulation.setups)
+            analysis = AnalysedRecordings(recordings, self.simulation.setups)
             fitness = self.objective.fitness(analysis)
         except BadCandidateException:
             print ("WARNING! Candidate {} caused a BadCandidateException. "

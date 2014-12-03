@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from abc import ABCMeta  # Metaclass for abstract base classes
 import numpy
 from numpy.linalg import norm
+import scipy.signal
 import neo.io
 from . import Objective
 from ..analysis import AnalysedSignal
@@ -148,12 +149,13 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
     def bin_size(self):
         return self.range / self.num_bins
 
-    def fitness(self, analysis):
-        signal = analysis.get_signal()
-        assert((signal.t_stop - signal.t_start) == (self.reference.t_stop -
-                                                    self.reference.t_start)), \
+    def fitness(self, recordings):
+        analysed_signal = recordings.get_analysed_signal()
+        assert((analysed_signal.t_stop -
+                analysed_signal.t_start) == (self.reference.t_stop -
+                                             self.reference.t_start)), \
                "Attempting to compare traces of different lengths"
-        phase_plane_hist = self._generate_hist(signal)
+        phase_plane_hist = self._generate_hist(analysed_signal)
         # Get the root-mean-square difference between the reference and
         # simulated histograms
         diff = self.ref_hist - phase_plane_hist
@@ -207,12 +209,12 @@ class PhasePlaneHistObjective(PhasePlaneObjective):
                                                   self.dvdt2v_scale,
                                                   self.interp_order)
         else:
-            v, dvdt = trace, trace.dvdt
+            v, dvdt = trace.signal, trace.dvdt
         hist = numpy.histogram2d(v, dvdt, bins=self.num_bins,
                                  range=self.bounds, normed=False)[0]
         if self.kernel is not None:
             # Convolve the histogram with the precalculated Gaussian kernel
-            hist = scipy._signal.convolve2d(hist, self.kernel, mode='same')
+            hist = scipy.signal.convolve2d(hist, self.kernel, mode='same')
         return hist
 
     def plot_hist(self, trace_or_hist=None, min_max=None, diff=False,
@@ -342,7 +344,7 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
             self.reference_loops = [numpy.zeros((2, num_points))]
 #            raise Exception("No loops found in reference _signal")
 
-    def fitness(self, analysis):
+    def fitness(self, recordings):
         """
         Evaluates the fitness of the recordings by comparing all reference and
         recorded loops (spikes or sub-threshold oscillations) and taking the
@@ -351,11 +353,12 @@ class PhasePlanePointwiseObjective(PhasePlaneObjective):
 
         `recordings`  -- a voltage trace [neo.AnalogSignal]
         """
-        signal = analysis.get_signal()
-        recorded_loops = signal.spike_v_dvdt(self.num_points,
-                                             interp_order=self.interp_order,
-                                             start_thresh=self.thresh[0],
-                                             stop_thresh=self.thresh[1])
+        analysed_signal = recordings.get_analysed_signal()
+        recorded_loops = analysed_signal.spike_v_dvdt(
+                                                self.num_points,
+                                                interp_order=self.interp_order,
+                                                start_thresh=self.thresh[0],
+                                                stop_thresh=self.thresh[1])
         # If the recording doesn't contain any loops make a dummy one centred
         # on the "no_spike_reference" point
         if len(recorded_loops) == 0:
