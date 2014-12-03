@@ -44,11 +44,13 @@ class SpikeAmplitudeObjective(Objective):
     def __init__(self, amplitude, time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms):
         super(SpikeAmplitudeObjective, self).__init__(time_start, time_stop)
-        self.amplitude = amplitude
+        self.amplitude = AnalysedSignal(amplitude).spike_amplitude()
 
     def fitness(self, analysis):
-        pass
-
+        signal = analysis.get_signal()
+        amplitude = signal.spike_amplitude()
+        return float((self.amplitude - amplitude) ** 2)        
+#        pass
 
 class SpikeTimesObjective(Objective):
     """
