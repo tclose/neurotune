@@ -11,18 +11,18 @@ from itertools import chain
 from copy import deepcopy
 from lxml import etree
 from nineml.extensions.biophysical_cells import parse as parse_nineml
-from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.arguments import outputpath
-from nineline.cells import (Model, IonChannelModel, AxialResistanceModel,
+from pype9.cells.build import BUILD_MODE_OPTIONS
+from pype9.arguments import outputpath
+from pype9.cells import (Model, IonChannelModel, AxialResistanceModel,
                             IrreducibleMorphologyException,
                             DistributedParameter, DummyNinemlModel)
-from nineline.cells.neuron import NineCellMetaClass
+from pype9.cells.neuron import NineCellMetaClass
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.multi import MultiObjective
 from neurotune.objective.passive import (RCCurveObjective,
                                          SteadyStateVoltagesObjective)
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:

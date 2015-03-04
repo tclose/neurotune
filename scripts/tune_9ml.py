@@ -8,10 +8,10 @@ import os.path
 import shutil
 import math
 import neo
-import nineline.cells
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller
-from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.arguments import outputpath
+import pype9.cells
+from pype9.cells.neuron.base import simulation_controller
+from pype9.cells.code_gen.base import BaseCodeGenerator
+from pype9.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
@@ -21,7 +21,7 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective,
                                        MinCurrentToSpikeObjective)
 from neurotune.algorithm import algorithm_factory, available_algorithms
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:
@@ -41,9 +41,9 @@ parser.add_argument('reference', type=str,
 parser.add_argument('--build', type=str, default='lazy',
                     help="Option to build the NMODL files before "
                          "running (can be one of {})"
-                         .format(BUILD_MODE_OPTIONS))
+                         .format(BaseCodeGenerator.BUILD_MODE_OPTIONS))
 parser.add_argument('--time', type=float, default=2000.0,
-                   help="Recording time")
+                    help="Recording time")
 parser.add_argument('--output', type=outputpath,
                     default=os.path.join(os.environ['HOME'], 'grid.pkl'),
                     help="The path to the output file where the grid will"
@@ -114,7 +114,7 @@ def load_reference(args, reference=None):
     if isinstance(reference, neo.AnalogSignal):
         pass
     elif ((isinstance(reference, str) and reference.endswith('.9ml')) or
-          isinstance(reference, nineline.cells.NineCellMetaClass)):
+          isinstance(reference, pype9.cells.NineCellMetaClass)):
         # Generate the reference trace from the original class
         if isinstance(reference, str) and reference.endswith('.9ml'):
             celltype = NineCellMetaClass(reference, build_mode=args.build)

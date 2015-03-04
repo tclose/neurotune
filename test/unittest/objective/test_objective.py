@@ -21,7 +21,7 @@ import numpy
 import shutil
 import quantities as pq
 import neo
-from nineline.cells.neuron import NineCellMetaClass, simulation_controller
+from pype9.cells.neuron import NineCellMetaClass, simulation_controller
 from neurotune import Parameter, Tuner
 from neurotune.objective.phase_plane import (PhasePlaneHistObjective,
                                              PhasePlanePointwiseObjective)
@@ -29,7 +29,7 @@ from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeTimesObjective,
                                        MinCurrentToSpikeObjective)
 from neurotune.algorithm.grid import GridAlgorithm
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 from neurotune.analysis import AnalysedSignal, AnalysedRecordings
 try:
     from matplotlib import pyplot as plt

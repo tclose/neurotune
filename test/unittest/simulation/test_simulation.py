@@ -8,7 +8,7 @@ from __future__ import division
 
 import os
 import pickle
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 from neurotune.objective.spike import MinCurrentToSpikeObjective
 from neurotune.algorithm import Algorithm
 from neurotune.tuner import Tuner

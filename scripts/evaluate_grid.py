@@ -7,13 +7,13 @@ import argparse
 import sys
 import shutil
 import cPickle as pkl
-from nineline.cells.neuron import NineCellMetaClass
-from nineline.cells.build import BUILD_MODE_OPTIONS
-from nineline.arguments import outputpath
+from pype9.cells.neuron import NineCellMetaClass
+from pype9.cells.build import BUILD_MODE_OPTIONS
+from pype9.arguments import outputpath
 from neurotune import Parameter
 from neurotune.tuner import EvaluationException
 from neurotune.algorithm.grid import GridAlgorithm
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 try:
     from neurotune.tuner.mpi import MPITuner as Tuner
 except ImportError:

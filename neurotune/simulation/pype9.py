@@ -1,10 +1,9 @@
 from __future__ import absolute_import
 import quantities as pq
 import neo.core
-from nineline.cells import DummyNinemlModel
-from nineml.extensions.biophysical_cells import ComponentClass as BiophysNineml
-from nineline.cells.neuron import NineCellMetaClass, \
-                                  simulation_controller as nineline_controller
+# from nineml.extensions.biophysical_cells import ComponentClass as BiophysNineml
+from pype9.cells.neuron import (
+    CellMetaClass, simulation_controller as pype9_controller)
 from . import Simulation
 
 
@@ -19,9 +18,8 @@ class NineLineSimulation(Simulation):
         """
         # Generate the NineLine class from the nineml file and initialise a
         # single cell from it
-        if (isinstance(celltype, BiophysNineml) or isinstance(celltype, str) or
-            isinstance(celltype, DummyNinemlModel)):
-            self.celltype = NineCellMetaClass(celltype, build_mode=build_mode)
+        if (isinstance(celltype, BiophysNineml) or isinstance(celltype, str)):
+            self.celltype = CellMetaClass(celltype, build_mode=build_mode)
         else:
             self.celltype = celltype
         self.default_seg = self.celltype(model=model).source_section.name
@@ -93,13 +91,13 @@ class NineLineSimulation(Simulation):
         if len(self._simulation_setups) != 1:
             self._prepare(setup)
         else:
-            nineline_controller.reset()
+            pype9_controller.reset()
         if candidate is not None:  # Used to generate reference data
             self._set_candidate_params(candidate)
         # Convert requested record time to ms
         record_time = float(pq.Quantity(setup.record_time, units='ms'))
         # Run simulation
-        nineline_controller.run(record_time)
+        pype9_controller.run(record_time)
         # Return neo Segment object with all recordings
         seg = neo.core.Segment()
         recordings = self.cell.get_recording(*zip(*setup.record_variables))

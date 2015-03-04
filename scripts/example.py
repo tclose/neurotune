@@ -6,13 +6,12 @@ from neurotune.objective.multi import MultiObjective
 from neurotune.objective.spike import (SpikeFrequencyObjective,
                                        SpikeAmplitudeObjective)
 
-from neurotune.simulation.nineline import NineLineSimulation
+from neurotune.simulation.pype9 import NineLineSimulation
 
-#try:
-#    from neurotune.tuner.mpi import MPITuner as Tuner
-#except ImportError:
-#    from neurotune.tuner import Tuner
-from neurotune.tuner import Tuner
+try:
+    from neurotune.tuner.mpi import MPITuner as Tuner
+except ImportError:
+    from neurotune.tuner import Tuner
 
 # Parameter(name, units, lbound, ubound, log_scale=False)
 parameters = [Parameter('param1', 'V', -70, -50),
