@@ -348,7 +348,7 @@ class AnalysedSignal(object):
                                                 dvdt_crossing=threshold_cross,
                                                 dvdt_return=threshold_return):
                 amplitudes.append(max(self._signal[start_i:end_i]))
-            amplitudes = numpy.array(amplitudes)
+            amplitudes = numpy.array(amplitudes) * self.units
             self._spike_amplitudes[args_key] = amplitudes
             return amplitudes
 
