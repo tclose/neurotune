@@ -26,11 +26,14 @@ def _all(vals):
 class AnalysedRecordings(object):
 
     def __init__(self, recordings, simulation_setups=None):
+        if isinstance(recordings, neo.Segment):
+            recordings = [recordings]
         if isinstance(recordings, list):
             block = neo.Block()
             block.segments.extend(recordings)
             recordings = block
         if simulation_setups is None:
+            assert len(recordings.segments[0].analogsignals) == 1
             simulation_setups = self._get_dummy_setups(recordings)
         self.recordings = recordings
         self._simulation_setups = simulation_setups
@@ -165,6 +168,10 @@ class AnalysedSignal(object):
         self._spike_amplitudes = {}
         self._spikes = {}
         self._splines = {}
+
+    @property
+    def name(self):
+        return self.signal.name
 
     def smooth(self, order=3, smoothing_factor=None):
         self._signal[:] = UnivariateSpline(self.times, self, k=order,
