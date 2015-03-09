@@ -68,11 +68,7 @@ class SpikeAfterhyperpolarizationObjective(Objective):
 
     def fitness(self, analysis):
         signal = analysis.get_analysed_signal()
-        import matplotlib.pyplot as plt
         ahp = signal.ahp_amplitudes(spike_threshold=self.spike_threshold)
-        print ahp
-        plt.plot(signal.times, signal.signal)
-        plt.show()
         fitness = (ahp - self.ahp) ** 2
         sum_fitness = 0.0 * pq.mV ** 2
         for f in fitness:
