@@ -166,6 +166,8 @@ class AnalysedSignal(object):
         self._dvdt = None
         self._spike_periods = {}
         self._spike_amplitudes = {}
+        self._ahps = {}
+        self._ahp_periods = {}
         self._spikes = {}
         self._splines = {}
 
@@ -186,6 +188,7 @@ class AnalysedSignal(object):
                 _all(self._spike_periods == other._spike_periods) and
                 _all(self._spikes == other._spikes) and
                 _all(self._spike_amplitudes == other._spike_amplitudes) and
+                _all(self._ahp_amplitudes == other._spike_ahps) and
                 _all(self._splines == other._splines))
 
     @property
@@ -315,6 +318,46 @@ class AnalysedSignal(object):
             self._spike_periods[argkey] = periods
             return periods
 
+    def _ahp_period_indices(self,
+                            cross_threshold=-48.0 * pq.mV,
+                            return_threshold=-52.0 * pq.mV):
+        """
+        Find sections of the trace where it crosses below a threshold in order to
+        detect after-spike hyperpolarization periods
+
+        `threshold`      -- voltage threshold used to trigger the AHP detection
+        """
+        try:
+            return self._ahp_periods[threshold]
+        except KeyError:
+            start_inds = numpy.where((self._signal[1:] <= cross_threshold) &
+                                    (self._signal[:-1] > cross_threshold))[0]  #@IgnorePep8
+            stop_inds = numpy.where((self._signal[1:] > return_threshold) &
+                                    (self._signal[:-1] <= return_threshold))[0]
+            # Adjust the indices by 1 to catch the first index where the threshold
+            # is crossed
+            start_inds += 1
+            stop_inds += 1
+            periods = []
+            # Ensure the crossing and return indices form regular
+            # pairs where every crossing has a return that comes
+            # after directly after it (i.e. before another crossing)
+            # and vice-versa
+            for crossing in start_inds:
+                try:
+                    # Get the index of the crossing return (i.e. the next
+                    # stop index)
+                    retrn = stop_inds[numpy.where(stop_inds > crossing)][0]
+                # If the end of the loop is outside the time window
+                except IndexError:
+                    continue
+                # Ensure that two spike periods don't overlap, which can
+                # occasionally occur in spike doublets for dV/dt thresholds
+                if (crossing >= numpy.array(periods)).all():
+                    periods.append((crossing, retrn))
+            self._ahp_periods[threshold] = numpy.array(periods)
+            return periods
+
     def spikes(self, **kwargs):
         # Get unique dictionary key from keyword arguments
         args_key = self._argkey(kwargs)
@@ -339,7 +382,7 @@ class AnalysedSignal(object):
             spikes = neo.SpikeTrain(spikes, self._signal.t_stop,
                                     units=self.times.units)
             self._spikes[args_key] = spikes
-            return spikes
+            return spikes        
 
     def spike_amplitudes(self, threshold_cross=100.0 * pq.mV / pq.ms,
                          threshold_return=-100.0 * pq.mV / pq.ms):
@@ -359,13 +402,23 @@ class AnalysedSignal(object):
             self._spike_amplitudes[args_key] = amplitudes
             return amplitudes
 
+    def ahp_amplitudes(self, **kwargs):
+        ahps = []
+        for start_i, end_i in self._ahp_period_indices(**kwargs):
+            ahps.append(min(self._signal[start_i:end_i]))
+        ahps = numpy.array(ahps) * self.units
+        return ahps
+        
     def spike_periods(self, **kwargs):
         """
-        Returns the times associated with teh spike_period_indices
+        Returns the times associated with the spike_period_indices
         """
         # TODO: Could interpolate to find the exact time of crossings if
         #       required. Probably a bit OTT though
         return self.times[self._spike_period_indices(**kwargs)]
+    
+    def after_spike_hyperpolarization_periods(self, **kwargs):
+        return self.times[self._ahp_period_indices(**kwargs)]
 
     def interspike_intervals(self, **kwargs):
         periods = self.spike_periods(**kwargs)

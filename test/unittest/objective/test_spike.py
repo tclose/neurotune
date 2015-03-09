@@ -39,6 +39,7 @@ soma_analysis = AnalysedRecordings(soma_seg)
 dend_analysis = AnalysedRecordings(dend_seg)
 reference = soma_analysis.get_analysed_signal()
 avg_reference_amp = numpy.average(reference.spike_amplitudes())
+avg_reference_freq = numpy.average(reference.spike_frequency())
 
 
 class TestObjectiveBase(TestCase):
@@ -54,11 +55,14 @@ class TestObjectiveBase(TestCase):
 class TestSpikeFrequencyObjective(TestObjectiveBase):
 
     target_fitnesses = 0.0
+    
+    references = numpy.arange(20, 70, 5) * pq.Hz
 
     def setUp(self):
-        self.objective = SpikeFrequencyObjective(reference.spike_frequency(),
+        self.objectives = [SpikeFrequencyObjective(frequency,
                                                  time_start=reference.t_start,
                                                  time_stop=reference.t_stop)
+                          for frequency in self.references]
 
 
 class TestSpikeTimesObjective(TestObjectiveBase):
@@ -91,7 +95,7 @@ class TestSpikeAmplitudeObjective(TestObjectiveBase):
                                                    time_start=reference.t_start,
                                                    time_stop=reference.t_stop)
                            for amplitude in self.references]
-
+"""
 if __name__ == '__main__':
     test = TestSpikeAmplitudeObjective()
     test.setUp()
@@ -101,4 +105,16 @@ if __name__ == '__main__':
     plt.ylabel('Fitness')
     plt.title("Objective function (avg. amp.={})"
               .format(avg_reference_amp))
+    plt.show()
+"""
+
+if __name__ == '__main__':
+    test = TestSpikeFrequencyObjective()
+    test.setUp()
+    fitnesses = test.test_fitness()
+    plt.plot(test.references, fitnesses)
+    plt.xlabel('Target frequecy (Hz)')
+    plt.ylabel('Fitness')
+    plt.title("Objective function (avg. freq.={})"
+              .format(avg_reference_freq))
     plt.show()
