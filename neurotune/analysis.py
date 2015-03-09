@@ -2,7 +2,7 @@
 """
 Module for mathematical analysis of voltage traces from electrophysiology.
 
-AUTHOR: Mike Vella vellamike@gmail.com
+authors: Thomas G. Close <tclose@oist.jp>
 
 """
 from scipy.interpolate import UnivariateSpline, InterpolatedUnivariateSpline
@@ -318,45 +318,52 @@ class AnalysedSignal(object):
             self._spike_periods[argkey] = periods
             return periods
 
-    def _ahp_period_indices(self,
-                            cross_threshold=-48.0 * pq.mV,
-                            return_threshold=-52.0 * pq.mV):
+    def _ahp_period_indices(self, spike_threshold=50.0 * pq.mV / pq.ms,
+                            threshold=None):
         """
-        Find sections of the trace where it crosses below a threshold in order to
-        detect after-spike hyperpolarization periods
+        Find sections of the trace where it crosses below a threshold in order
+        to detect after-spike hyperpolarization periods
 
         `threshold`      -- voltage threshold used to trigger the AHP detection
         """
         try:
-            return self._ahp_periods[threshold]
+            return self._ahp_periods[(spike_threshold, threshold)]
         except KeyError:
-            start_inds = numpy.where((self._signal[1:] <= cross_threshold) &
-                                    (self._signal[:-1] > cross_threshold))[0]  #@IgnorePep8
-            stop_inds = numpy.where((self._signal[1:] > return_threshold) &
-                                    (self._signal[:-1] <= return_threshold))[0]
-            # Adjust the indices by 1 to catch the first index where the threshold
-            # is crossed
-            start_inds += 1
-            stop_inds += 1
+            spike_inds = numpy.where((self.dvdt[1:] >= spike_threshold) &
+                                     (self.dvdt[:-1] < spike_threshold))[0] + 1
+            if threshold is not None:
+                start_inds = numpy.where((self.signal[1:] <= threshold) &
+                                         (self.signal[:-1] > threshold))[0] + 1
+            stop_inds = numpy.where((self.dvdt[1:] > threshold) &
+                                    (self.dvdt[:-1] <= threshold))[0] + 1
+            # Adjust the indices by 1 to catch the first index where the
+            # threshold is crossed
             periods = []
             # Ensure the crossing and return indices form regular
             # pairs where every crossing has a return that comes
             # after directly after it (i.e. before another crossing)
             # and vice-versa
-            for crossing in start_inds:
+            for i, spike_index in enumerate(spike_inds):
                 try:
-                    # Get the index of the crossing return (i.e. the next
-                    # stop index)
-                    retrn = stop_inds[numpy.where(stop_inds > crossing)][0]
+                    # Get indices of first hyperpolarization after the spike
+                    if threshold is not None:
+                        start_index = start_inds[
+                            numpy.where(start_inds > spike_index)][0]
+                        stop_index = stop_inds[
+                            numpy.where(stop_inds > spike_index)][0]
+                    else:
+                        start_index = spike_index
+                        stop_index = spike_inds[i + 1]
                 # If the end of the loop is outside the time window
                 except IndexError:
                     continue
                 # Ensure that two spike periods don't overlap, which can
                 # occasionally occur in spike doublets for dV/dt thresholds
-                if (crossing >= numpy.array(periods)).all():
-                    periods.append((crossing, retrn))
-            self._ahp_periods[threshold] = numpy.array(periods)
-            return periods
+                if (start_index >= numpy.array(periods)).all():
+                    periods.append((start_index, stop_index))
+            self._ahp_periods[(spike_threshold,
+                               threshold)] = numpy.array(periods)
+            return self._ahp_periods[(spike_threshold, threshold)]
 
     def spikes(self, **kwargs):
         # Get unique dictionary key from keyword arguments
@@ -382,7 +389,7 @@ class AnalysedSignal(object):
             spikes = neo.SpikeTrain(spikes, self._signal.t_stop,
                                     units=self.times.units)
             self._spikes[args_key] = spikes
-            return spikes        
+            return spikes
 
     def spike_amplitudes(self, threshold_cross=100.0 * pq.mV / pq.ms,
                          threshold_return=-100.0 * pq.mV / pq.ms):
@@ -408,7 +415,7 @@ class AnalysedSignal(object):
             ahps.append(min(self._signal[start_i:end_i]))
         ahps = numpy.array(ahps) * self.units
         return ahps
-        
+
     def spike_periods(self, **kwargs):
         """
         Returns the times associated with the spike_period_indices
@@ -416,7 +423,7 @@ class AnalysedSignal(object):
         # TODO: Could interpolate to find the exact time of crossings if
         #       required. Probably a bit OTT though
         return self.times[self._spike_period_indices(**kwargs)]
-    
+
     def after_spike_hyperpolarization_periods(self, **kwargs):
         return self.times[self._ahp_period_indices(**kwargs)]
 
@@ -596,10 +603,9 @@ class AnalysedSignalSlice(AnalysedSignal):
         return (v, dvdt, s[self._start_index:self._stop_index])
 
 if __name__ == '__main__':
-    seg = neo.PickleIO('/Users/tclose/git/neurotune/test/data/analysis/spiking_neuron.pkl').read()
+    seg = neo.PickleIO('/Users/tclose/git/neurotune/test/data/analysis/'
+                       'spiking_neuron.pkl').read()
     recs = AnalysedRecordings(seg)
     sig = recs.get_analysed_signal()
     print sig.spikes()
     print "done"
-    
-

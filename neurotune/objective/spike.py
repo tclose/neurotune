@@ -50,38 +50,36 @@ class SpikeAmplitudeObjective(Objective):
         signal = analysis.get_analysed_signal()
         amplitude = signal.spike_amplitudes()
         fitness = (amplitude - self.amplitude) ** 2
-#        return fitness
-        sum_fitness = 0.0*pq.mV**2
-        for x in fitness:
-            sum_fitness += x
-#         sqrt_fitness = numpy.sqrt(sum_fitness)
-#         return sqrt_fitness
+        sum_fitness = 0.0 * pq.mV ** 2
+        for f in fitness:
+            sum_fitness += f
         return sum_fitness
-    
+
+
 class SpikeAfterhyperpolarizationObjective(Objective):
 
-    def __init__(self, ahp, threshold=-50 * pq.mV, time_start=500.0 * pq.ms,
+    def __init__(self, ahp, spike_threshold=-50 * pq.mV / pq.ms,
+                 time_start=500.0 * pq.ms,
                  time_stop=2000.0 * pq.ms):
-        super(SpikeAfterhyperpolarizationObjective, self).__init__(time_start, time_stop)
+        super(SpikeAfterhyperpolarizationObjective, self).__init__(time_start,
+                                                                   time_stop)
         self.ahp = ahp
-        self.threshold = threshold
+        self.spike_threshold = spike_threshold
 
     def fitness(self, analysis):
         signal = analysis.get_analysed_signal()
         import matplotlib.pyplot as plt
+        ahp = signal.ahp_amplitudes(spike_threshold=self.spike_threshold)
+        print ahp
         plt.plot(signal.times, signal.signal)
         plt.show()
-        ahp = signal.ahp_amplitudes(threshold=self.threshold)
-        print ahp
         fitness = (ahp - self.ahp) ** 2
-#        return fitness
-        sum_fitness = 0.0*pq.mV**2
-        for x in fitness:
-            sum_fitness += x
-#         sqrt_fitness = numpy.sqrt(sum_fitness)
-#         return sqrt_fitness
+        sum_fitness = 0.0 * pq.mV ** 2
+        for f in fitness:
+            sum_fitness += f
         return sum_fitness
-    
+
+
 class SpikeTimesObjective(Objective):
     """
     The sum of squared time differences between all simulated spikes and the
