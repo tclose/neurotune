@@ -105,3 +105,22 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
         ref_ss_v = self.ss_poly_fit(self.rec_inject_dists)
         return float(numpy.sum((ref_ss_v - ss_v) ** 2) /
                      len(self.rec_inject_dists))
+
+
+class PeakSagObjective(PassivePropertiesObjective):
+
+    def __init__(self, reference, **kwargs):
+        """
+        `reference`        -- either an Analog signal or the location of a file
+                              in Neo format containing a single AnalogSignal
+        """
+        super(RCCurveObjective, self).__init__(**kwargs)
+        self._set_reference(reference)
+
+    def get_recording_requests(self):
+        return {None: self._get_recording_request(self.inject_location)}
+
+    def fitness(self, recordings):
+        signal = recordings.get_analysed_signal().signal
+        return float(numpy.sum((self.reference - signal) ** 2) /
+                     float(self.time_stop - self.time_start))
