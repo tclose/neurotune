@@ -98,7 +98,7 @@ class SteadyStateVoltagesObjective(PassivePropertiesObjective):
                      for site in self.record_sites])
 
     def fitness(self, recordings):
-        ss_v = numpy.array([analysis.get_analysed_signal(s).signal[-1]
+        ss_v = numpy.array([recordings.get_analysed_signal(s).signal[-1]
                             for s in self.record_sites])
         # Get the reference distance function interpolated to the recorded
         # distances
