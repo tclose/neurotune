@@ -107,7 +107,6 @@ class MPITuner(Tuner):
         # number of slave processes another evaluation is performed on the
         # master
         until_master_eval = self.num_processes - 1
-        print "110: evaluating"
         while remaining_evaluations:
             # If there are remaining candidates and free processes then
             # distribute the candidates to the processes
@@ -122,7 +121,7 @@ class MPITuner(Tuner):
                 # master node and if it equals the number of processes evaluate
                 # another candidate on the master node
                 if (self.evaluate_on_master and until_master_eval == 0 and
-                    candidate_jobs):
+                        candidate_jobs):
                     jobID, candidate = candidate_jobs.pop()
                     if self.mpi_verbose:
                         print ("Evaluating jobID: {}, candidate: {} on Process"
